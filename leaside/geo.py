@@ -14,7 +14,7 @@ class Areas:
 
     @classmethod
     def load(cls, path: Path | str = DEFAULT_AREAS) -> "Areas":
-        data = json.loads(Path(path).read_text())
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
         return cls(data["features"])
 
     def match_point(self, lat: float | None, lon: float | None) -> str | None:

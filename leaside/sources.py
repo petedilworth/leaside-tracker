@@ -59,7 +59,7 @@ class Config:
 
 
 def load(path: Path | str = DEFAULT_CONFIG) -> Config:
-    raw = yaml.safe_load(Path(path).read_text())
+    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     d = raw.get("defaults", {})
     known = {f for f in Source.__dataclass_fields__ if f != "extra"}
     sources = []

@@ -15,17 +15,43 @@ def catalogue_entries(text: str) -> list[dict]:
     return data.get("dataset", []) if isinstance(data, dict) else []
 
 
-def find_layer(entries: list[dict], match: str) -> str | None:
-    """Return the first FeatureServer/MapServer URL whose title contains `match`."""
-    needle = match.lower()
-    for ds in entries:
-        if needle not in (ds.get("title") or "").lower():
-            continue
-        for dist in ds.get("distribution", []):
-            url = dist.get("accessURL") or dist.get("downloadURL") or ""
-            if any(h in url for h in FEATURE_HINTS):
+def _layer_url(ds: dict) -> str | None:
+    for dist in ds.get("distribution", []):
+        url = dist.get("accessURL") or dist.get("downloadURL") or ""
+        if any(h in url for h in FEATURE_HINTS):
+            return url
+    return None
+
+
+def find_layer(entries: list[dict], match) -> str | None:
+    """Find a queryable layer by title.
+
+    `match` may be one phrase or several. Publishers rename datasets, so an exact
+    substring is tried first and then a looser all-words-present match. "Major Crime
+    Indicators" has appeared as "MCI", "Major Crime Indicators Open Data" and
+    "Major_Crime_Indicators_Open_Data" at different times.
+    """
+    candidates = [match] if isinstance(match, str) else list(match)
+    titled = [(ds, (ds.get("title") or "").lower()) for ds in entries]
+
+    for phrase in candidates:
+        needle = phrase.lower().strip()
+        for ds, title in titled:
+            if needle in title and (url := _layer_url(ds)):
+                return url
+
+    for phrase in candidates:
+        words = [w for w in phrase.lower().replace("_", " ").split() if w]
+        for ds, title in titled:
+            normalised = title.replace("_", " ")
+            if all(w in normalised for w in words) and (url := _layer_url(ds)):
                 return url
     return None
+
+
+def queryable_titles(entries: list[dict]) -> list[str]:
+    """Titles of every dataset we could actually query. For when discovery fails."""
+    return sorted(ds.get("title", "untitled") for ds in entries if _layer_url(ds))
 
 
 def fetch_catalogue(source, http, areas) -> tuple[list[dict], int]:

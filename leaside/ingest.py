@@ -1,6 +1,8 @@
 """Pull every runnable source into SQLite."""
 from __future__ import annotations
 
+from pathlib import Path
+
 from . import dates, db, geo, http, sources
 from .fetchers import REGISTRY, arcgis
 
@@ -55,7 +57,18 @@ def _discover(src, cfg, fetcher, cache) -> str:
         cache[parent.id] = arcgis.catalogue_entries(resp.text)
     url = arcgis.find_layer(cache[parent.id], src.discover_match)
     if not url:
+        listing = Path(f"config/{parent.id}-catalogue.md")
+        titles = arcgis.queryable_titles(cache[parent.id])
+        listing.write_text(
+            f"# Datasets published by {parent.name}\n\n"
+            f"{len(titles)} of them can be queried directly. Send this file to Claude "
+            f"when a layer cannot be found.\n\n"
+            + "\n".join(f"- {t}" for t in titles)
+            + "\n",
+            encoding="utf-8",
+        )
         raise RuntimeError(
-            f"{src.id}: no layer in {parent.id} matching '{src.discover_match}'"
+            f"no layer matching {src.discover_match!r}. "
+            f"The {len(titles)} available names are listed in {listing}"
         )
     return url

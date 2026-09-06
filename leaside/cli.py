@@ -30,10 +30,11 @@ def main(argv=None) -> int:
     elif args.cmd == "status":
         conn = db.connect()
         for row in conn.execute(
-            "SELECT source_id, COUNT(*) n, MAX(published_at) latest"
+            "SELECT source_id, COUNT(*) n, MIN(published_at) oldest, MAX(published_at) latest"
             " FROM items GROUP BY source_id ORDER BY n DESC"
         ):
-            print(f"{row['n']:>6}  {row['source_id']:<32} latest {row['latest']}")
+            span = f"{str(row['oldest'])[:10]} to {str(row['latest'])[:10]}"
+            print(f"{row['n']:>6}  {row['source_id']:<32} {span}")
     return 0
 
 

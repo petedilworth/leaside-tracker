@@ -19,10 +19,10 @@ def run(db_path=db.DEFAULT_DB) -> int:
     conn = db.connect(db_path)
     items: list[dict] = []
 
-    items += rss_feed.parse((FIX / "ra_feed.xml").read_text(), cfg.by_id("ra_leaside"))
-    items += notices.parse((FIX / "notices.json").read_text(), cfg.by_id("city_public_notices"))
+    items += rss_feed.parse((FIX / "ra_feed.xml").read_text(encoding="utf-8"), cfg.by_id("ra_leaside"))
+    items += notices.parse((FIX / "notices.json").read_text(encoding="utf-8"), cfg.by_id("city_public_notices"))
     items += arcgis.parse_features(
-        (FIX / "arcgis_features.json").read_text(),
+        (FIX / "arcgis_features.json").read_text(encoding="utf-8"),
         cfg.by_id("tps_major_crime_indicators"),
         areas,
     )

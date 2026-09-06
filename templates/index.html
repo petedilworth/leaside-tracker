@@ -48,16 +48,25 @@
 <p class="sub">Private dashboard &middot; generated {{ generated_at }}</p>
 
 {% if items %}
-<div class="bar">
-  <button class="chip" aria-pressed="true" data-filter="all">All ({{ items|length }})</button>
+<div class="bar" data-group="cat">
+  <button class="chip" aria-pressed="true" data-filter="all">All types ({{ items|length }})</button>
   {% for cat, n in counts.items()|sort %}
   <button class="chip" aria-pressed="false" data-filter="{{ cat }}">{{ cat }} ({{ n }})</button>
   {% endfor %}
 </div>
 
+<div class="bar" data-group="area">
+  <button class="chip" aria-pressed="true" data-filter="all">Everywhere</button>
+  {% for key, n in area_counts.items()|sort %}
+  <button class="chip" aria-pressed="false" data-filter="{{ key }}">{{ area_names[key] }} ({{ n }})</button>
+  {% endfor %}
+</div>
+
+<p class="sub" id="shown"></p>
+
 <ul class="items">
 {% for it in items %}
-  <li class="item" data-cat="{{ it.category }}">
+  <li class="item" data-cat="{{ it.category }}" data-area="{{ it.area or 'none' }}">
     {% if it.url %}<a href="{{ it.url }}" rel="noopener">{{ it.title }}</a>
     {% else %}<span style="font-weight:600">{{ it.title }}</span>{% endif %}
     <div class="meta">
@@ -108,14 +117,33 @@
 
 </div>
 <script>
-  const chips = document.querySelectorAll('.chip');
-  chips.forEach(c => c.addEventListener('click', () => {
-    chips.forEach(o => o.setAttribute('aria-pressed', String(o === c)));
-    const f = c.dataset.filter;
-    document.querySelectorAll('li.item').forEach(li => {
-      li.hidden = !(f === 'all' || li.dataset.cat === f);
+  const picked = { cat: 'all', area: 'all' };
+  const items = document.querySelectorAll('li.item');
+  const shown = document.getElementById('shown');
+
+  function apply() {
+    let n = 0;
+    items.forEach(li => {
+      const hit = (picked.cat === 'all' || li.dataset.cat === picked.cat)
+               && (picked.area === 'all' || li.dataset.area === picked.area);
+      li.hidden = !hit;
+      if (hit) n++;
     });
-  }));
+    if (shown) shown.textContent = n + ' of ' + items.length + ' items shown';
+  }
+
+  document.querySelectorAll('.bar').forEach(bar => {
+    const group = bar.dataset.group;
+    bar.querySelectorAll('.chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        bar.querySelectorAll('.chip').forEach(o =>
+          o.setAttribute('aria-pressed', String(o === chip)));
+        picked[group] = chip.dataset.filter;
+        apply();
+      });
+    });
+  });
+  apply();
 </script>
 </body>
 </html>

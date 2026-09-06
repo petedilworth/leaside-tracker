@@ -32,7 +32,20 @@ def collect(conn, areas, limit=400) -> dict:
             " FROM fetch_log GROUP BY source_id ORDER BY source_id"
         ).fetchall()
     ]
-    return {"items": items, "counts": counts, "fetches": fetches}
+    area_counts = dict(
+        conn.execute(
+            "SELECT COALESCE(area, 'none'), COUNT(*) FROM items"
+            " WHERE category != 'registry' GROUP BY COALESCE(area, 'none')"
+        ).fetchall()
+    )
+    area_names = {k: areas.name(None if k == "none" else k) for k in area_counts}
+    return {
+        "items": items,
+        "counts": counts,
+        "area_counts": area_counts,
+        "area_names": area_names,
+        "fetches": fetches,
+    }
 
 
 def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml") -> Path:
@@ -48,5 +61,5 @@ def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml") -> Path:
     data["generated_at"] = db.utcnow()
     OUT.mkdir(exist_ok=True)
     target = OUT / "index.html"
-    target.write_text(env.get_template("index.html").render(**data))
+    target.write_text(env.get_template("index.html").render(**data), encoding="utf-8")
     return target

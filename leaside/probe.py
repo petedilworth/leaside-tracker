@@ -123,5 +123,5 @@ def write_report(cfg, results) -> None:
         "before assuming it is dead. A `403` means the publisher refuses crawlers; find a",
         "sanctioned route such as an email subscription rather than disguising the client.",
     ]
-    REPORT.write_text("\n".join(lines) + "\n")
+    REPORT.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"\nWrote {REPORT}")

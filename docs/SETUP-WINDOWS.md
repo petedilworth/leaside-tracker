@@ -108,7 +108,8 @@ one news source, and the "probe verdict" column tells you the truth about it:
 | `feed` | Working. Real news feed found. | Nothing. It is already collecting. |
 | `json` | Working. Real data feed found. | Nothing. |
 | `html` | The website is there but has no feed. | Tell Claude. Someone has to write a scraper for it. |
-| `error` or `dead` | The address is wrong or the site is gone. | Tell Claude the source name. |
+| `error` | Timed out. Could be a slow site or a wrong address. | Tell Claude the source name. |
+| `dead` | HTTP 403 means the site refuses robots. HTTP 404 means the address is wrong. | Tell Claude. A 403 is usually final. |
 | `no-url` | Deliberately left out, e.g. Facebook. | Nothing. Explained in the notes. |
 
 **Send me that file.** Copy the contents into a message and I will fix every
@@ -158,3 +159,25 @@ leaside-tracker folder, type:
 Then open `site\index.html`. Every fake item is labelled `[demo]` so you will
 never confuse it with real news. To clear them out later, delete the file
 `data\leaside.db` and run the launcher again.
+
+---
+
+## When something goes wrong
+
+The black window will print a wall of text ending in words like `Error` or
+`Traceback`. Nothing is broken and nothing is lost. Everything already collected
+is saved in the `data` folder.
+
+1. Click inside the black window.
+2. Press **Ctrl+A** to select everything, then **Ctrl+C** to copy.
+3. Paste it to Claude.
+
+That text names the exact file and line that failed, which is usually enough to
+fix it in one go. Do not try to read it yourself.
+
+### A note about Anaconda
+
+If you have Anaconda installed, Python may come from there instead of from
+python.org. That is fine and it works. It only matters because Anaconda's Python
+handles foreign characters differently on Windows, which caused the first crash
+of this project. It is fixed.
