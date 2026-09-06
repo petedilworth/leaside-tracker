@@ -8,6 +8,14 @@ and local media into one SQLite file and renders a static page. No server, no ac
 
 ## Start here
 
+**On Windows, read [docs/SETUP-WINDOWS.md](docs/SETUP-WINDOWS.md) and follow it.**
+It assumes no technical knowledge. Short version: install Python, then
+double-click `run-windows.bat`.
+
+On a Mac, double-click `run-mac.command`.
+
+Under the hood, all either script does is:
+
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
@@ -37,6 +45,8 @@ To see the site render without any network:
 | `docs/SOURCE-INVENTORY.md` | What data exists, what it costs, what is blocked |
 | `docs/ROADMAP.md` | Phased plan and five more things worth tracking |
 | `tests/` | Parser tests against fixtures, no network |
+| `run-windows.bat` | Double-click launcher for Windows |
+| `run-mac.command` | Double-click launcher for macOS |
 
 ## Rules this project follows
 
