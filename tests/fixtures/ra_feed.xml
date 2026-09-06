@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+<title>Leaside Residents Association</title>
+<item>
+  <title>September general meeting agenda posted</title>
+  <link>https://example.invalid/sept-agenda</link>
+  <guid>https://example.invalid/sept-agenda</guid>
+  <pubDate>Wed, 03 Sep 2025 14:00:00 +0000</pubDate>
+  <description>Agenda for the meeting at Trace Manes, including a Bayview Avenue update.</description>
+</item>
+<item>
+  <title>Committee of Adjustment application on Millwood Rd</title>
+  <link>https://example.invalid/coa-millwood</link>
+  <guid>https://example.invalid/coa-millwood</guid>
+  <pubDate>Mon, 25 Aug 2025 09:30:00 +0000</pubDate>
+  <description>Minor variance sought for a rear addition.</description>
+</item>
+</channel></rss>

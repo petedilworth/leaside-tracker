@@ -1,0 +1,8 @@
+{"features":[
+ {"attributes":{"EVENT_UNIQUE_ID":"GO-1","MCI_CATEGORY":"Break and Enter",
+   "OCC_DATE":1725235200000,"NEIGHBOURHOOD_158":"Leaside-Bennington"},
+  "geometry":{"x":-79.3650,"y":43.7050}},
+ {"attributes":{"EVENT_UNIQUE_ID":"GO-2","MCI_CATEGORY":"Assault",
+   "OCC_DATE":1725235200000,"NEIGHBOURHOOD_158":"Downtown"},
+  "geometry":{"x":-79.3800,"y":43.6480}}
+]}

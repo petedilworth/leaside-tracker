@@ -1,0 +1,7 @@
+{"dataset":[
+ {"title":"Major Crime Indicators Open Data","identifier":"mci-1",
+  "landingPage":"https://example.invalid/mci",
+  "distribution":[{"accessURL":"https://services.example.invalid/arcgis/rest/services/MCI/FeatureServer/0"}]},
+ {"title":"Police Budget","identifier":"bud-1","distribution":[
+   {"downloadURL":"https://example.invalid/budget.csv"}]}
+]}
