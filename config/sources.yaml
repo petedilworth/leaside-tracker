@@ -1,13 +1,13 @@
 # Leaside Tracker source registry.
 #
 # status values:
-#   documented  publisher documents this endpoint or feed; NOT yet verified from this machine
-#   guess       conventional URL for the platform (e.g. WordPress /feed/); must be probed
-#   manual      no machine-readable feed exists; needs a human step or a bespoke scraper
+#   verified    probed successfully from a real network on 6 September 2026
+#   documented  publisher documents it, but the probe has not confirmed it works yet
+#   guess       conventional URL for the platform; must be probed
+#   manual      no machine-readable feed; needs a human step or a bespoke scraper
 #   blocked     technically or legally out of reach; kept here so we stop re-litigating it
 #
-# NOTHING in this file is marked "verified". Run `python -m leaside.cli probe` on a machine
-# with normal internet access; the probe rewrites config/probe-report.md with real results.
+# Run `python -m leaside.cli probe` any time. It rewrites config/probe-report.md.
 
 defaults:
   user_agent: "leaside-tracker/0.1 (personal neighbourhood dashboard; contact: pdilworth@gmail.com)"
@@ -23,12 +23,8 @@ sources:
     area: leaside
     kind: rss
     url: https://leasideresidents.ca/feed/
-    fallback_html: https://leasideresidents.ca/
-    status: guess
-    notes: >
-      WordPress site. Monthly public meetings, first Wednesday. Founded 1947 as the
-      Leaside Property Owners' Association, renamed 2019. Check for a minutes/agenda
-      page separate from the news feed.
+    status: verified
+    notes: Probe returned 10 entries. Monthly public meetings, first Wednesday.
 
   - id: ra_north_rosedale
     name: North Rosedale Residents' Association
@@ -37,8 +33,13 @@ sources:
     kind: rss
     url: https://northrosedale.ca/feed/
     fallback_html: https://northrosedale.ca/
+    timeout: 60
+    retries: 3
     status: guess
-    notes: Publishes seasonal newsletters as posts (e.g. "Spring 2026 Newsletter").
+    notes: >
+      Probe hit a connect timeout, which is a slow or intermittent host rather than a
+      wrong address - the site is live and posts seasonal newsletters. Retrying with a
+      60 second timeout and three attempts. If it still fails, the site is blocking us.
 
   - id: ra_south_rosedale
     name: South Rosedale Residents' Association
@@ -46,23 +47,22 @@ sources:
     area: south_rosedale
     kind: rss
     url: https://southrosedale.org/feed/
-    fallback_html: https://southrosedale.org/category/news/
-    status: guess
+    status: verified
     notes: >
-      Has a News category and a Download File Archive (newsletters as PDFs) at
-      https://southrosedale.org/download/ . PDF archive is a phase 2 target.
+      Probe returned 10 entries. Also keeps a newsletter PDF archive at
+      https://southrosedale.org/download/ which is a later target.
 
   - id: ra_moore_park
-    name: Moore Park Residents' Association
+    name: Moore Park Residents Association
     category: ra_news
     area: moore_park
     kind: rss
-    url: https://mpra.ca/feed/
-    fallback_html: https://mpra.ca/
-    status: manual
+    url: https://moorepark.org/feed/
+    fallback_html: https://moorepark.org/
+    status: guess
     notes: >
-      Domain UNCONFIRMED. Listed as a FONTRA member organisation but I could not confirm
-      the URL. Resolve via https://fontra.com/member-associations/ before enabling.
+      Domain corrected. The earlier guess mpra.ca returned 404; the association is at
+      moorepark.org, a WordPress site, confirmed via the FONTRA member list.
 
   - id: ra_lawrence_park
     name: Lawrence Park Ratepayers' Association
@@ -70,33 +70,32 @@ sources:
     area: lawrence_park
     kind: rss
     url: https://lpra.ca/feed/
-    fallback_html: https://lpra.ca/
-    status: guess
-    notes: Serves Lawrence Ave E / Blythwood / Yonge / Bayview. Paid membership site.
+    status: verified
+    notes: Probe returned 8 entries. Covers Lawrence Ave E, Blythwood, Yonge, Bayview.
 
   - id: ra_davisville
     name: South Eglinton Davisville Residents' Association (SEDRA)
     category: ra_news
     area: davisville
     kind: rss
-    url: https://sedra.ca/feed/
-    status: manual
+    url: https://sedratoronto.ca/feed/
+    fallback_html: https://sedratoronto.ca/
+    status: guess
     notes: >
-      "Davisville Village Community Association" as named does not clearly exist. The active
-      body appears to be the South Eglinton Davisville Residents' & Ratepayers Association.
-      Confirm the correct organisation and URL before enabling.
+      Domain corrected. The earlier guess sedra.ca returned 404; the association is at
+      sedratoronto.ca. Covers Yonge to Bayview, Eglinton to Merton. Formerly SERRA.
 
   - id: fontra_directory
     name: Federation of North Toronto Residents' Associations - member list
     category: registry
     area: null
-    kind: html_list
+    kind: manual
     url: https://fontra.com/member-associations/
-    selector: "a"
-    status: documented
+    status: manual
     notes: >
-      Not a news source. Use once to resolve the real URLs of every neighbouring RA,
-      then hard-code them above. FONTRA also takes positions on planning files.
+      Probe found a plain HTML page with no feed. Already served its purpose: it is how
+      the Moore Park and Davisville addresses above were corrected. Revisit only if a new
+      association appears. FONTRA also takes positions on planning files.
 
   # ---------------------------------------------------------------- local media
   - id: media_leaside_life
@@ -105,11 +104,10 @@ sources:
     area: leaside
     kind: rss
     url: https://leasidelife.com/feed/
-    fallback_html: https://leasidelife.com/
-    status: guess
+    status: verified
     notes: >
-      Monthly community paper, WordPress. Highest signal-to-noise source for Leaside.
-      Headlines and links only - do not republish article bodies.
+      Probe returned 10 entries. Monthly community paper and the highest signal source
+      for Leaside. Headlines and links only - never republish article bodies.
 
   # ---------------------------------------------------------------- councillor / city hall
   - id: councillor_ward15
@@ -120,12 +118,9 @@ sources:
     url: https://www.toronto.ca/city-government/council/members-of-council/councillor-ward-15/
     status: manual
     notes: >
-      Ward 15 covers Leaside. The e-newsletter is EMAIL ONLY - subscribe by emailing
-      councillor_chernoslin@toronto.ca. There is no RSS. Recommended ingest path: forward
-      the newsletter to a dedicated mailbox and parse it via IMAP (phase 2).
-      NOTE: you referred to the councillor as "he". The current Ward 15 councillor is
-      Rachel Chernos Lin, elected in a November 2024 by-election after Jaye Robinson's death.
-      Jon Burnside held the predecessor ward. Confirm who you actually mean.
+      Probe found a plain HTML page, as expected. The e-newsletter is EMAIL ONLY, no RSS.
+      Subscribe by emailing councillor_chernoslin@toronto.ca, then ingest it over IMAP.
+      That mailbox is the phase 2 unlock and it also covers the BIA and Metrolinx.
 
   - id: city_public_notices
     name: City of Toronto public notices (City Clerk)
@@ -133,12 +128,15 @@ sources:
     area: null
     kind: json_api
     url: https://secure.toronto.ca/nm/notices.json
+    timeout: 180
+    max_age_days: 120
+    retries: 3
     status: documented
     notes: >
-      BEST SINGLE STARTING SOURCE. Real-time JSON of every notice published by the City
-      Clerk since 2018, including Committee of Adjustment hearing notices, road closures
-      and public meetings. Documented at https://secure.toronto.ca/nm/opendata.do .
-      Filter by address / ward text to get Leaside items.
+      THE source for Committee of Adjustment hearings, road closures and public meetings.
+      Probe timed out reading the body at 30 seconds. That is a slow, large response, not
+      a dead endpoint - it returns every notice published since 2018 in one file.
+      Now allowed 180 seconds and three attempts. Documented at secure.toronto.ca/nm/opendata.do
 
   - id: city_ckan_catalogue
     name: City of Toronto Open Data (CKAN)
@@ -146,11 +144,10 @@ sources:
     area: null
     kind: manual
     url: https://ckan0.cf.opendata.inter.prod-toronto.ca/api/3/action/package_search?q=collision&rows=5
-    status: documented
+    status: verified
     notes: >
-      Standard CKAN 3 API: package_search, package_show, datastore_search. Gateway to
-      KSI collisions, 311 service requests, building permits, neighbourhood boundaries.
-      Most datasets are batch (monthly/annual), not live.
+      Probe returned valid JSON. Standard CKAN 3 API, so package_search, package_show and
+      datastore_search all work. This is the gateway used by city_ksi_collisions below.
 
   - id: tmmis_agenda_items
     name: Toronto council & committee agenda items (TMMIS)
@@ -158,12 +155,12 @@ sources:
     area: null
     kind: manual
     url: https://app.toronto.ca/tmmis/findAgendaItem.do?function=doPrepare
+    timeout: 90
     status: manual
     notes: >
-      No API and no RSS. Server-rendered search form; results are scrapeable HTML.
-      Leaside sits under NORTH YORK Community Council (ward 15), which is what you want
-      to watch, plus full City Council. Meeting Monitor at /tmmis/monitor.do is near
-      real-time during sittings.
+      Probe hit a connect timeout. TMMIS is old and slow and has no API or RSS. Leaside
+      sits under NORTH YORK Community Council, which is the meeting to watch. Scraping it
+      is real work - do it after the email mailbox, not before.
 
   - id: committee_of_adjustment_ny
     name: Committee of Adjustment - North York panel
@@ -173,9 +170,8 @@ sources:
     url: https://www.toronto.ca/city-government/planning-development/committee-of-adjustment/north-york-schedule/
     status: manual
     notes: >
-      Agendas are posted as PDFs on a schedule page; the per-application detail lives in
-      the Application Information Centre. Hearings are hybrid at North York Civic Centre.
-      Cheapest first cut: read CofA hearing notices out of city_public_notices instead.
+      Probe found a plain HTML page listing PDF agendas. Do not build a scraper for this.
+      The same hearings appear in city_public_notices above, in JSON, for free.
 
   - id: aic_applications
     name: Application Information Centre (development + CofA + TLAB applications)
@@ -183,13 +179,12 @@ sources:
     area: null
     kind: manual
     url: https://secure.toronto.ca/AIC/index.do
-    status: manual
+    status: blocked
     notes: >
-      JavaScript front end over an undocumented internal endpoint. No published API.
-      Community has asked the City for one and not got it. Options: capture the XHR the
-      page makes and call it directly (fragile, may breach terms), or use the retired
-      open.toronto.ca "Development Applications" dataset for history only.
-      Email developmentreview@toronto.ca to ask for documented access.
+      Probe returned HTTP 403. The City actively refuses automated requests here. It is a
+      JavaScript front end over an undocumented internal endpoint. Do not work around the
+      403. Ask developmentreview@toronto.ca for documented access, and in the meantime
+      read Committee of Adjustment activity out of city_public_notices.
 
   # ---------------------------------------------------------------- police / crime
   - id: tps_hub_dcat
@@ -199,12 +194,11 @@ sources:
     kind: arcgis_dcat
     url: https://data.tps.ca/api/feed/dcat-us/1.1.json
     alt_url: https://opendata-torontops.opendata.arcgis.com/api/feed/dcat-us/1.1.json
-    status: documented
+    timeout: 90
+    status: verified
     notes: >
-      Standard ArcGIS Hub DCAT-US feed. Discover FeatureServer query URLs from here rather
-      than hard-coding them - TPS has moved domains at least once already.
-      Wanted layers: Major Crime Indicators, Shootings & Firearm Discharges, Homicides,
-      Bicycle Thefts, Traffic Collisions (ASR-T-TBL-001), KSI.
+      Probe returned a large valid JSON catalogue. Layer URLs are discovered from here
+      rather than hard-coded, because TPS has moved this portal between domains before.
 
   - id: tps_major_crime_indicators
     name: TPS Major Crime Indicators
@@ -214,11 +208,13 @@ sources:
     url: null
     discover_from: tps_hub_dcat
     discover_match: "major crime indicators"
+    timeout: 120
+    max_age_days: 90
     status: documented
     notes: >
-      Point data with offence type and date. TPS deliberately OFFSETS each point to the
-      nearest road intersection for privacy - never present it as an exact address.
-      Refresh is periodic (roughly monthly), not live.
+      Has no URL of its own by design - the probe reports "no-url" and the ingest step
+      looks it up in the catalogue above. Points are OFFSET to the nearest intersection
+      for privacy. Never present them as exact addresses. Refresh is roughly monthly.
 
   - id: tps_traffic_collisions
     name: TPS Traffic Collisions (ASR-T-TBL-001)
@@ -228,8 +224,10 @@ sources:
     url: null
     discover_from: tps_hub_dcat
     discover_match: "traffic collisions"
+    timeout: 120
+    max_age_days: 90
     status: documented
-    notes: Aggregate collision records. Pair with the City's KSI dataset for severity.
+    notes: Discovered at ingest time, same as above.
 
   - id: city_ksi_collisions
     name: Motor vehicle collisions involving killed or seriously injured persons (KSI)
@@ -237,23 +235,26 @@ sources:
     area: null
     kind: ckan_dataset
     dataset: motor-vehicle-collisions-involving-killed-or-seriously-injured-persons
+    timeout: 120
+    max_age_days: 365
     status: documented
     notes: >
-      2006-present, maintained by the City with TPS. This is the good collision data.
-      It only covers KSI - fender benders are not in any open dataset.
+      Reached through the CKAN API, which the probe verified. Covers KSI only - ordinary
+      fender benders are in no open dataset anywhere in Toronto.
 
   - id: tps_news_releases
     name: Toronto Police Service news releases
     category: crime
     area: null
-    kind: rss
-    url: https://www.tps.ca/media-centre/news-releases/feed/
-    fallback_html: https://www.tps.ca/media-centre/news-releases/
-    status: guess
+    kind: manual
+    url: https://www.tps.ca/media-centre/news-releases/
+    status: manual
     notes: >
-      TPS states an RSS feed exists on the news releases page; the exact URL is unconfirmed
-      and TPS has publicly said the feed has broken before. Scraping the HTML list is the
-      reliable path. Releases name intersections - geocode those to filter to your area.
+      Probe returned HTTP 403. The site rejects automated requests. We are not going to
+      disguise the crawler to get around that - a 403 is the publisher saying no.
+      Legitimate alternative: TPS runs an email subscription for news releases from
+      tps.ca/media-centre. Subscribe the project mailbox to it and ingest over IMAP,
+      the same path as the councillor newsletter.
 
   # ---------------------------------------------------------------- transit / construction
   - id: metrolinx_notices
@@ -264,9 +265,8 @@ sources:
     url: https://www.metrolinx.com/en/projects-and-programs/eglinton-crosstown-lrt
     status: manual
     notes: >
-      Metrolinx offers per-project email and RSS subscriptions; the feed URL is not
-      documented publicly. Laird and Leaside stations are directly relevant to you.
-      Subscribe by email first, add a feed later if the probe finds one.
+      Probe found a plain HTML page. Metrolinx offers per-project email subscriptions.
+      Laird and Leaside stations are on your doorstep. Another mailbox candidate.
 
   # ---------------------------------------------------------------- known dead ends
   - id: facebook_groups
@@ -278,11 +278,7 @@ sources:
     status: blocked
     notes: >
       NOT FEASIBLE. Meta removed the Groups API endpoints and permissions in April 2024
-      across all API versions. No third-party app can read group feeds. The remaining
-      options are a browser extension acting inside your own logged-in session, or manual
-      reading - both breach Facebook's terms if automated, and neither is something this
-      project should build. Treat Facebook as a human-in-the-loop input: you read it,
-      you paste the item in.
+      across all API versions. Treat Facebook as a human input: you read it, you paste it.
 
   - id: real_estate
     name: Residential real estate listings and sales
@@ -292,6 +288,4 @@ sources:
     url: null
     status: blocked
     notes: >
-      Agreed with you - skip. TRREB/CREA data is licensed to members and is not open.
-      The closest open substitute is MPAC assessment roll data (paid) or land registry
-      (paid, per-search). Building permits are the free proxy for "what is changing".
+      Licensed data, not open. Building permits are the free proxy for what is changing.

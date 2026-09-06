@@ -12,14 +12,18 @@ OUT = Path("site")
 
 def collect(conn, areas, limit=400) -> dict:
     rows = conn.execute(
-        "SELECT * FROM items ORDER BY COALESCE(published_at, first_seen_at) DESC LIMIT ?",
+        "SELECT * FROM items WHERE category != 'registry'"
+        " ORDER BY COALESCE(published_at, first_seen_at) DESC LIMIT ?",
         (limit,),
     ).fetchall()
     items = [dict(r) for r in rows]
     for it in items:
         it["area_name"] = areas.name(it["area"])
     counts = dict(
-        conn.execute("SELECT category, COUNT(*) FROM items GROUP BY category").fetchall()
+        conn.execute(
+            "SELECT category, COUNT(*) FROM items WHERE category != 'registry'"
+            " GROUP BY category"
+        ).fetchall()
     )
     fetches = [
         dict(r)

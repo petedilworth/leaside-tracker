@@ -30,7 +30,7 @@ def find_layer(entries: list[dict], match: str) -> str | None:
 
 def fetch_catalogue(source, http, areas) -> tuple[list[dict], int]:
     """Not a news source. Ingesting it just records what layers exist today."""
-    resp = http.get(source.url)
+    resp = http.get(source.url, timeout=source.timeout, retries=source.retries)
     resp.raise_for_status()
     items = [
         {
@@ -128,6 +128,7 @@ def fetch_features(source, http, areas, layer_url: str | None = None):
     query = url.rstrip("/")
     if not query.endswith("/query"):
         query = f"{query}/0/query" if query.endswith("Server") else f"{query}/query"
-    resp = http.get(query, params=params)
+    resp = http.get(query, params=params, timeout=source.timeout,
+                    retries=source.retries)
     resp.raise_for_status()
     return parse_features(resp.text, source, areas), resp.status_code

@@ -26,6 +26,9 @@ class Source:
     selector: str | None = None
     discover_from: str | None = None
     discover_match: str | None = None
+    timeout: int | None = None
+    retries: int | None = None
+    max_age_days: int | None = None
     notes: str = ""
     extra: dict = field(default_factory=dict)
 

@@ -36,7 +36,7 @@ def parse(html: str, source, base_url: str) -> list[dict]:
 
 def fetch(source, http, areas) -> tuple[list[dict], int]:
     url = source.url or source.fallback_html
-    resp = http.get(url)
+    resp = http.get(url, timeout=source.timeout, retries=source.retries)
     resp.raise_for_status()
     items = parse(resp.text, source, url)
     for it in items:

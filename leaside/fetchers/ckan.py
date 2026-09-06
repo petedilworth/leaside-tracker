@@ -10,8 +10,8 @@ import json
 API = "https://ckan0.cf.opendata.inter.prod-toronto.ca/api/3/action"
 
 
-def package_show(http, dataset: str) -> dict:
-    resp = http.get(f"{API}/package_show", params={"id": dataset})
+def package_show(http, dataset: str, **kw) -> dict:
+    resp = http.get(f"{API}/package_show", params={"id": dataset}, **kw)
     resp.raise_for_status()
     return resp.json()["result"]
 
@@ -20,10 +20,15 @@ def datastore_resources(package: dict) -> list[dict]:
     return [r for r in package.get("resources", []) if r.get("datastore_active")]
 
 
-def datastore_search(http, resource_id: str, limit: int = 1000, offset: int = 0) -> dict:
+def datastore_search(http, resource_id: str, limit: int = 5000, offset: int = 0, **kw) -> dict:
+    """Newest first. Rows are appended in load order, so descending _id is recent-first.
+
+    Without this the first page of a dataset that starts in 2006 is all 2006 data.
+    """
     resp = http.get(
         f"{API}/datastore_search",
-        params={"id": resource_id, "limit": limit, "offset": offset},
+        params={"id": resource_id, "limit": limit, "offset": offset, "sort": "_id desc"},
+        **kw,
     )
     resp.raise_for_status()
     return resp.json()["result"]
@@ -69,12 +74,16 @@ def rows_to_items(rows: list[dict], source, areas) -> list[dict]:
 
 
 def fetch_dataset(source, http, areas) -> tuple[list[dict], int]:
-    package = package_show(http, source.dataset)
+    package = package_show(
+        http, source.dataset, timeout=source.timeout, retries=source.retries
+    )
     resources = datastore_resources(package)
     if not resources:
         raise RuntimeError(
             f"{source.id}: dataset '{source.dataset}' has no datastore-backed resource. "
             "It is file-download only; add a CSV/GeoJSON download step."
         )
-    result = datastore_search(http, resources[0]["id"])
+    result = datastore_search(
+        http, resources[0]["id"], timeout=source.timeout, retries=source.retries
+    )
     return rows_to_items(result.get("records", []), source, areas), 200

@@ -38,7 +38,7 @@ def parse(text: str, source) -> list[dict]:
 
 
 def fetch(source, http, areas) -> tuple[list[dict], int]:
-    resp = http.get(source.url)
+    resp = http.get(source.url, timeout=source.timeout, retries=source.retries)
     resp.raise_for_status()
     items = parse(resp.text, source)
     for it in items:

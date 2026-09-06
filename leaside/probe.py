@@ -21,7 +21,8 @@ def _classify(resp) -> tuple[str, str]:
     if resp.status_code >= 400:
         return "dead", f"HTTP {resp.status_code}"
     if "json" in ctype or body.lstrip()[:1] in "[{":
-        return "json", f"{len(body)} bytes of JSON"
+        size = int(resp.headers.get("content-length") or len(resp.content))
+        return "json", f"{size:,} bytes of JSON"
     if "xml" in ctype or "rss" in ctype or body.lstrip().startswith("<?xml"):
         parsed = feedparser.parse(body)
         n = len(parsed.entries)
@@ -35,7 +36,7 @@ def probe_one(source, fetcher) -> dict:
     url = source.url or source.fallback_html or source.alt_url
     result = {"source_id": source.id, "url": url}
     try:
-        resp = fetcher.get(url)
+        resp = fetcher.get(url, timeout=source.timeout, retries=source.retries)
         verdict, detail = _classify(resp)
         result.update(
             ok=verdict in {"json", "feed", "html"},
@@ -117,8 +118,10 @@ def write_report(cfg, results) -> None:
         ]
     lines += [
         "",
-        "Next: promote every `feed` and `json` verdict to `status: documented` in",
-        "`config/sources.yaml`, and write a scraper or drop every `error` and `dead` one.",
+        "Next: promote every `feed` and `json` verdict to `status: verified` in",
+        "`config/sources.yaml`. For `error`, raise that source's `timeout` and `retries`",
+        "before assuming it is dead. A `403` means the publisher refuses crawlers; find a",
+        "sanctioned route such as an email subscription rather than disguising the client.",
     ]
     REPORT.write_text("\n".join(lines) + "\n")
     print(f"\nWrote {REPORT}")

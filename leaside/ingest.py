@@ -1,7 +1,7 @@
 """Pull every runnable source into SQLite."""
 from __future__ import annotations
 
-from . import db, geo, http, sources
+from . import dates, db, geo, http, sources
 from .fetchers import REGISTRY, arcgis
 
 
@@ -22,6 +22,16 @@ def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> 
                 items, status = arcgis.fetch_features(src, fetcher, areas, layer_url=url)
             else:
                 items, status = REGISTRY[src.kind](src, fetcher, areas)
+            if src.max_age_days:
+                before = len(items)
+                items = [
+                    it for it in items
+                    if dates.within_days(it.get("published_at"), src.max_age_days)
+                ]
+                dropped = before - len(items)
+                if dropped:
+                    print(f"        dropped {dropped} items older than "
+                          f"{src.max_age_days} days")
             new = sum(db.upsert_item(conn, it) for it in items)
             db.log_fetch(conn, src.id, True, status, len(items))
             totals["new"] += new

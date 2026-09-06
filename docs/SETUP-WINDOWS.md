@@ -117,6 +117,23 @@ stay thin, because right now none of those web addresses has ever been tested.
 
 ---
 
+## Getting my fixes onto your PC
+
+When I change something, you need to pull it down before it takes effect.
+Open the black window, then type these two lines:
+
+```
+cd %USERPROFILE%\Desktop\leaside-tracker
+git pull
+```
+
+Then double-click **run-windows.bat** as usual.
+
+If you downloaded the ZIP instead of using Git, download a fresh ZIP and
+replace the folder. Keep your `data` folder if you want to keep old items.
+
+---
+
 ## Running it again later
 
 Just double-click **run-windows.bat** again. It picks up anything new and
