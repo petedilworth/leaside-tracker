@@ -118,6 +118,21 @@ stay thin, because right now none of those web addresses has ever been tested.
 
 ---
 
+## Finding more residents' associations
+
+There is a one-off job that finds associations this project does not know about yet.
+It reads the Federation of North Toronto Residents' Associations member list, follows
+every link on it, and tests each website for a news feed.
+
+1. Double-click **find-associations.bat**.
+2. Wait. It visits about forty websites, politely, one at a time. Several minutes.
+3. It opens `config\associations-report.md` in Notepad when it finishes.
+4. Copy that whole file and send it to Claude.
+
+You only need to do this once, or again in a year when the list changes.
+
+---
+
 ## Getting my fixes onto your PC
 
 When I change something, you need to pull it down before it takes effect.

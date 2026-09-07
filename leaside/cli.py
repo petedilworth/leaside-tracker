@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import db, demo, ingest, probe, render
+from . import db, demo, discover, ingest, probe, render
 
 
 def main(argv=None) -> int:
@@ -15,6 +15,7 @@ def main(argv=None) -> int:
     ing.add_argument("--only", nargs="*", help="limit to these source ids")
     sub.add_parser("build", help="render site/index.html from SQLite")
     sub.add_parser("demo", help="load test fixtures so the site renders offline")
+    sub.add_parser("discover", help="scan directory pages for association feeds")
     sub.add_parser("status", help="show what is in the database")
     args = ap.parse_args(argv)
 
@@ -23,6 +24,8 @@ def main(argv=None) -> int:
     elif args.cmd == "ingest":
         totals = ingest.run(only=set(args.only) if args.only else None)
         print(f"\n{totals['new']} new, {totals['seen']} seen, {totals['failed']} sources failed")
+    elif args.cmd == "discover":
+        print(f"Wrote {discover.run()}")
     elif args.cmd == "demo":
         print(f"Loaded {demo.run()} fixture items")
     elif args.cmd == "build":

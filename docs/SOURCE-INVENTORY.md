@@ -67,3 +67,33 @@ the nearest road intersection. Never render or describe those points as exact ad
 | 2 sources returned HTTP 403 | Marked blocked. No user-agent disguising, no workaround. |
 | Crime data spans a decade | Capped at 90 days so it cannot bury the neighbourhood news |
 | KSI data starts in 2006 | Rows now pulled newest first, capped at 365 days |
+
+## Residents' associations beyond the original six
+
+The Federation of North Toronto Residents' Associations is the directory that matters.
+It represents more than thirty associations covering over 175,000 residents, and its
+member page is how the Moore Park and Davisville addresses were corrected.
+
+`python -m leaside.cli discover` now reads that page, plus the Leaside Residents
+Association resources page, follows every outbound link, and tests each site for a
+feed. It writes `config/associations-report.md` with ready-to-paste YAML.
+
+Known to exist and worth checking in that report, roughly in order of closeness
+to Leaside:
+
+| Association | Note |
+| --- | --- |
+| Bennington Heights Residents' Association | Directly adjacent, effectively part of your area. No website found by search. |
+| Governor's Bridge Ratepayers' Association | Adjacent, between Leaside and Rosedale. No website found by search. |
+| Leaside Towers Tenants Association | `leasidetowerstenants.ca`. Thorncliffe Park, across the Don. Carries the tenant side of local issues, which nothing else here does. |
+| Deer Park Ratepayers' Group | Borders Moore Park to the west. |
+| Sherwood Park Residents' Association | Between Lawrence Park and Blythwood. |
+| Oriole Park Association | `opa32.wildapricot.org`. West of Davisville. |
+| Teddington Park Residents' Association | North of Lawrence Park. |
+| Lytton Park Residents' Organization | `lyttonparkro.ca`. North of Lawrence Park. |
+| Bedford Park Residents' Organization | Further north, marginal for your purposes. |
+| South Armour Heights, Annex, Willowdale, York Mills and about twenty more | FONTRA members, but nowhere near Leaside. Ignore them. |
+
+The honest filter: an association matters to this project when its boundary touches
+one of your seven areas. FONTRA covers most of north Toronto, so the majority of its
+membership is noise for you. Adding all thirty would make the page worse, not better.

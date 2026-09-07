@@ -22,6 +22,8 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m leaside.cli probe     # find out which sources are real
 .venv/bin/python -m leaside.cli ingest    # pull the ones that work
 .venv/bin/python -m leaside.cli build     # write site/index.html
+
+.venv/bin/python -m leaside.cli discover  # scan directory pages for new feeds
 ```
 
 `probe` is not optional. Every endpoint in `config/sources.yaml` is a documented
@@ -46,6 +48,7 @@ To see the site render without any network:
 | `docs/ROADMAP.md` | Phased plan and five more things worth tracking |
 | `tests/` | Parser tests against fixtures, no network |
 | `run-windows.bat` | Double-click launcher for Windows |
+| `find-associations.bat` | One-off scan for residents' association feeds |
 | `run-mac.command` | Double-click launcher for macOS |
 
 ## Rules this project follows

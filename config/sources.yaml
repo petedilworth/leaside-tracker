@@ -14,6 +14,15 @@ defaults:
   timeout: 30
   request_delay_seconds: 2
 
+# Directory pages listing residents' associations. `python -m leaside.cli discover`
+# reads each one, follows every outbound link, tests it for a news feed, and writes
+# config/associations-report.md. This is how the Moore Park and Davisville addresses
+# were corrected, and how any association missing below will be found.
+directories:
+  - https://fontra.com/member-associations/
+  - https://fontra.com/other-organizations/
+  - https://leasideresidents.ca/resources/
+
 sources:
 
   # ---------------------------------------------------------------- residents' associations

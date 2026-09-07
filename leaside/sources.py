@@ -53,6 +53,7 @@ class Config:
     timeout: int
     delay: float
     sources: list[Source]
+    directories: list[str] = field(default_factory=list)
 
     def by_id(self, sid: str) -> Source | None:
         return next((s for s in self.sources if s.id == sid), None)
@@ -72,4 +73,5 @@ def load(path: Path | str = DEFAULT_CONFIG) -> Config:
         timeout=int(d.get("timeout", 30)),
         delay=float(d.get("request_delay_seconds", 2)),
         sources=sources,
+        directories=list(raw.get("directories") or []),
     )

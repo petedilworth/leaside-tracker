@@ -150,3 +150,34 @@ def test_unicode_survives_the_whole_pipeline(tmp_path):
     written = out.read_text(encoding="utf-8")
     assert "→" in written
     assert "café" in written
+
+
+def test_directory_scan_keeps_associations_and_drops_the_furniture():
+    from leaside import discover
+
+    html = (FIX / "directory.html").read_text(encoding="utf-8")
+    links = discover.extract_links(html, "https://fontra.com/member-associations/")
+    hosts = sorted(u.split("//")[1].rstrip("/") for _, u in links)
+
+    assert hosts == ["lyttonparkro.ca", "moorepark.org", "sedratoronto.ca"]
+    assert all("facebook" not in u for _, u in links)          # social links dropped
+    assert all("fontra.com" not in u for _, u in links)        # self links dropped
+    names = [n for n, _ in links]
+    assert "Moore Park Residents Association" in names
+
+
+def test_directory_links_are_reduced_to_site_roots():
+    from leaside import discover
+
+    html = (FIX / "directory.html").read_text(encoding="utf-8")
+    links = dict((u, n) for n, u in discover.extract_links(html, "https://fontra.com/x/"))
+    # The SEDRA link pointed at /about/ but must come back as the site root.
+    assert "https://sedratoronto.ca/" in links
+
+
+def test_slug_is_a_usable_source_id():
+    from leaside import discover
+
+    assert discover.slug("Moore Park Residents Association") == "ra_moore_park_residents_association"
+    assert discover.slug("St. Andrew's Ratepayers' Assn.") == "ra_st_andrew_s_ratepayers_assn"
+    assert len(discover.slug("A" * 200)) <= 43
