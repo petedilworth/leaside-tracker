@@ -97,3 +97,40 @@ to Leaside:
 The honest filter: an association matters to this project when its boundary touches
 one of your seven areas. FONTRA covers most of north Toronto, so the majority of its
 membership is noise for you. Adding all thirty would make the page worse, not better.
+
+## Directory scan results, September 2026
+
+The scan tested 53 websites reached from the FONTRA member pages and the Leaside
+Residents Association resources page. Twenty-three had a working feed. Ten were kept.
+
+### Kept
+
+| Source | Why |
+| --- | --- |
+| The South Bayview Bulldog | Best source found. Its stated coverage is South Bayview including Leaside, Davisville, Bennington Heights and Moore Park, which is almost exactly the project's scope, and it publishes far more often than the monthly paper. |
+| Bayview-Leaside Business Improvement Area | Shop openings, closings and street events on Bayview. Has a feed, contrary to what this document previously said. |
+| Leaside Business Park Association | Covers the commercial lands east of Laird, where the redevelopment pressure is. |
+| Leaside Memorial Community Gardens | Arena and community centre events and closures. |
+| Leaside Baseball Association | Community activity rather than news. Filterable. |
+| Leaside Heritage Preservation Society | Could not connect. Retrying once with a longer timeout because heritage fights on Leaside streets are directly relevant. |
+| Deer Park Residents' Group | Borders Moore Park at Yonge and St Clair. New area added. |
+| Lytton Park Residents' Organization | Borders Lawrence Park to the west. Most active feed found, 16 entries. New area added. |
+| FONTRA | The umbrella group's own planning submissions. No area forced. |
+
+### Rejected, and why
+
+| Source | Reason |
+| --- | --- |
+| ABC Residents' Association | Covers Yorkville and North Midtown, Yonge to Avenue Road, Bloor to the rail corridor. Nowhere near Leaside. |
+| Bedford Park, Bedford-Wanless, Henry Farm, South Armour Heights, York Mills Valley, FoSTRA | FONTRA members in north Toronto, all well outside the seven areas. |
+| Federation of Urban Neighbourhoods | Province-wide advocacy, not neighbourhood news. |
+| Don Valley Community Legal Services | A legal clinic. Useful to residents, but not a news source. |
+| Eglinton Park Residents' Association | Centred on Eglinton and Avenue Road, roughly two and a half kilometres west of Davisville. Close enough to be tempting, far enough to be noise. |
+
+### Had no feed but still matter
+
+Governor's Bridge Ratepayers, Teddington Park, Oriole Park, Summerhill, Annex,
+Greater Yorkville and about fifteen others publish only on the page itself or by
+email. Toronto Public Library's Leaside branch and Toronto Police 53 Division are
+in the same position. For the ones inside the seven areas, the mailing list route in
+docs/MAILING-LISTS.md is the answer, not a scraper.

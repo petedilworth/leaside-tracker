@@ -181,3 +181,45 @@ def test_slug_is_a_usable_source_id():
     assert discover.slug("Moore Park Residents Association") == "ra_moore_park_residents_association"
     assert discover.slug("St. Andrew's Ratepayers' Assn.") == "ra_st_andrew_s_ratepayers_assn"
     assert len(discover.slug("A" * 200)) <= 43
+
+
+def test_a_named_neighbourhood_beats_the_source_default():
+    """The Bulldog covers four neighbourhoods. A Moore Park story must not read Leaside.
+
+    Order is: real coordinates, then a neighbourhood named in the text, then the
+    source's own default.
+    """
+    src = CFG.by_id("media_south_bayview_bulldog")
+    assert src.area == "leaside"
+
+    story = {"title": "Moore Park ravine works begin", "summary": None}
+    assert AREAS.match_text(story["title"], story["summary"]) == "moore_park"
+
+    generic = {"title": "New bakery opens this week", "summary": None}
+    assert AREAS.match_text(generic["title"], generic["summary"]) is None
+    # ingest falls back to src.area for that one
+
+
+def test_fetchers_no_longer_stamp_an_area_themselves():
+    """Area assignment lives in ingest only. Two places doing it caused mislabelling."""
+    import inspect
+
+    from leaside.fetchers import html_list, rss_feed
+
+    for module in (rss_feed, html_list):
+        assert '"area": source.area' not in inspect.getsource(module)
+
+
+def test_new_areas_do_not_overlap_their_neighbours():
+    """Overlapping placeholder boxes would make point matching order-dependent."""
+    def box(key):
+        f = next(f for f in AREAS.features if f["properties"]["key"] == key)
+        ring = f["geometry"]["coordinates"][0]
+        xs = [p[0] for p in ring]
+        ys = [p[1] for p in ring]
+        return min(xs), min(ys), max(xs), max(ys)
+
+    deer, moore = box("deer_park"), box("moore_park")
+    assert deer[2] <= moore[0], "Deer Park must sit west of Moore Park"
+    lytton, lawrence = box("lytton_park"), box("lawrence_park")
+    assert lytton[2] <= lawrence[0], "Lytton Park must sit west of Lawrence Park"

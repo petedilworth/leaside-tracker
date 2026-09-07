@@ -109,6 +109,115 @@ sources:
       the Moore Park and Davisville addresses above were corrected. Revisit only if a new
       association appears. FONTRA also takes positions on planning files.
 
+  - id: ra_deer_park
+    name: Deer Park Residents' Group
+    category: ra_news
+    area: deer_park
+    kind: rss
+    url: https://deerparkresidents.ca/feed/
+    status: verified
+    notes: >
+      Directory scan returned 10 entries. Borders Moore Park on the west at Yonge and
+      St Clair. New area added for it.
+
+  - id: ra_lytton_park
+    name: Lytton Park Residents' Organization
+    category: ra_news
+    area: lytton_park
+    kind: rss
+    url: http://www.lyttonparkro.ca/feed/
+    status: verified
+    notes: >
+      Directory scan returned 16 entries, the most active feed found. Borders Lawrence
+      Park on the west. New area added for it.
+
+  # ---------------------------------------------------------------- local media, part two
+  - id: media_south_bayview_bulldog
+    name: The South Bayview Bulldog
+    category: media
+    area: leaside
+    kind: rss
+    url: https://bayview-news.com/feed/
+    status: verified
+    notes: >
+      THE BEST SOURCE IN THIS PROJECT. A local news service that states its own coverage
+      area as South Bayview including Leaside, Davisville, Bennington Heights and Moore
+      Park - almost exactly your seven areas. Run by Ted Stuebing, a long-time area
+      retailer and journalist. Directory scan returned 12 entries, and it publishes far
+      more often than the monthly paper. Area is set to leaside only as a fallback: a
+      story naming another neighbourhood is matched to that neighbourhood instead.
+
+  # ---------------------------------------------------------------- business and community
+  - id: biz_bayview_leaside_bia
+    name: Bayview-Leaside Business Improvement Area
+    category: business
+    area: leaside
+    kind: rss
+    url: http://bayviewleasidebia.com/feed/
+    status: verified
+    notes: >
+      Directory scan returned 10 entries. I previously told you this was email only.
+      That was wrong - it has a working feed. This is your source for shop openings,
+      closings and street events on Bayview.
+
+  - id: biz_leaside_business_park
+    name: Leaside Business Park Association
+    category: business
+    area: leaside
+    kind: rss
+    url: https://leasidebusinesspark.com/feed/
+    status: verified
+    notes: >
+      Directory scan returned 3 entries. Covers the industrial and commercial lands east
+      of Laird, which is where most large redevelopment pressure in Leaside sits.
+
+  - id: community_leaside_gardens
+    name: Leaside Memorial Community Gardens
+    category: community
+    area: leaside
+    kind: rss
+    url: https://leasidegardens.com/feed/
+    status: verified
+    notes: Directory scan returned 10 entries. The arena and community centre. Events and closures.
+
+  - id: community_leaside_baseball
+    name: Leaside Baseball Association
+    category: community
+    area: leaside
+    kind: rss
+    url: https://www.leasidebaseball.com/feed/
+    status: verified
+    notes: >
+      Directory scan returned 10 entries. Included because you asked for things going on,
+      not only news. Filter the community category off the page if it is noise to you.
+
+  - id: heritage_leaside
+    name: Leaside Heritage Preservation Society
+    category: community
+    area: leaside
+    kind: rss
+    url: https://leasideheritage.ca/feed/
+    timeout: 60
+    retries: 3
+    status: guess
+    notes: >
+      The scan could not connect at all. Given the subject - heritage designation fights
+      on Leaside streets - it is worth one more attempt with a longer timeout before
+      giving up on it.
+
+  # ---------------------------------------------------------------- planning advocacy
+  - id: planning_fontra
+    name: Federation of North Toronto Residents' Associations
+    category: planning
+    area: null
+    kind: rss
+    url: https://fontra.com/feed/
+    status: verified
+    notes: >
+      Directory scan returned 10 entries. The umbrella group publishes submissions on
+      planning and development matters across north Toronto. No area is forced, so an
+      item only appears against a neighbourhood when it names one.
+
   # ---------------------------------------------------------------- local media
   - id: media_leaside_life
     name: Leaside Life

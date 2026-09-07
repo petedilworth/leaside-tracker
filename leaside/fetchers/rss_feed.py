@@ -31,7 +31,6 @@ def parse(text: str, source) -> list[dict]:
                 "summary": summary[:1500],
                 "published_at": _to_iso(e),
                 "external_id": e.get("id") or e.get("link"),
-                "area": source.area,
             }
         )
     return items
@@ -40,8 +39,4 @@ def parse(text: str, source) -> list[dict]:
 def fetch(source, http, areas) -> tuple[list[dict], int]:
     resp = http.get(source.url, timeout=source.timeout, retries=source.retries)
     resp.raise_for_status()
-    items = parse(resp.text, source)
-    for it in items:
-        if not it.get("area"):
-            it["area"] = areas.match_text(it["title"], it.get("summary"))
-    return items, resp.status_code
+    return parse(resp.text, source), resp.status_code

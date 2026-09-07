@@ -24,6 +24,13 @@ def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> 
                 items, status = arcgis.fetch_features(src, fetcher, areas, layer_url=url)
             else:
                 items, status = REGISTRY[src.kind](src, fetcher, areas)
+            for it in items:
+                if it.get("area"):
+                    continue          # set from real coordinates; do not second-guess it
+                it["area"] = (
+                    areas.match_text(it.get("title"), it.get("summary")) or src.area
+                )
+
             if src.max_age_days:
                 before = len(items)
                 items = [

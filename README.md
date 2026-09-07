@@ -46,6 +46,7 @@ To see the site render without any network:
 | `leaside/fetchers/` | One module per source kind: RSS, JSON, ArcGIS, CKAN, HTML |
 | `docs/SOURCE-INVENTORY.md` | What data exists, what it costs, what is blocked |
 | `docs/ROADMAP.md` | Phased plan and five more things worth tracking |
+| `docs/MAILING-LISTS.md` | Which newsletters to join, and why a separate address |
 | `tests/` | Parser tests against fixtures, no network |
 | `run-windows.bat` | Double-click launcher for Windows |
 | `find-associations.bat` | One-off scan for residents' association feeds |
