@@ -157,23 +157,21 @@ rebuilds the page. Once a day is plenty. Once a week is fine.
 
 ---
 
-## If you want to see it working right now
+## If you want to see what a finished page looks like
 
-Before any of the real sources are fixed, you can load fake sample items so you
-can see what the finished page looks like. In the black window, inside the
-leaside-tracker folder, type:
+You can load five fake sample items and see the layout. This is completely
+separate from your real data and cannot mix with it. In the black window, inside
+the leaside-tracker folder, type:
 
 ```
 .venv\Scripts\python.exe -m leaside.cli demo
 ```
 
-```
-.venv\Scripts\python.exe -m leaside.cli build
-```
+Then open `site\demo.html` in the folder. Every fake item is labelled `[demo]`.
+Your real page is `site\index.html` and the demo never touches it.
 
-Then open `site\index.html`. Every fake item is labelled `[demo]` so you will
-never confuse it with real news. To clear them out later, delete the file
-`data\leaside.db` and run the launcher again.
+If you ran an older version of the demo, a few `[demo]` items may have crept into
+your real page. The next normal run removes them automatically and says so.
 
 ---
 

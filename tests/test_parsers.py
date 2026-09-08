@@ -223,3 +223,103 @@ def test_new_areas_do_not_overlap_their_neighbours():
     assert deer[2] <= moore[0], "Deer Park must sit west of Moore Park"
     lytton, lawrence = box("lytton_park"), box("lawrence_park")
     assert lytton[2] <= lawrence[0], "Lytton Park must sit west of Lawrence Park"
+
+
+# ---------------------------------------------------------------- the four review fixes
+
+def _item(**over):
+    base = {"source_id": "ra_leaside", "category": "ra_news", "title": "T",
+            "url": "https://example.invalid/a", "published_at": None}
+    base.update(over)
+    return base
+
+
+def test_fix1_dates_are_stored_in_one_shape_so_sorting_works(tmp_path):
+    """Four publisher date formats must sort by real date, not by first character."""
+    from leaside import db
+
+    conn = db.connect(tmp_path / "t.db")
+    rows = [
+        ("newest", "2026/03/01"),                      # slash form
+        ("middle", "Wed, 03 Sep 2025 14:00:00 +0000"),  # RSS form
+        ("older", "2025-09-02"),                       # plain date
+        ("oldest", 1725235200000),                     # ArcGIS epoch milliseconds
+    ]
+    for title, when in rows:
+        db.upsert_item(conn, _item(title=title, url=f"https://x/{title}", published_at=when))
+    order = [r[0] for r in conn.execute(
+        "SELECT title FROM items ORDER BY published_at DESC").fetchall()]
+    assert order == ["newest", "middle", "older", "oldest"]
+    stored = conn.execute("SELECT published_at FROM items WHERE title='newest'").fetchone()[0]
+    assert stored == "2026-03-01T00:00:00+00:00"
+
+
+def test_fix2_html_in_summaries_becomes_plain_text(tmp_path):
+    from leaside import db
+
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, _item(
+        title="<b>Bold</b> headline",
+        summary='<p>Meeting at <a href="x">Trace Manes</a>.&nbsp;See&amp;hear</p>\n\n<br>',
+    ))
+    row = conn.execute("SELECT title, summary FROM items").fetchone()
+    assert row["title"] == "Bold headline"
+    assert row["summary"] == "Meeting at Trace Manes . See&hear"
+    assert "<" not in row["summary"]
+
+
+def test_fix3_demo_never_touches_the_real_database(tmp_path, monkeypatch):
+    from leaside import db, demo
+
+    real = tmp_path / "real.db"
+    fake = tmp_path / "demo.db"
+    monkeypatch.setattr(db, "DEFAULT_DB", real)
+    monkeypatch.setattr(db, "DEMO_DB", fake)
+    assert demo.run(db_path=fake) > 0
+    assert fake.exists()
+    assert not real.exists(), "demo wrote to the real database"
+
+
+def test_fix3b_ingest_purges_demo_rows_that_got_in_earlier(tmp_path):
+    from leaside import db, geo, sources
+
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, _item(title="[demo] fake thing", url="https://x/demo"))
+    db.upsert_item(conn, _item(title="real thing", url="https://x/real"))
+    counts = db.refresh_all(conn, geo.Areas.load(), sources.load())
+    assert counts["demo_removed"] == 1
+    titles = [r[0] for r in conn.execute("SELECT title FROM items")]
+    assert titles == ["real thing"]
+
+
+def test_fix4_existing_rows_get_relabelled_when_logic_improves(tmp_path):
+    """A row stored under an old, wrong label must be corrected without refetching."""
+    from leaside import db, geo, sources
+
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, _item(title="Moore Park ravine works begin", url="https://x/mp",
+                               area="leaside", summary="<p>old &amp; ugly</p>",
+                               published_at="2025/06/01"))
+    # Simulate the bad old state directly: wrong area, raw html, odd date.
+    conn.execute("UPDATE items SET area='leaside', summary='<p>old &amp; ugly</p>',"
+                 " published_at='2025/06/01'")
+    conn.commit()
+
+    counts = db.refresh_all(conn, geo.Areas.load(), sources.load())
+    assert counts["changed"] == 1
+    row = conn.execute("SELECT area, summary, published_at FROM items").fetchone()
+    assert row["area"] == "moore_park"
+    assert row["summary"] == "old & ugly"
+    assert row["published_at"] == "2025-06-01T00:00:00+00:00"
+
+
+def test_fix4b_upsert_refreshes_derived_fields_but_never_first_seen(tmp_path):
+    from leaside import db
+
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, _item(area="leaside", summary="v1"))
+    first = conn.execute("SELECT first_seen_at FROM items").fetchone()[0]
+    assert db.upsert_item(conn, _item(area="moore_park", summary="v2")) is False
+    row = conn.execute("SELECT first_seen_at, area, summary FROM items").fetchone()
+    assert row["first_seen_at"] == first
+    assert (row["area"], row["summary"]) == ("moore_park", "v2")

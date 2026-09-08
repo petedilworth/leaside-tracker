@@ -27,7 +27,9 @@ def main(argv=None) -> int:
     elif args.cmd == "discover":
         print(f"Wrote {discover.run()}")
     elif args.cmd == "demo":
-        print(f"Loaded {demo.run()} fixture items")
+        n = demo.run()
+        page = render.run(db_path=db.DEMO_DB, out_name="demo.html")
+        print(f"Loaded {n} fixture items into {db.DEMO_DB} and wrote {page}")
     elif args.cmd == "build":
         print(f"Wrote {render.run()}")
     elif args.cmd == "status":

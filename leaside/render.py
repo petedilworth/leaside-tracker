@@ -48,7 +48,8 @@ def collect(conn, areas, limit=400) -> dict:
     }
 
 
-def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml") -> Path:
+def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml",
+        out_name="index.html") -> Path:
     conn = db.connect(db_path)
     areas = geo.Areas.load()
     cfg = sources.load(config_path)
@@ -60,6 +61,6 @@ def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml") -> Path:
     data["areas"] = areas.features
     data["generated_at"] = db.utcnow()
     OUT.mkdir(exist_ok=True)
-    target = OUT / "index.html"
+    target = OUT / out_name
     target.write_text(env.get_template("index.html").render(**data), encoding="utf-8")
     return target

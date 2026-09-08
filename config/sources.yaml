@@ -252,12 +252,13 @@ sources:
     timeout: 180
     max_age_days: 120
     retries: 3
-    status: documented
+    status: verified
     notes: >
-      THE source for Committee of Adjustment hearings, road closures and public meetings.
-      Probe timed out reading the body at 30 seconds. That is a slow, large response, not
-      a dead endpoint - it returns every notice published since 2018 in one file.
-      Now allowed 180 seconds and three attempts. Documented at secure.toronto.ca/nm/opendata.do
+      Works, and it is the single best municipal source. The response is 22.5 MB - every
+      notice published since 2018 in one file - which is why it needed 180 seconds rather
+      than 30. First real run matched 119 notices to your areas. Carries Committee of
+      Adjustment hearings, road closures and public meetings.
+      Documented at secure.toronto.ca/nm/opendata.do
 
   - id: city_ckan_catalogue
     name: City of Toronto Open Data (CKAN)
