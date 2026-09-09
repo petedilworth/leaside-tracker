@@ -6,6 +6,7 @@ The probe replaces guesses with facts.
 """
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import feedparser
@@ -13,6 +14,7 @@ import feedparser
 from . import db, http, sources
 
 REPORT = Path("config/probe-report.md")
+MAX_AGE_DAYS = 7
 
 
 def _classify(resp) -> tuple[str, str]:
@@ -56,7 +58,25 @@ def probe_one(source, fetcher) -> dict:
     return result
 
 
-def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB) -> list[dict]:
+def is_fresh(report: Path = REPORT, max_age_days: int = MAX_AGE_DAYS) -> float | None:
+    """Age in days of the last report if it is recent enough to reuse, else None."""
+    if not report.exists():
+        return None
+    age = (time.time() - report.stat().st_mtime) / 86400
+    return age if age < max_age_days else None
+
+
+def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, force=False) -> list[dict]:
+    """Probe every source. Skipped when the last report is under a week old.
+
+    Sources change rarely and the probe hits every one of them. Running it on every
+    launch was minutes of pointless traffic. `force` re-runs regardless.
+    """
+    age = None if force else is_fresh()
+    if age is not None:
+        print(f"Sources were checked {age:.1f} days ago. Skipping until that is a week old.")
+        print("(To check them now: python -m leaside.cli probe --force)")
+        return []
     cfg = sources.load(config_path)
     fetcher = http.Fetcher(cfg.user_agent, cfg.timeout, cfg.delay)
     conn = db.connect(db_path)

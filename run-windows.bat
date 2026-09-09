@@ -49,7 +49,7 @@ if not exist ".venv\Scripts\python.exe" (
 )
 
 echo ----------------------------------------------
-echo  Step 1 of 4: checking which sources work
+echo  Step 1 of 4: checking which sources work (once a week)
 echo ----------------------------------------------
 .venv\Scripts\python.exe -m leaside.cli probe
 

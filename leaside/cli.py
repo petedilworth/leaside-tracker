@@ -10,7 +10,8 @@ from . import db, demo, discover, doctor, ingest, probe, render
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="leaside")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("probe", help="check every configured URL and write config/probe-report.md")
+    pr = sub.add_parser("probe", help="check every configured URL and write config/probe-report.md")
+    pr.add_argument("--force", action="store_true", help="re-check even if checked this week")
     ing = sub.add_parser("ingest", help="pull every runnable source into SQLite")
     ing.add_argument("--only", nargs="*", help="limit to these source ids")
     sub.add_parser("build", help="render site/index.html from SQLite")
@@ -21,7 +22,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     if args.cmd == "probe":
-        probe.run()
+        probe.run(force=args.force)
     elif args.cmd == "ingest":
         totals = ingest.run(only=set(args.only) if args.only else None)
         print(f"\n{totals['new']} new, {totals['seen']} seen, {totals['failed']} sources failed")

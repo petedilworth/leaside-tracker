@@ -28,9 +28,15 @@ def run(db_path=db.DEMO_DB) -> int:
         areas,
     )
 
+    from datetime import datetime, timedelta, timezone
+
     new = 0
-    for it in items:
+    for n, it in enumerate(items):
         it["title"] = f"[demo] {it['title']}"
+        # spread across the last few days so the day headings and filters have work to do
+        it["published_at"] = (
+            datetime.now(timezone.utc) - timedelta(days=n, hours=3 * n)
+        ).isoformat(timespec="seconds")
         if not it.get("area"):
             it["area"] = areas.match_text(it["title"], it.get("summary"))
         new += db.upsert_item(conn, it)

@@ -42,6 +42,15 @@ CREATE TABLE IF NOT EXISTS fetch_log (
     error       TEXT
 );
 
+CREATE TABLE IF NOT EXISTS runs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at  TEXT NOT NULL,
+    finished_at TEXT,
+    new_items   INTEGER,
+    seen_items  INTEGER,
+    failed      INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS probe_results (
     source_id    TEXT PRIMARY KEY,
     checked_at   TEXT NOT NULL,
@@ -162,6 +171,26 @@ def refresh_all(conn: sqlite3.Connection, areas, cfg) -> dict:
             counts["changed"] += 1
     conn.commit()
     return counts
+
+
+def start_run(conn: sqlite3.Connection) -> int:
+    cur = conn.execute("INSERT INTO runs (started_at) VALUES (?)", (utcnow(),))
+    conn.commit()
+    return cur.lastrowid
+
+
+def finish_run(conn: sqlite3.Connection, run_id: int, totals: dict) -> None:
+    conn.execute(
+        "UPDATE runs SET finished_at=?, new_items=?, seen_items=?, failed=? WHERE id=?",
+        (utcnow(), totals["new"], totals["seen"], totals["failed"], run_id),
+    )
+    conn.commit()
+
+
+def recent_runs(conn: sqlite3.Connection, n: int = 2) -> list[str]:
+    """Start times of the latest runs, newest first."""
+    return [r[0] for r in conn.execute(
+        "SELECT started_at FROM runs ORDER BY started_at DESC LIMIT ?", (n,))]
 
 
 def drop_unseen(conn: sqlite3.Connection, source_id: str, since: str) -> int:

@@ -14,6 +14,7 @@ def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> 
     conn = db.connect(db_path)
     layers = {}
     totals = {"new": 0, "seen": 0, "failed": 0}
+    run_id = db.start_run(conn)
 
     for src in cfg.sources:
         if not src.runnable or (only and src.id not in only):
@@ -67,6 +68,7 @@ def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> 
     if fixed["demo_removed"]:
         print(f"\n  removed {fixed['demo_removed']} leftover demo items")
     print(f"  refreshed {fixed['rows']} stored items, {fixed['changed']} corrected")
+    db.finish_run(conn, run_id, totals)
     return totals
 
 

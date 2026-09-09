@@ -395,3 +395,70 @@ def test_doctor_reports_duplicates_it_is_given(tmp_path):
     assert data["total"] == 2
     assert data["dup_links"][0]["n"] == 2
     assert "duplicate links: **1**" in doctor.render(data)
+
+
+# ---------------------------------------------------------------- the reader page
+
+def _seed_reader_db(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    from leaside import db
+
+    conn = db.connect(tmp_path / "t.db")
+    now = datetime.now(timezone.utc)
+    run1 = db.start_run(conn)
+    db.upsert_item(conn, _item(title="old post", url="https://x/old",
+                               published_at=(now - timedelta(days=200)).isoformat()))
+    db.upsert_item(conn, _item(title="last week", url="https://x/week",
+                               published_at=(now - timedelta(days=7)).isoformat()))
+    db.finish_run(conn, run1, {"new": 2, "seen": 2, "failed": 0})
+    import time; time.sleep(1.1)
+    run2 = db.start_run(conn)
+    db.upsert_item(conn, _item(title="brand new", url="https://x/new",
+                               summary="<b>fresh</b>", published_at=now.isoformat()))
+    db.finish_run(conn, run2, {"new": 1, "seen": 3, "failed": 0})
+    conn.commit()
+    return conn
+
+
+def test_page_shows_a_time_window_not_a_count_cap(tmp_path):
+    from leaside import geo, render, sources
+
+    conn = _seed_reader_db(tmp_path)
+    data = render.collect(conn, geo.Areas.load(), sources.load())
+    titles = [it["title"] for it in data["items"]]
+    assert "old post" not in titles, "200 days old is outside the window"
+    assert titles == ["brand new", "last week"], "newest first"
+
+
+def test_page_knows_what_arrived_in_the_latest_run(tmp_path):
+    from leaside import geo, render, sources
+
+    conn = _seed_reader_db(tmp_path)
+    data = render.collect(conn, geo.Areas.load(), sources.load())
+    assert data["new_this_run"] == 1
+    assert data["latest_run"] > data["previous_run"]
+
+
+def test_page_carries_what_the_browser_needs(tmp_path):
+    from leaside import render
+
+    _seed_reader_db(tmp_path)
+    html = render.run(db_path=tmp_path / "t.db", out_name="t.html").read_text(encoding="utf-8")
+    assert 'data-when="' in html and 'data-seen="' in html and 'data-id="' in html
+    assert 'target="_blank"' in html and 'rel="noopener"' in html
+    assert "Leaside Residents Association" in html, "source name, not source id"
+    assert "fresh" in html and "<b>fresh</b>" not in html, "summary html was stripped"
+    assert "Mark all read" in html
+
+
+def test_probe_is_skipped_when_checked_this_week(tmp_path, monkeypatch, capsys):
+    from leaside import probe
+
+    report = tmp_path / "probe-report.md"
+    report.write_text("recent", encoding="utf-8")
+    monkeypatch.setattr(probe, "REPORT", report)
+    assert probe.run() == []
+    assert "Skipping" in capsys.readouterr().out
+    assert probe.is_fresh(report) is not None
+    assert probe.is_fresh(tmp_path / "missing.md") is None

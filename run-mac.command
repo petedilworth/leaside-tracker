@@ -27,7 +27,7 @@ if [ ! -d ".venv" ]; then
   echo ""
 fi
 
-echo "Step 1 of 4: checking which news sources are working..."
+echo "Step 1 of 4: checking which news sources are working (once a week)..."
 .venv/bin/python -m leaside.cli probe
 
 echo ""

@@ -164,6 +164,22 @@ replace the folder. Keep your `data` folder if you want to keep old items.
 Just double-click **run-windows.bat** again. It picks up anything new and
 rebuilds the page. Once a day is plenty. Once a week is fine.
 
+Runs are quicker now. The source check in step 1 only repeats once a week; on other
+days it says so and moves on.
+
+## Reading the page
+
+The page opens showing only what you have not read. Each item has a green dot. Click
+a headline to open it in a new tab, which also marks it read. Click the tick on the
+right to mark it read without opening it. **Mark all read** clears everything in view.
+
+Your read history lives in your browser, not in the project. Clearing browser data
+or switching browsers starts you fresh. That is a limitation, not a bug, and it is
+the price of the site being a plain file with no account behind it.
+
+Switch **Show** to **Everything** to see read items again. Dates and the day
+headings are in your own time zone.
+
 ---
 
 ## If you want to see what a finished page looks like
