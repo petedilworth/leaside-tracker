@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import db, demo, discover, ingest, probe, render
+from . import db, demo, discover, doctor, ingest, probe, render
 
 
 def main(argv=None) -> int:
@@ -17,6 +17,7 @@ def main(argv=None) -> int:
     sub.add_parser("demo", help="load test fixtures so the site renders offline")
     sub.add_parser("discover", help="scan directory pages for association feeds")
     sub.add_parser("status", help="show what is in the database")
+    sub.add_parser("doctor", help="write config/health-report.md")
     args = ap.parse_args(argv)
 
     if args.cmd == "probe":
@@ -32,6 +33,8 @@ def main(argv=None) -> int:
         print(f"Loaded {n} fixture items into {db.DEMO_DB} and wrote {page}")
     elif args.cmd == "build":
         print(f"Wrote {render.run()}")
+    elif args.cmd == "doctor":
+        print(f"Wrote {doctor.run()}")
     elif args.cmd == "status":
         conn = db.connect()
         for row in conn.execute(

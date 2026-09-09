@@ -27,19 +27,24 @@ if [ ! -d ".venv" ]; then
   echo ""
 fi
 
-echo "Step 1 of 3: checking which news sources are working..."
+echo "Step 1 of 4: checking which news sources are working..."
 .venv/bin/python -m leaside.cli probe
 
 echo ""
-echo "Step 2 of 3: collecting the news..."
+echo "Step 2 of 4: collecting the news..."
 .venv/bin/python -m leaside.cli ingest
 
 echo ""
-echo "Step 3 of 3: building your page..."
+echo "Step 3 of 4: building your page..."
 .venv/bin/python -m leaside.cli build
 
 echo ""
+echo "Step 4 of 4: checking the health of your data..."
+.venv/bin/python -m leaside.cli doctor
+
+echo ""
 echo "Done. Opening your page now."
+echo "To report how the run went, send config/health-report.md"
 open site/index.html
 echo ""
 read -r -p "Press Return to close this window."

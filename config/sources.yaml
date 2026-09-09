@@ -195,15 +195,15 @@ sources:
     name: Leaside Heritage Preservation Society
     category: community
     area: leaside
-    kind: rss
-    url: https://leasideheritage.ca/feed/
-    timeout: 60
-    retries: 3
-    status: guess
+    kind: manual
+    url: https://leasideheritage.ca/
+    status: manual
     notes: >
-      The scan could not connect at all. Given the subject - heritage designation fights
-      on Leaside streets - it is worth one more attempt with a longer timeout before
-      giving up on it.
+      Settled, negatively. The first failure was a connection problem, not a missing
+      feed. With that cleared the site answers and the feed path returns HTTP 404, so
+      no feed exists. The site itself is alive. Route is their mailing list, or a
+      scraper of their news page. Heritage designation fights on Leaside streets are
+      worth having, just not by this route.
 
   # ---------------------------------------------------------------- planning advocacy
   - id: planning_fontra
@@ -317,6 +317,7 @@ sources:
     url: https://data.tps.ca/api/feed/dcat-us/1.1.json
     alt_url: https://opendata-torontops.opendata.arcgis.com/api/feed/dcat-us/1.1.json
     timeout: 90
+    snapshot: true
     status: verified
     notes: >
       Probe returned a large valid JSON catalogue. Layer URLs are discovered from here
@@ -335,6 +336,7 @@ sources:
       - "major crime"
     timeout: 120
     max_age_days: 90
+    snapshot: true
     status: documented
     notes: >
       Has no URL of its own by design - the ingest step looks it up in the catalogue
@@ -356,12 +358,16 @@ sources:
       - "collisions"
     timeout: 120
     max_age_days: 365
-    status: verified
+    snapshot: true
+    status: manual
     notes: >
-      The layer was found and returned 1042 records inside your areas, but every one was
-      older than 90 days, so the cap threw them all away and you saw nothing. Police
-      collision data lags by months. Cap raised to a year, which is the honest window
-      for this dataset.
+      Disabled after two attempts. Raising the cap from 90 days to a year did not help:
+      the layer returned 960 records inside your areas and every one was more than a
+      year old. ASR-T-TBL-001 is an Annual Statistical Report table, a historical
+      summary rather than a current feed. The 71 layer names now listed in
+      config/tps_hub_dcat-catalogue.md will show whether a current collisions layer
+      exists under another name. Until then the City KSI dataset below is the only
+      working collision source.
 
   - id: city_ksi_collisions
     name: Motor vehicle collisions involving killed or seriously injured persons (KSI)
@@ -371,6 +377,7 @@ sources:
     dataset: motor-vehicle-collisions-involving-killed-or-seriously-injured-persons
     timeout: 120
     max_age_days: 365
+    snapshot: true
     status: verified
     notes: >
       First real run brought back 129 records for your areas. Reached through the CKAN

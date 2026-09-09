@@ -29,6 +29,7 @@ class Source:
     timeout: int | None = None
     retries: int | None = None
     max_age_days: int | None = None
+    snapshot: bool = False
     notes: str = ""
     extra: dict = field(default_factory=dict)
 

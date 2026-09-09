@@ -164,6 +164,19 @@ def refresh_all(conn: sqlite3.Connection, areas, cfg) -> dict:
     return counts
 
 
+def drop_unseen(conn: sqlite3.Connection, source_id: str, since: str) -> int:
+    """Remove rows from a snapshot source that were not in the latest snapshot.
+
+    Feeds are a stream and old entries are worth keeping. A dataset is a photograph:
+    if a row is no longer in it, it should not be on the page either. Without this,
+    every run of a dataset whose internal row numbers shift leaves a full duplicate set.
+    """
+    cur = conn.execute(
+        "DELETE FROM items WHERE source_id = ? AND last_seen_at < ?", (source_id, since)
+    )
+    return cur.rowcount
+
+
 def log_fetch(conn, source_id, ok, http_status=None, item_count=0, error=None):
     conn.execute(
         "INSERT INTO fetch_log (source_id, ran_at, ok, http_status, item_count, error)"

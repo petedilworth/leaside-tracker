@@ -18,6 +18,7 @@ def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> 
     for src in cfg.sources:
         if not src.runnable or (only and src.id not in only):
             continue
+        started = db.utcnow()
         try:
             if src.kind == "arcgis_feature":
                 url = src.url or _discover(src, cfg, fetcher, layers)
@@ -46,10 +47,12 @@ def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> 
                 if it.get("published_at") and dates.to_iso(it["published_at"]) is None
             )
             new = sum(db.upsert_item(conn, it) for it in items)
+            removed = db.drop_unseen(conn, src.id, started) if src.snapshot else 0
             db.log_fetch(conn, src.id, True, status, len(items))
             totals["new"] += new
             totals["seen"] += len(items)
-            print(f"  ok    {src.id:<32} {len(items):>5} items, {new:>4} new")
+            tail = f", {removed} stale removed" if removed else ""
+            print(f"  ok    {src.id:<32} {len(items):>5} items, {new:>4} new{tail}")
             if undated:
                 sample = next(it["published_at"] for it in items
                               if dates.to_iso(it.get("published_at")) is None)

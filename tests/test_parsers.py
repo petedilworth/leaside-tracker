@@ -323,3 +323,75 @@ def test_fix4b_upsert_refreshes_derived_fields_but_never_first_seen(tmp_path):
     row = conn.execute("SELECT first_seen_at, area, summary FROM items").fetchone()
     assert row["first_seen_at"] == first
     assert (row["area"], row["summary"]) == ("moore_park", "v2")
+
+
+# ---------------------------------------------------------------- duplicate accumulation
+
+def test_stable_collision_key_survives_a_dataset_reload():
+    """_id is the datastore row number and shifts on reload. ACCNUM does not."""
+    from leaside.fetchers.ckan import _stable_id
+
+    before = {"_id": 41, "ACCNUM": "9912345", "DATE": "2025-06-01", "STREET1": "BAYVIEW AVE"}
+    after = {"_id": 907, "ACCNUM": "9912345", "DATE": "2025-06-01", "STREET1": "BAYVIEW AVE"}
+    assert _stable_id(before) == _stable_id(after)
+
+    # One crash, several people: the City publishes a row each. They collapse to one item.
+    person_a = {"_id": 1, "ACCNUM": "9912345", "INVTYPE": "DRIVER"}
+    person_b = {"_id": 2, "ACCNUM": "9912345", "INVTYPE": "PASSENGER"}
+    assert _stable_id(person_a) == _stable_id(person_b)
+
+    # No collision number: fall back to something reproducible, not the row number.
+    bare = {"_id": 5, "DATE": "2025-06-01", "STREET1": "LAIRD DR", "LATITUDE": "43.70"}
+    assert _stable_id(bare) == _stable_id({**bare, "_id": 999})
+
+
+def test_snapshot_sources_drop_rows_that_left_the_dataset(tmp_path):
+    """A dataset is a photograph. What is not in the latest one is not on the page."""
+    import time
+
+    from leaside import db
+
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, _item(source_id="city_ksi_collisions", title="old crash",
+                               url="https://x/old"))
+    db.upsert_item(conn, _item(source_id="ra_leaside", title="old post", url="https://x/post"))
+    conn.commit()
+
+    time.sleep(1.1)                       # timestamps are second-resolution
+    started = db.utcnow()
+    db.upsert_item(conn, _item(source_id="city_ksi_collisions", title="new crash",
+                               url="https://x/new"))
+    removed = db.drop_unseen(conn, "city_ksi_collisions", started)
+    conn.commit()
+
+    assert removed == 1
+    kept = sorted(r[0] for r in conn.execute("SELECT title FROM items"))
+    assert kept == ["new crash", "old post"], "a feed source must not be touched"
+
+
+def test_only_datasets_are_marked_as_snapshots():
+    """Feeds are streams. Marking one a snapshot would delete your reading history."""
+    snapshots = {s.id for s in CFG.sources if s.snapshot}
+    assert snapshots == {
+        "tps_hub_dcat", "tps_major_crime_indicators",
+        "tps_traffic_collisions", "city_ksi_collisions",
+    }
+    assert not any(s.snapshot for s in CFG.sources if s.kind == "rss")
+
+
+def test_doctor_reports_duplicates_it_is_given(tmp_path):
+    from leaside import db, doctor, geo, sources
+
+    conn = db.connect(tmp_path / "t.db")
+    for i in (1, 2):
+        conn.execute(
+            "INSERT INTO items (id, source_id, category, title, url, published_at,"
+            " first_seen_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?)",
+            (f"row{i}", "city_ksi_collisions", "collision", "Fatal",
+             "https://x/same", "2025-06-01T00:00:00+00:00", "2026-09-01", "2026-09-01"),
+        )
+    conn.commit()
+    data = doctor.gather(conn, geo.Areas.load(), sources.load())
+    assert data["total"] == 2
+    assert data["dup_links"][0]["n"] == 2
+    assert "duplicate links: **1**" in doctor.render(data)

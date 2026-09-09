@@ -94,6 +94,15 @@ Click **More info**, then **Run anyway**.
 
 ## Step 4. Read what happened
 
+The run now ends by writing **`config\health-report.md`** and opening it in Notepad
+behind your browser. That one file is everything Claude needs to know about how the
+run went: what came in, from where, whether anything is duplicated, and what failed.
+
+**When Claude asks how the run went, send that file.** You no longer need to
+screenshot the page or copy the black window.
+
+
+
 Two things are worth looking at after the first run.
 
 **Your page.** It opened in your browser. On the very first run it will look

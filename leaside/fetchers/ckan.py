@@ -44,6 +44,22 @@ def _coords(row: dict):
     return None, None
 
 
+def _stable_id(row: dict) -> str:
+    """A key that survives the City reloading the dataset.
+
+    `_id` is the datastore row number and changes on every reload, so keying on it
+    created a fresh copy of the whole dataset each run. ACCNUM is the collision
+    number and is stable. Keying on it also collapses the several rows the City
+    publishes for one crash - one per person involved - into one item.
+    """
+    for key in ("ACCNUM", "ACCIDENT_NO", "COLLISION_ID"):
+        value = row.get(key)
+        if value not in (None, "", "NULL"):
+            return f"{key}:{value}"
+    parts = [str(row.get(k, "")) for k in ("DATE", "STREET1", "STREET2", "LATITUDE")]
+    return "composite:" + "|".join(parts)
+
+
 def rows_to_items(rows: list[dict], source, areas) -> list[dict]:
     items = []
     for row in rows:
@@ -63,7 +79,7 @@ def rows_to_items(rows: list[dict], source, areas) -> list[dict]:
                 )
                 or None,
                 "published_at": row.get("DATE") or row.get("OCC_DATE"),
-                "external_id": str(row.get("_id") or row.get("ACCNUM")),
+                "external_id": _stable_id(row),
                 "area": area,
                 "lat": lat,
                 "lon": lon,

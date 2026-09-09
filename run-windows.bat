@@ -49,28 +49,39 @@ if not exist ".venv\Scripts\python.exe" (
 )
 
 echo ----------------------------------------------
-echo  Step 1 of 3: checking which sources work
+echo  Step 1 of 4: checking which sources work
 echo ----------------------------------------------
 .venv\Scripts\python.exe -m leaside.cli probe
 
 echo.
 echo ----------------------------------------------
-echo  Step 2 of 3: collecting the news
+echo  Step 2 of 4: collecting the news
 echo ----------------------------------------------
 .venv\Scripts\python.exe -m leaside.cli ingest
 
 echo.
 echo ----------------------------------------------
-echo  Step 3 of 3: building your page
+echo  Step 3 of 4: building your page
 echo ----------------------------------------------
 .venv\Scripts\python.exe -m leaside.cli build
 if errorlevel 1 goto failed
 
 echo.
+echo ----------------------------------------------
+echo  Step 4 of 4: checking the health of your data
+echo ----------------------------------------------
+.venv\Scripts\python.exe -m leaside.cli doctor
+if errorlevel 1 goto failed
+
+echo.
 echo  Done. Opening your page in your web browser now.
-echo  The report on which sources work is in:  config\probe-report.md
+echo.
+echo  If Claude asks how the run went, send this one file:
+echo      config\health-report.md
+echo  It is opening in Notepad behind your browser.
 echo.
 start "" "site\index.html"
+start "" notepad "config\health-report.md"
 pause
 exit /b 0
 
