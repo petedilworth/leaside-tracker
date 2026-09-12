@@ -97,10 +97,16 @@ def test_unknown_dates_are_kept_not_dropped():
     assert dates.within_days("2001-01-01", 30) is False
 
 
-def test_high_volume_sources_are_age_capped():
-    """Crime and collision history must not bury the neighbourhood news."""
+def test_late_arriving_sources_are_not_age_capped():
+    """Collision and crime records arrive months or years late. Keep them all.
+
+    Capping them at ingest is what made them invisible: a 90-day cap on collisions
+    discarded all 960 records in the area, twice. The page decides what is shown.
+    """
     for sid in ("tps_reported_crime", "tps_traffic_collisions", "city_ksi_collisions"):
-        assert CFG.by_id(sid).max_age_days, f"{sid} needs an age cap"
+        assert CFG.by_id(sid).max_age_days is None, f"{sid} must keep its history"
+    # The notices feed is a live stream, so a window there is still right.
+    assert CFG.by_id("city_public_notices").max_age_days == 120
 
 
 def test_crime_gathers_every_offence_layer_because_there_is_no_single_one():
@@ -476,14 +482,17 @@ def _seed_reader_db(tmp_path):
     return conn
 
 
-def test_page_shows_a_time_window_not_a_count_cap(tmp_path):
+def test_page_carries_old_items_but_counts_only_the_window(tmp_path):
+    """Late data has to be in the file to be reachable, and out of the default counts."""
     from leaside import geo, render, sources
 
     conn = _seed_reader_db(tmp_path)
     data = render.collect(conn, geo.Areas.load(), sources.load())
     titles = [it["title"] for it in data["items"]]
-    assert "old post" not in titles, "200 days old is outside the window"
-    assert titles == ["brand new", "last week"], "newest first"
+    assert titles == ["brand new", "last week", "old post"], "all of it, newest first"
+    assert data["in_window"] == 2, "the 200-day-old item is outside the default window"
+    assert data["total_stored"] == 3
+    assert sum(data["counts"].values()) == 2, "chip counts match the default view"
 
 
 def test_page_knows_what_arrived_in_the_latest_run(tmp_path):
@@ -586,21 +595,29 @@ def test_column_report_names_what_it_could_not_find():
 
 
 def test_retired_dataset_rows_are_swept_but_feed_history_is_kept(tmp_path):
+    """What gets swept: a source no longer configured, and a retired dataset or listing.
+
+    What survives: anything a live source still collects, and the back catalogue of a
+    feed that has been retired, because a post that was true stays true.
+    """
     from leaside import db, geo, sources
 
     conn = db.connect(tmp_path / "t.db")
-    db.upsert_item(conn, _item(source_id="tps_traffic_collisions", title="2014 crash",
-                               url="https://x/1", category="collision"))
-    db.upsert_item(conn, _item(source_id="fontra_directory", title="a link",
-                               url="https://x/2", category="registry"))
-    db.upsert_item(conn, _item(source_id="ra_north_rosedale", title="old newsletter",
-                               url="https://x/3"))
-    db.upsert_item(conn, _item(source_id="no_such_source", title="ghost", url="https://x/4"))
+    rows = [
+        ("fontra_directory", "a scraped link", "registry"),       # retired listing
+        ("no_such_source", "ghost from an old config", "other"),  # not configured at all
+        ("tps_hub_dcat", "a police dataset", "registry"),         # listing, still live
+        ("ra_north_rosedale", "old newsletter", "ra_news"),       # retired feed
+    ]
+    for i, (sid, title, cat) in enumerate(rows):
+        db.upsert_item(conn, _item(source_id=sid, title=title, category=cat,
+                                   url=f"https://x/{i}"))
     conn.commit()
+
     counts = db.refresh_all(conn, geo.Areas.load(), sources.load())
-    assert counts["orphans_removed"] == 3
-    left = [r[0] for r in conn.execute("SELECT title FROM items")]
-    assert left == ["old newsletter"], "a retired feed keeps what it collected"
+    left = sorted(r[0] for r in conn.execute("SELECT title FROM items"))
+    assert left == ["a police dataset", "old newsletter"]
+    assert counts["orphans_removed"] == 2
 
 
 def test_doctor_shows_raw_shape_when_dates_or_links_are_missing(tmp_path):
@@ -795,9 +812,14 @@ def test_official_neighbourhood_names_map_to_our_areas():
         "north_rosedale", "south_rosedale", "moore_park"}
 
 
-def test_crime_window_is_wide_enough_for_how_late_the_data_arrives():
-    """On 12 Sep 2026 the newest record was 84 days old; a 90-day cap kept six days."""
-    assert CFG.by_id("tps_reported_crime").max_age_days >= 365
+def test_page_holds_everything_and_narrows_in_the_browser():
+    """The file carries all of it; the Since control picks what you look at."""
+    from leaside import render
+
+    days = [d for d, _ in render.WINDOW_CHOICES]
+    assert render.WINDOW_DAYS in days
+    assert 0 in days, "there must be an Everything option for the late data"
+    assert max(days) >= 365
 
 
 def test_dead_feeds_are_gone_but_their_area_is_not():

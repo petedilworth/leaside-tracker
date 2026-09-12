@@ -84,13 +84,21 @@ def resolved_fields(row: dict) -> dict:
                                ("id", ID), ("kind", KIND))}
 
 
-def rows_to_items(rows: list[dict], source, areas) -> list[dict]:
+def rows_to_items(rows: list[dict], source, areas, stats: dict | None = None) -> list[dict]:
     items = []
+    tally = stats if stats is not None else {}
+    for key in ("rows", "no_coords", "outside_areas", "kept"):
+        tally.setdefault(key, 0)
     for row in rows:
+        tally["rows"] += 1
         lat, lon = _coords(row)
+        if lat is None:
+            tally["no_coords"] += 1
         area = areas.match_point(lat, lon) or areas.match_text(json.dumps(row, default=str))
         if not area:
+            tally["outside_areas"] += 1
             continue
+        tally["kept"] += 1
         _, kind = fields.pick(row, **KIND)
         _, when = fields.pick(row, **DATE)
         streets = [v for k, v in fields.flatten(row).items()
@@ -124,6 +132,7 @@ def fetch_dataset(source, http, areas) -> tuple[list[dict], int]:
     result = datastore_search(http, resources[0]["id"], timeout=source.timeout,
                               retries=source.retries)
     rows = result.get("records", [])
+    total = result.get("total")
     if rows:
         resolved = resolved_fields(rows[0])
         print("        columns: " + ", ".join(f"{k}={v}" for k, v in resolved.items()))
@@ -132,4 +141,8 @@ def fetch_dataset(source, http, areas) -> tuple[list[dict], int]:
             names = [f["id"] for f in result.get("fields", [])][:40]
             print(f"        WARNING: no column for {', '.join(missing)}. "
                   f"Columns are: {', '.join(names)}")
-    return rows_to_items(rows, source, areas), 200
+    stats: dict = {}
+    items = rows_to_items(rows, source, areas, stats=stats)
+    print(f"        {len(rows)} of {total} rows read, {stats.get('kept', 0)} in your areas"
+          + (f", {stats['no_coords']} with no coordinates" if stats.get("no_coords") else ""))
+    return items, 200

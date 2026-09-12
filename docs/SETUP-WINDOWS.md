@@ -183,6 +183,11 @@ coordinates.
 
 Long summaries are trimmed to four lines with a **Show more** button underneath.
 
+The **Since** row decides how far back the page looks. It opens on the last 120
+days, which is right for news. Police collision and crime records arrive months,
+sometimes years, after the event, so they will not appear in that window. Click
+**Everything** to see them. Your choice is remembered.
+
 The **Where** row is a set of on/off switches, not a single choice. Click a
 neighbourhood to hide it, click again to bring it back. Your choice is remembered
 between visits, and **Reset areas** puts it back to showing all seven.

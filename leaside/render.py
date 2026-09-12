@@ -14,18 +14,20 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from . import db, geo, sources, version
 
 OUT = Path("site")
+
+# What the page shows when you open it. Everything collected is in the file, so the
+# reader can widen the window without a rebuild - which matters because collision and
+# crime records arrive months or years late and would never appear inside 120 days.
 WINDOW_DAYS = 120
+WINDOW_CHOICES = [(120, "Last 120 days"), (365, "Last year"), (0, "Everything")]
+MAX_ROWS = 3000
 
 
 def collect(conn, areas, cfg, window_days: int = WINDOW_DAYS) -> dict:
-    since = (datetime.now(timezone.utc) - timedelta(days=window_days)).isoformat(
-        timespec="seconds"
-    )
     rows = conn.execute(
         "SELECT * FROM items WHERE category != 'registry'"
-        " AND COALESCE(published_at, first_seen_at) >= ?"
-        " ORDER BY COALESCE(published_at, first_seen_at) DESC",
-        (since,),
+        " ORDER BY COALESCE(published_at, first_seen_at) DESC LIMIT ?",
+        (MAX_ROWS,),
     ).fetchall()
     names = {s.id: s.name for s in cfg.sources}
     homes = {s.id: s.home for s in cfg.sources}
@@ -42,8 +44,12 @@ def collect(conn, areas, cfg, window_days: int = WINDOW_DAYS) -> dict:
     latest_run = runs[0] if runs else None
     new_this_run = sum(1 for it in items if latest_run and it["first_seen_at"] >= latest_run)
 
+    # Counts are for the default window, so the chips match what you first see.
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=window_days)).isoformat(
+        timespec="seconds")
+    in_window = [it for it in items if it["when"] >= cutoff]
     counts, area_counts = {}, {}
-    for it in items:
+    for it in in_window:
         counts[it["category"]] = counts.get(it["category"], 0) + 1
         key = it["area"] or "none"
         area_counts[key] = area_counts.get(key, 0) + 1
@@ -69,6 +75,10 @@ def collect(conn, areas, cfg, window_days: int = WINDOW_DAYS) -> dict:
         "previous_run": runs[1] if len(runs) > 1 else None,
         "new_this_run": new_this_run,
         "window_days": window_days,
+        "window_choices": WINDOW_CHOICES,
+        "in_window": len(in_window),
+        "total_stored": len(items),
+        "truncated": len(items) >= MAX_ROWS,
         "area_default_off": sorted(areas.default_off()),
     }
 

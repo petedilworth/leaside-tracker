@@ -96,14 +96,14 @@
 <header>
   <h1>Leaside Tracker</h1>
   <p class="stamp">Last collected <time data-ts="{{ latest_run or generated_at }}">{{ (latest_run or generated_at)[:16] }}</time>
-     &middot; showing the last {{ window_days }} days</p>
+     &middot; <span id="scope">{{ total_stored }} items held</span>{% if truncated %} (capped){% endif %}</p>
 </header>
 
 {% if items %}
 <div class="stats">
-  <div class="stat new"><b id="unread-count">{{ items|length }}</b><span>unread</span></div>
+  <div class="stat new"><b id="unread-count">{{ in_window }}</b><span>unread in view</span></div>
   <div class="stat"><b>{{ new_this_run }}</b><span>new in the last collection</span></div>
-  <div class="stat"><b>{{ items|length }}</b><span>items in view</span></div>
+  <div class="stat"><b id="view-count">{{ in_window }}</b><span>items in view</span></div>
 </div>
 
 <div class="bar">
@@ -112,6 +112,15 @@
     <button class="chip" aria-pressed="true" data-filter="unread">Unread</button>
     <button class="chip" aria-pressed="false" data-filter="all">Everything</button>
     <button class="chip action" id="mark-all" title="Mark every visible item as read">Mark all read</button>
+  </div>
+  <div class="row" data-group="since">
+    <span class="lbl">Since</span>
+    {% for days, label in window_choices %}
+    <button class="chip" aria-pressed="{{ 'true' if days == window_days else 'false' }}"
+            data-filter="{{ days }}">{{ label }}</button>
+    {% endfor %}
+    <span class="chip" style="border:0;background:none;cursor:default;color:var(--faint)"
+          title="Police collision and crime records arrive months, sometimes years, late">late data lives here</span>
   </div>
   <div class="row" data-group="cat">
     <span class="lbl">Type</span>
@@ -202,7 +211,7 @@ Page generated {{ generated_at[:16] }} UTC by code {{ code_version }}.</p>
   var KEY = 'leaside.read.v1';
   var VIEW = 'leaside.view.v1';
   var items = Array.prototype.slice.call(document.querySelectorAll('li.item'));
-  var picked = { read: 'unread', cat: 'all' };
+  var picked = { read: 'unread', cat: 'all', since: {{ window_days }} };
   var areaChips = Array.prototype.slice.call(document.querySelectorAll('.chip[data-area]'));
   var defaultAreas = {};
   areaChips.forEach(function (c) {
@@ -211,6 +220,14 @@ Page generated {{ generated_at[:16] }} UTC by code {{ code_version }}.</p>
   var areas = Object.assign({}, defaultAreas);
   try {
     var saved = JSON.parse(localStorage.getItem(VIEW) || 'null');
+    if (saved && typeof saved.since === 'number') {
+      picked.since = saved.since;
+      document.querySelectorAll('.row[data-group="since"] .chip[data-filter]')
+        .forEach(function (c) {
+          c.setAttribute('aria-pressed',
+            String(parseInt(c.dataset.filter, 10) === picked.since));
+        });
+    }
     if (saved && saved.areas) {
       // Keep the stored choice only for areas that still exist on the page.
       areaChips.forEach(function (c) {
@@ -301,13 +318,21 @@ Page generated {{ generated_at[:16] }} UTC by code {{ code_version }}.</p>
 
   // ---- filters
   function apply() {
-    var shown = 0, unread = 0;
+    var shown = 0, unread = 0, inScope = 0;
+    var floor = picked.since > 0 ? Date.now() - picked.since * 86400000 : -Infinity;
     items.forEach(function (li) {
+      var when = new Date(li.dataset.when).getTime();
+      var dated = !isNaN(when);
+      var withinWindow = !dated || when >= floor;   // undated items always show
       var r = isRead(li);
-      if (!r) unread++;
-      var hit = (picked.read === 'all' || !r)
-             && (picked.cat === 'all' || li.dataset.cat === picked.cat)
-             && areas[li.dataset.area] !== false;
+      var scoped = withinWindow
+                && (picked.cat === 'all' || li.dataset.cat === picked.cat)
+                && areas[li.dataset.area] !== false;
+      if (scoped) {
+        inScope++;
+        if (!r) unread++;
+      }
+      var hit = scoped && (picked.read === 'all' || !r);
       li.hidden = !hit;
       if (hit) shown++;
     });
@@ -318,9 +343,11 @@ Page generated {{ generated_at[:16] }} UTC by code {{ code_version }}.</p>
       h.hidden = !any;
     });
     var s = document.getElementById('shown');
-    if (s) s.textContent = shown + ' shown · ' + unread + ' unread of ' + items.length;
+    if (s) s.textContent = shown + ' shown · ' + unread + ' unread of ' + inScope + ' in view';
     var uc = document.getElementById('unread-count');
     if (uc) uc.textContent = unread;
+    var vc = document.getElementById('view-count');
+    if (vc) vc.textContent = inScope;
     if (markAll) markAll.hidden = shown === 0 || picked.read !== 'unread';
   }
   areaChips.forEach(function (chip) {
@@ -357,7 +384,12 @@ Page generated {{ generated_at[:16] }} UTC by code {{ code_version }}.</p>
         row.querySelectorAll('.chip[data-filter]').forEach(function (o) {
           o.setAttribute('aria-pressed', String(o === chip));
         });
-        picked[group] = chip.dataset.filter;
+        picked[group] = group === 'since'
+          ? parseInt(chip.dataset.filter, 10)
+          : chip.dataset.filter;
+        try {
+          localStorage.setItem(VIEW, JSON.stringify({ areas: areas, since: picked.since }));
+        } catch (e) {}
         apply();
       });
     });

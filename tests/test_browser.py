@@ -118,3 +118,36 @@ def test_long_summaries_clip_with_a_show_more_button(demo_url):
         # short summaries must not sprout a button
         assert pg.locator("button.more").count() < pg.locator(".sum").count()
         b.close()
+
+
+def test_since_control_reaches_late_arriving_records(demo_url):
+    """Collision and crime data is months or years old. It has to be reachable.
+
+    The default window keeps the page readable; the Everything option is how the
+    late records are seen at all. The demo carries one 900-day-old collision.
+    """
+    with playwright.sync_playwright() as p:
+        b = p.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
+        pg = b.new_context().new_page()
+        errors = []
+        pg.on("pageerror", lambda e: errors.append(str(e)))
+        pg.goto(demo_url)
+
+        def visible():
+            return pg.locator("li.item:not([hidden])").count()
+
+        default_view = visible()
+        assert int(pg.locator("#view-count").inner_text()) == default_view
+
+        pg.locator('.row[data-group="since"] .chip[data-filter="0"]').click()
+        widened = visible()
+        assert widened > default_view, "the old collision should appear"
+        assert int(pg.locator("#view-count").inner_text()) == widened
+
+        pg.reload()
+        assert visible() == widened, "the Since choice must be remembered"
+
+        pg.locator('.row[data-group="since"] .chip[data-filter="120"]').click()
+        assert visible() == default_view
+        assert not errors, errors
+        b.close()

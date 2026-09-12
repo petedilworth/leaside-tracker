@@ -297,7 +297,6 @@ sources:
       - "Theft From Motor Vehicle Open Data"
       - "Bicycle Thefts Open Data"
     timeout: 120
-    max_age_days: 365
     snapshot: true
     home_url: https://data.tps.ca/
     status: documented
@@ -314,9 +313,10 @@ sources:
       project should do.
       Points are OFFSET to the nearest intersection for privacy. Never present them
       as exact addresses.
-      The cap is a year, not 90 days, because the data lags: on 12 September 2026 the
-      newest record was 20 June, 84 days old. A 90-day cap left a six-day window and
-      returned two incidents for the whole area.
+      No age cap. The data lags: on 12 September 2026 the newest record was 20 June,
+      84 days old, so a 90-day cap left a six-day window and returned two incidents
+      for the whole area. Rather than guess at the right cap, everything is stored
+      and the page's "Since" control decides what is shown.
       Every record states its City neighbourhood, which is trusted over this project's
       hand-drawn rectangles - one of which was claiming a robbery in North St.James
       Town, four kilometres away, as South Rosedale.
@@ -332,17 +332,16 @@ sources:
       - "traffic collisions"
       - "collisions"
     timeout: 120
-    max_age_days: 365
     snapshot: true
-    status: manual
+    home_url: https://data.tps.ca/
+    status: documented
     notes: >
-      Disabled after two attempts. Raising the cap from 90 days to a year did not help:
-      the layer returned 960 records inside your areas and every one was more than a
-      year old. ASR-T-TBL-001 is an Annual Statistical Report table, a historical
-      summary rather than a current feed. The 71 layer names now listed in
-      config/tps_hub_dcat-catalogue.md will show whether a current collisions layer
-      exists under another name. Until then the City KSI dataset below is the only
-      working collision source.
+      Re-enabled with no age cap, because the owner asked for collision detail even
+      when it is late. This is what was hiding it: a 90-day cap threw away all 960
+      records in the area, then a one-year cap threw away all 960 again. The records
+      are real, they are just old - ASR-T-TBL-001 is an Annual Statistical Report
+      table, so it is a historical series rather than a current feed. Expect years,
+      not weeks. The page's "Since" control decides what you actually look at.
 
   - id: city_ksi_collisions
     name: Motor vehicle collisions involving killed or seriously injured persons (KSI)
@@ -351,7 +350,6 @@ sources:
     kind: ckan_dataset
     dataset: motor-vehicle-collisions-involving-killed-or-seriously-injured-persons
     timeout: 120
-    max_age_days: 365
     snapshot: true
     home_url: https://open.toronto.ca/dataset/motor-vehicle-collisions-involving-killed-or-seriously-injured-persons/
     status: verified
@@ -360,6 +358,9 @@ sources:
       API. Covers killed or seriously injured only - ordinary fender benders are in no
       open dataset anywhere in Toronto. Note these are people involved, not collisions,
       so one crash can appear as several rows; the stable key collapses them.
+      Returned zero rows on 12 September 2026 with a one-year cap, which is why the
+      cap is gone and the fetch now reports how many rows it read, how many fell in
+      your areas, and how many had no coordinates.
       If this ever stops working, Toronto Police publish the same thing as
       "Killed and Seriously Injured" on their ArcGIS hub, along with per-mode
       versions (Pedestrian KSI, Cyclist KSI, Automobile KSI, Fatals KSI).

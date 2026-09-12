@@ -114,10 +114,20 @@ def bbox_of(areas) -> tuple[float, float, float, float]:
     return min(xs), min(ys), max(xs), max(ys)
 
 
-def parse_features(text: str, source, areas, label: str | None = None) -> list[dict]:
+def parse_features(text: str, source, areas, label: str | None = None,
+                   stats: dict | None = None) -> list[dict]:
+    """Turn an ArcGIS query result into items, counting what was dropped and why.
+
+    A source that returns nothing used to report plain success. The funnel counts
+    make the difference between "no records here" and "my filter ate them all".
+    """
     data = json.loads(text)
     items = []
+    tally = stats if stats is not None else {}
+    for key in ("features", "no_geometry", "other_neighbourhood", "outside_areas", "kept"):
+        tally.setdefault(key, 0)
     for feat in data.get("features", []):
+        tally["features"] += 1
         attrs = feat.get("attributes") or feat.get("properties") or {}
         geom = feat.get("geometry") or {}
         lon, lat = geom.get("x"), geom.get("y")
@@ -129,10 +139,15 @@ def parse_features(text: str, source, areas, label: str | None = None) -> list[d
         official = (attrs.get("NEIGHBOURHOOD_158") or attrs.get("NEIGHBOURHOOD_140")
                     or attrs.get("Neighbourhood"))
         if official and not areas.is_official_ours(official):
+            tally["other_neighbourhood"] += 1
             continue
+        if lat is None or lon is None:
+            tally["no_geometry"] += 1
         area = areas.match_point(lat, lon) or areas.match_official(official)
         if not area:
+            tally["outside_areas"] += 1
             continue
+        tally["kept"] += 1
         title = (
             attrs.get("MCI_CATEGORY")
             or attrs.get("OFFENCE")
@@ -209,4 +224,11 @@ def fetch_features(source, http, areas, layer_url: str | None = None,
     resp = http.get(query, params=params, timeout=source.timeout,
                     retries=source.retries)
     resp.raise_for_status()
-    return parse_features(resp.text, source, areas, label=label), resp.status_code
+    stats: dict = {}
+    items = parse_features(resp.text, source, areas, label=label, stats=stats)
+    if stats.get("features") and not items:
+        print(f"        {stats['features']} records fetched, none kept: "
+              f"{stats['other_neighbourhood']} in other neighbourhoods, "
+              f"{stats['outside_areas']} outside the areas, "
+              f"{stats['no_geometry']} with no coordinates")
+    return items, resp.status_code

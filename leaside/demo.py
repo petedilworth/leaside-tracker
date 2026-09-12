@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from datetime import datetime, timedelta, timezone
+
 from . import db, geo, sources
 from .fetchers import arcgis, notices, rss_feed
 
@@ -30,13 +32,28 @@ def run(db_path=db.DEMO_DB) -> int:
 
     from datetime import datetime, timedelta, timezone
 
+    items.append({
+        "source_id": "tps_traffic_collisions",
+        "category": "collision",
+        "title": "Collision",
+        "url": None,
+        "summary": "Late-arriving police record, to show the Since control working",
+        "published_at": (datetime.now(timezone.utc) - timedelta(days=900)).isoformat(
+            timespec="seconds"),
+        "external_id": "demo-old-collision",
+        "area": "leaside",
+        "lat": 43.705,
+        "lon": -79.365,
+    })
+
     new = 0
     for n, it in enumerate(items):
         it["title"] = f"[demo] {it['title']}"
         # spread across the last few days so the day headings and filters have work to do
-        it["published_at"] = (
-            datetime.now(timezone.utc) - timedelta(days=n, hours=3 * n)
-        ).isoformat(timespec="seconds")
+        if it["external_id"] != "demo-old-collision":
+            it["published_at"] = (
+                datetime.now(timezone.utc) - timedelta(days=n, hours=3 * n)
+            ).isoformat(timespec="seconds")
         if not it.get("area"):
             it["area"] = areas.match_text(it["title"], it.get("summary"))
         new += db.upsert_item(conn, it)
