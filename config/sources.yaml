@@ -76,15 +76,6 @@ sources:
       Probe returned 7 entries. Domain corrected from the earlier mpra.ca guess, which
       returned 404. Found via the FONTRA member list.
 
-  - id: ra_lawrence_park
-    name: Lawrence Park Ratepayers' Association
-    category: ra_news
-    area: lawrence_park
-    kind: rss
-    url: https://lpra.ca/feed/
-    status: verified
-    notes: Probe returned 8 entries. Covers Lawrence Ave E, Blythwood, Yonge, Bayview.
-
   - id: ra_davisville
     name: South Eglinton Davisville Residents' Association (SEDRA)
     category: ra_news
@@ -157,17 +148,6 @@ sources:
     url: https://leasidegardens.com/feed/
     status: verified
     notes: Directory scan returned 10 entries. The arena and community centre. Events and closures.
-
-  - id: community_leaside_baseball
-    name: Leaside Baseball Association
-    category: community
-    area: leaside
-    kind: rss
-    url: https://www.leasidebaseball.com/feed/
-    status: verified
-    notes: >
-      Directory scan returned 10 entries. Included because you asked for things going on,
-      not only news. Filter the community category off the page if it is noise to you.
 
   - id: heritage_leaside
     name: Leaside Heritage Preservation Society

@@ -798,3 +798,26 @@ def test_official_neighbourhood_names_map_to_our_areas():
 def test_crime_window_is_wide_enough_for_how_late_the_data_arrives():
     """On 12 Sep 2026 the newest record was 84 days old; a 90-day cap kept six days."""
     assert CFG.by_id("tps_reported_crime").max_age_days >= 365
+
+
+def test_dead_feeds_are_gone_but_their_area_is_not():
+    """Lawrence Park kept its area when its association feed was dropped.
+
+    The feed had posted nothing since November 2023. City notices and police
+    records there are still matched, by coordinates and by official name.
+    """
+    ids = {s.id for s in CFG.sources}
+    assert "ra_lawrence_park" not in ids
+    assert "community_leaside_baseball" not in ids
+    assert "lawrence_park" in AREAS.keys()
+    assert AREAS.is_official_ours("Lawrence Park South (103)")
+    assert AREAS.is_official_ours("Lawrence Park North (105)")
+
+
+def test_every_runnable_source_earns_its_request():
+    """One request per source per run. Each one must be able to reach the page."""
+    for s in CFG.sources:
+        if not s.runnable:
+            continue
+        assert s.category, s.id
+        assert s.home or s.category == "registry", f"{s.id} has nowhere to link"

@@ -244,6 +244,16 @@ which is why coordinates still decide and the official name is only a fallback.
 was 20 June, 84 days old. A 90-day cap left a six-day window and returned two
 incidents for the entire area. The cap is now a year.
 
-Two feeds have posted nothing in over a year and can never appear on a page showing
-the last 120 days: Lawrence Park Ratepayers, last post November 2023, and Leaside
-Baseball, last post February 2024.
+## Dead feeds dropped, 12 September 2026
+
+Two feeds had posted nothing in over a year, so neither could ever appear on a page
+showing the last 120 days, yet both cost a request on every run.
+
+| Source | Last post | Decision |
+| --- | --- | --- |
+| Lawrence Park Ratepayers' Association | November 2023 | Dropped. The **area is kept**: city notices and police records in Lawrence Park are still matched, by coordinates and by the official names Lawrence Park South and Lawrence Park North. Only the association's own newsletter is gone. |
+| Leaside Baseball Association | February 2024 | Dropped. Added on the reasoning that "things going on" is wider than news. It was, and it was also silent. |
+
+Fourteen sources now run. Of those, six are neighbourhood feeds, two are local
+papers, two are business, one is community, one is planning advocacy, and three are
+municipal or police data.
