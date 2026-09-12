@@ -921,3 +921,106 @@ def test_generated_files_are_not_tracked_by_git():
                  if f.endswith(("-report.md", "-catalogue.md"))
                  or f in {"config/health-report.md", "config/probe-report.md"}]
     assert not generated, f"these are outputs and must not be tracked: {generated}"
+
+
+# ------------------------------------------- evidence from the 12 Sep 12:46 report
+
+def test_collisions_are_described_from_their_flags():
+    """The collision layer has no offence field at all, only flags.
+
+    Every record on the page therefore read "Incident". These are the exact
+    attributes of OBJECTID 14 as they appeared in the health report.
+    """
+    from leaside.fetchers import arcgis
+
+    src = CFG.by_id("tps_traffic_collisions")
+    real = {"OBJECTID": 14, "EVENT_UNIQUE_ID": "GO-20148000028",
+            "OCC_DATE": 1388552400000, "DIVISION": "D53", "FATALITIES": 0,
+            "INJURY_COLLISIONS": "NO", "FTR_COLLISIONS": "YES", "PD_COLLISIONS": "NO",
+            "NEIGHBOURHOOD_158": "Mount Pleasant East (99)", "AUTOMOBILE": "YES",
+            "MOTORCYCLE": "NO", "PASSENGER": "NO", "BICYCLE": "NO", "PEDESTRIAN": "NO"}
+
+    def parse(attrs):
+        raw = json.dumps({"features": [{"attributes": attrs,
+                                        "geometry": {"x": -79.3776, "y": 43.7012}}]})
+        return arcgis.parse_features(raw, src, AREAS, label="Traffic Collision")[0]
+
+    it = parse(real)
+    assert it["title"] == "Collision"
+    assert "driver failed to remain" in it["summary"]
+
+    assert parse(dict(real, FATALITIES=1, PEDESTRIAN="YES"))["title"] \
+        == "Fatal collision involving a pedestrian"
+    assert parse(dict(real, INJURY_COLLISIONS="YES", BICYCLE="YES"))["title"] \
+        == "Collision with injuries involving a cyclist"
+    assert parse(dict(real, FATALITIES=2))["title"] == "Collision, 2 killed"
+    assert parse(dict(real, INTERSECTION="BAYVIEW AVE & MCRAE DR"))["title"] \
+        == "Collision at BAYVIEW AVE & MCRAE DR"
+
+
+def test_a_third_street_field_is_a_qualifier_not_a_street():
+    """The City puts "10 m West of" in stname3, which read as a street name."""
+    from leaside.fetchers import arcgis
+
+    row = {"stname1": "95 REDPATH AVE", "stname2": None, "stname3": "10 m West of",
+           "road_class": "Collector", "road_user": "pedestrian", "rdsfcond": "Wet"}
+    assert arcgis.streets_of(row) == "95 REDPATH AVE"
+
+
+def test_city_collision_records_read_as_events():
+    """Exactly the record in the report, which had produced no summary at all."""
+    from leaside.fetchers import ckan
+
+    row = {"_id": 20702, "collision_id": "2017:7000148860",
+           "accdate": "2017-01-24T16:35:00", "stname1": "95 REDPATH AVE",
+           "stname2": None, "stname3": "10 m West of", "acclass": "Non-Fatal Injury",
+           "impactype": "Pedestrian Collision (internal code)", "light": "Daylight",
+           "rdsfcond": "Wet", "injury": "Major", "road_user": "pedestrian",
+           "longitude": -79.39241380710648, "latitude": 43.706873182117896,
+           "neighbourhood": "South Eglinton-Davisville"}
+    it = ckan.rows_to_items([row], CFG.by_id("city_ksi_collisions"), AREAS)[0]
+    assert it["title"] == "Pedestrian Collision at 95 REDPATH AVE"
+    assert "internal code" not in it["title"], "the City's annotation is stripped"
+    assert "Non-Fatal Injury" in it["summary"] and "Major injury" in it["summary"]
+    assert it["area"] == "davisville"
+
+
+def test_one_crash_with_several_people_becomes_one_item():
+    """The City publishes a row per person involved, keyed on collision_id."""
+    from leaside.fetchers import ckan
+
+    base = {"collision_id": "2017:7000148860", "accdate": "2017-01-24T16:35:00",
+            "latitude": 43.705, "longitude": -79.365, "acclass": "Non-Fatal Injury",
+            "neighbourhood": "Leaside-Bennington"}
+    src = CFG.by_id("city_ksi_collisions")
+    a = ckan.rows_to_items([dict(base, _id=1, per_no=1)], src, AREAS)[0]
+    b = ckan.rows_to_items([dict(base, _id=99999, per_no=2)], src, AREAS)[0]
+    assert a["external_id"] == b["external_id"] == "collision_id:2017:7000148860"
+    # keyed on the collision, not on the datastore row number, which shifts on reload
+    assert not a["external_id"].startswith(("_id:", "composite:"))
+
+
+def test_city_collisions_are_also_gated_on_the_official_neighbourhood():
+    from leaside.fetchers import ckan
+
+    row = {"collision_id": "x", "accdate": "2020-01-01", "latitude": 43.6696,
+           "longitude": -79.3757, "neighbourhood": "North St.James Town"}
+    assert ckan.rows_to_items([row], CFG.by_id("city_ksi_collisions"), AREAS) == []
+    ours = dict(row, neighbourhood="Leaside-Bennington")
+    assert len(ckan.rows_to_items([ours], CFG.by_id("city_ksi_collisions"), AREAS)) == 1
+
+
+def test_davisville_covers_both_names_the_city_uses_for_it():
+    assert AREAS.is_official_ours("Mount Pleasant East (99)")
+    assert AREAS.is_official_ours("South Eglinton-Davisville")
+    assert AREAS.match_official("South Eglinton-Davisville") == "davisville"
+
+
+def test_layer_queries_ask_for_newest_first_and_page_through():
+    """Without an ordering, a 2000-record cap returned the oldest 2000: all 2014."""
+    from leaside.fetchers import arcgis
+
+    assert arcgis.DATE_ORDER.endswith("DESC")
+    assert arcgis.query_url("https://x/FeatureServer").endswith("/0/query")
+    assert arcgis.query_url("https://x/FeatureServer/3").endswith("/3/query")
+    assert arcgis.query_url("https://x/FeatureServer/3/query").endswith("/3/query")

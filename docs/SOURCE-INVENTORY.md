@@ -306,3 +306,36 @@ confirms it bites.
 The launcher also tries to clear a blocked update by itself before giving up, and
 its recovery instructions no longer print `%~dp0`, which only expands inside a
 running script and would have failed if typed by hand.
+
+## Four defects the 12 September 12:46 report exposed
+
+Crime, collisions and notices were all working for the first time, which made the
+remaining faults visible.
+
+**Every traffic collision came from the first half of 2014.** The query asked for
+up to 2000 records with no ordering, so the service returned the oldest 2000 by
+internal id. The sample record in the report had OBJECTID 14, the very start of the
+table. Queries now ask for newest first and page through, and a layer without a
+date field falls back to table order rather than failing.
+
+**Every collision was titled "Incident".** Two causes. The single-layer path never
+passed the dataset name down, so the fallback label was empty. And the collisions
+layer carries no description at all, only flags: FATALITIES, INJURY_COLLISIONS,
+PD_COLLISIONS, FTR_COLLISIONS, and one per road user. Those are now read, so a
+record reads "Fatal collision involving a pedestrian at Bayview Ave & McRae Dr"
+with "driver failed to remain" underneath.
+
+**City collision records had no location.** They name streets `stname1` and
+`stname2`, which matched nothing looking for "street". Worse, `stname3` holds a
+qualifier such as "10 m West of", which would have rendered as
+"95 REDPATH AVE & 10 m West of". Only the fields numbered 1 and 2 are used now.
+
+**Every City collision was keyed on a composite instead of its collision number.**
+The exclusion meant to skip the datastore row number, `_id`, is a substring of
+`collision_id`, so the real key was thrown away. Rows for the same crash now
+collapse into one item as intended.
+
+Also: the City uses two 158-neighbourhood names over the Davisville area, and the
+report showed a record labelled "South Eglinton-Davisville", which the mapping did
+not have. Both names are now recognised, and City collision records are gated on
+the publisher's neighbourhood exactly as police records are.

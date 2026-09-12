@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 
 from .. import fields
+from . import arcgis
 
 API = "https://ckan0.cf.opendata.inter.prod-toronto.ca/api/3/action"
 
@@ -22,12 +23,16 @@ LAT = dict(exact=("LATITUDE", "LAT", "latitude"),
            contains=("latitude", "lat"), exclude=("relat", "plat", "flat"))
 LON = dict(exact=("LONGITUDE", "LONG", "LON", "longitude"),
            contains=("longitude", "long", "lon"), exclude=("along", "belong"))
-ID = dict(exact=("ACCNUM", "ACCIDENT_NO", "COLLISION_ID", "EVENT_UNIQUE_ID"),
-          contains=("accnum", "accident", "collision_id", "event_unique", "unique"),
-          exclude=("_id",))
-KIND = dict(exact=("INJURY", "ACCLASS", "IMPACTYPE", "MCI_CATEGORY"),
-            contains=("injury", "acclass", "impactype", "category", "class"), exclude=())
-STREET = dict(exact=("STREET1", "STREET2"), contains=("street", "road"), exclude=("class",))
+ID = dict(exact=("ACCNUM", "accnum", "COLLISION_ID", "collision_id",
+                 "ACCIDENT_NO", "EVENT_UNIQUE_ID", "event_unique_id"),
+          contains=("accnum", "collision_id", "accident_no", "event_unique"),
+          exclude=())
+KIND = dict(exact=("IMPACTYPE", "impactype", "ACCLASS", "acclass", "MCI_CATEGORY"),
+            contains=("impactype", "acclass", "category"), exclude=("road", "class"))
+SEVERITY = dict(exact=("ACCLASS", "acclass", "INJURY", "injury"),
+                contains=("acclass", "injury"), exclude=())
+HOOD = dict(exact=("NEIGHBOURHOOD_158", "neighbourhood", "NEIGHBOURHOOD"),
+            contains=("neighbourhood",), exclude=("140",))
 
 
 def package_show(http, dataset: str, **kw) -> dict:
@@ -58,6 +63,39 @@ def _coords(row: dict):
         return (float(lat), float(lon)) if lat and lon else (None, None)
     except ValueError:
         return None, None
+
+
+def _clean(value) -> str | None:
+    """Strip the City's internal annotations, e.g. "Pedestrian Collision (internal code)"."""
+    if value in (None, "", "None"):
+        return None
+    text = str(value).replace("(internal code)", "").strip(" -·,")
+    return text or None
+
+
+def describe(row: dict) -> tuple[str, str | None]:
+    """A readable headline and detail line for one collision record."""
+    _, kind = fields.pick(row, **KIND)
+    _, severity = fields.pick(row, **SEVERITY)
+    _, hood = fields.pick(row, **HOOD)
+    road_user = _clean(fields.flatten(row).get("road_user"))
+
+    title = _clean(kind) or (f"{road_user.capitalize()} collision" if road_user
+                             else "Collision")
+    where = arcgis.streets_of(row)
+    if where:
+        title = f"{title} at {where}"
+
+    flat = fields.flatten(row)
+    detail = [_clean(severity), _clean(flat.get("injury")) and
+              f"{_clean(flat.get('injury'))} injury", _clean(flat.get("light")),
+              _clean(flat.get("rdsfcond")), _clean(hood)]
+    seen, out = set(), []
+    for part in detail:
+        if part and part.lower() not in seen and part.lower() not in title.lower():
+            seen.add(part.lower())
+            out.append(part)
+    return title, " · ".join(out) or None
 
 
 def _stable_id(row: dict) -> str:
@@ -94,22 +132,27 @@ def rows_to_items(rows: list[dict], source, areas, stats: dict | None = None) ->
         lat, lon = _coords(row)
         if lat is None:
             tally["no_coords"] += 1
-        area = areas.match_point(lat, lon) or areas.match_text(json.dumps(row, default=str))
+        # The City names the neighbourhood on each record. Trust it over the
+        # rectangles, the same way the police records are handled.
+        _, hood = fields.pick(row, **HOOD)
+        if hood and not areas.is_official_ours(hood):
+            tally["other_neighbourhood"] = tally.get("other_neighbourhood", 0) + 1
+            continue
+        area = (areas.match_point(lat, lon) or areas.match_official(hood)
+                or areas.match_text(json.dumps(row, default=str)))
         if not area:
             tally["outside_areas"] += 1
             continue
         tally["kept"] += 1
-        _, kind = fields.pick(row, **KIND)
         _, when = fields.pick(row, **DATE)
-        streets = [v for k, v in fields.flatten(row).items()
-                   if "street" in k.lower() and isinstance(v, str) and v.strip()]
+        title, summary = describe(row)
         items.append(
             {
                 "source_id": source.id,
                 "category": source.category,
-                "title": str(kind or "Collision"),
+                "title": title,
                 "url": None,
-                "summary": " & ".join(streets[:2]) or None,
+                "summary": summary,
                 "published_at": when,
                 "external_id": _stable_id(row),
                 "area": area,
@@ -144,5 +187,7 @@ def fetch_dataset(source, http, areas) -> tuple[list[dict], int]:
     stats: dict = {}
     items = rows_to_items(rows, source, areas, stats=stats)
     print(f"        {len(rows)} of {total} rows read, {stats.get('kept', 0)} in your areas"
+          + (f", {stats['other_neighbourhood']} in other neighbourhoods"
+             if stats.get("other_neighbourhood") else "")
           + (f", {stats['no_coords']} with no coordinates" if stats.get("no_coords") else ""))
     return items, 200

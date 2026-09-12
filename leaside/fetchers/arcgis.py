@@ -173,22 +173,76 @@ def parse_features(text: str, source, areas, label: str | None = None,
     return items
 
 
-def _streets(attrs: dict) -> str | None:
-    """Whatever the layer calls its location: an intersection, or one or two streets."""
+STREET_SKIP = ("class", "cond", "user", "type", "surface", "rdsf")
+
+
+def streets_of(attrs: dict) -> str | None:
+    """Whatever a layer calls its location: an intersection, or the first two streets.
+
+    Only the fields numbered 1 and 2 are taken. The City's collision data puts a
+    qualifier in the third - "10 m West of" - which read as a street name and
+    produced "95 REDPATH AVE & 10 m West of".
+    """
     flat = fields.flatten(attrs)
-    for key in ("INTERSECTION", "LOCATION", "LOCATION_DESC", "ADDRESS"):
-        value = flat.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
+    for key in ("INTERSECTION", "LOCATION_DESC", "ADDRESS", "LOCATION"):
+        for k, v in flat.items():
+            if k.upper() == key and isinstance(v, str) and v.strip():
+                return v.strip()
     named = []
     for key, value in flat.items():
         lk = key.lower()
-        if ("street" in lk or lk.startswith("road") or lk in {"st1", "st2"}) \
-                and "class" not in lk and isinstance(value, str) and value.strip():
+        is_street = ("street" in lk or "stname" in lk or "st_name" in lk
+                     or lk.startswith("road"))
+        if not is_street or any(skip in lk for skip in STREET_SKIP):
+            continue
+        if not lk.rstrip("_").endswith(("1", "2")):
+            continue
+        if isinstance(value, str) and value.strip() and value.strip().lower() != "none":
             named.append((lk, value.strip()))
     named.sort()
     picked = [v for _, v in named][:2]
     return " & ".join(picked) or None
+
+
+def _yes(value) -> bool:
+    return str(value).strip().upper() in {"YES", "Y", "TRUE", "1"}
+
+
+def _collision_phrase(flat: dict) -> tuple[str, list[str]] | None:
+    """Describe a collision from its flags, for layers with no offence field.
+
+    The traffic collisions layer carries no description at all: just FATALITIES,
+    INJURY_COLLISIONS, PD_COLLISIONS, FTR_COLLISIONS and one flag per road user.
+    Without reading those, every record on the page said "Incident".
+    """
+    markers = ("FATALITIES", "INJURY_COLLISIONS", "PD_COLLISIONS", "FTR_COLLISIONS")
+    if not any(k in flat for k in markers):
+        return None
+    try:
+        deaths = int(float(flat.get("FATALITIES") or 0))
+    except (TypeError, ValueError):
+        deaths = 0
+    if deaths:
+        base = "Fatal collision" if deaths == 1 else f"Collision, {deaths} killed"
+    elif _yes(flat.get("INJURY_COLLISIONS")):
+        base = "Collision with injuries"
+    else:
+        base = "Collision"
+
+    for flag, phrase in (("PEDESTRIAN", "involving a pedestrian"),
+                         ("BICYCLE", "involving a cyclist"),
+                         ("MOTORCYCLE", "involving a motorcycle")):
+        if _yes(flat.get(flag)):
+            base = f"{base} {phrase}"
+            break
+
+    notes = []
+    if _yes(flat.get("FTR_COLLISIONS")):
+        notes.append("driver failed to remain")
+    if _yes(flat.get("PD_COLLISIONS")) and deaths == 0 \
+            and not _yes(flat.get("INJURY_COLLISIONS")):
+        notes.append("property damage only")
+    return base, notes
 
 
 def _where_and_what(attrs: dict, label: str | None) -> tuple[str, str | None]:
@@ -199,13 +253,21 @@ def _where_and_what(attrs: dict, label: str | None) -> tuple[str, str | None]:
     """
     flat = fields.flatten(attrs)
     # What happened, in the publisher's words. Injury severity is not a headline,
-    # so it belongs in the line underneath.
-    title = (flat.get("OFFENCE") or flat.get("MCI_CATEGORY") or flat.get("CSI_CATEGORY")
-             or flat.get("Category") or flat.get("IMPACTYPE") or label or "Incident")
-    where = _streets(attrs)
+    # so it belongs in the line underneath. A collision layer has no such words at
+    # all, only flags, so those are read instead.
+    collision = _collision_phrase(flat)
+    extra: list[str] = []
+    if collision:
+        title, extra = collision
+    else:
+        title = (flat.get("OFFENCE") or flat.get("MCI_CATEGORY")
+                 or flat.get("CSI_CATEGORY") or flat.get("Category")
+                 or flat.get("IMPACTYPE") or label or "Incident")
+    where = streets_of(attrs)
     if where:
         title = f"{title} at {where}"
     parts = [
+        *extra,
         flat.get("OFFENCE") if flat.get("OFFENCE") != title else None,
         flat.get("PREMISES_TYPE") or flat.get("LOCATION_TYPE"),
         flat.get("INJURY"),
@@ -232,8 +294,29 @@ def _epoch_to_iso(value):
     return str(value)
 
 
+PAGE_SIZE = 2000
+DATE_ORDER = "OCC_DATE DESC"
+
+
+def query_url(url: str) -> str:
+    query = url.rstrip("/")
+    if query.endswith("/query"):
+        return query
+    return f"{query}/0/query" if query.endswith("Server") else f"{query}/query"
+
+
 def fetch_features(source, http, areas, layer_url: str | None = None,
-                   label: str | None = None):
+                   label: str | None = None, max_records: int = 4000):
+    """Query one layer, newest first, in pages.
+
+    Two failures this fixes. Without an ordering the service returns records in
+    internal id order, so a 2000-record cap gave the OLDEST 2000: every traffic
+    collision came back from the first half of 2014. And without paging, anything
+    past the cap was simply invisible.
+
+    Not every layer has OCC_DATE, and ArcGIS rejects an unknown sort field, so the
+    first page decides whether ordering is available and the rest follow suit.
+    """
     url = layer_url or source.url
     if not url:
         raise RuntimeError(
@@ -241,7 +324,7 @@ def fetch_features(source, http, areas, layer_url: str | None = None,
             f"from {source.discover_from}."
         )
     minx, miny, maxx, maxy = bbox_of(areas)
-    params = {
+    base = {
         "where": "1=1",
         "outFields": "*",
         "geometry": f"{minx},{miny},{maxx},{maxy}",
@@ -250,20 +333,42 @@ def fetch_features(source, http, areas, layer_url: str | None = None,
         "outSR": "4326",
         "spatialRel": "esriSpatialRelIntersects",
         "returnGeometry": "true",
-        "resultRecordCount": 2000,
+        "resultRecordCount": PAGE_SIZE,
         "f": "json",
     }
-    query = url.rstrip("/")
-    if not query.endswith("/query"):
-        query = f"{query}/0/query" if query.endswith("Server") else f"{query}/query"
-    resp = http.get(query, params=params, timeout=source.timeout,
-                    retries=source.retries)
-    resp.raise_for_status()
+    query = query_url(url)
+    items: list[dict] = []
     stats: dict = {}
-    items = parse_features(resp.text, source, areas, label=label, stats=stats)
-    if stats.get("features") and not items:
-        print(f"        {stats['features']} records fetched, none kept: "
-              f"{stats['other_neighbourhood']} in other neighbourhoods, "
-              f"{stats['outside_areas']} outside the areas, "
-              f"{stats['no_geometry']} with no coordinates")
-    return items, resp.status_code
+    order = DATE_ORDER
+    offset = 0
+    status = 200
+
+    while offset < max_records:
+        params = dict(base, resultOffset=offset)
+        if order:
+            params["orderByFields"] = order
+        resp = http.get(query, params=params, timeout=source.timeout,
+                        retries=source.retries)
+        resp.raise_for_status()
+        status = resp.status_code
+        payload = json.loads(resp.text)
+        if payload.get("error"):
+            if order:                      # the layer has no such field; sort by nothing
+                order = None
+                continue
+            raise RuntimeError(
+                f"{source.id}: {payload['error'].get('message', 'query rejected')}"
+            )
+        page = payload.get("features", [])
+        items += parse_features(resp.text, source, areas, label=label, stats=stats)
+        if len(page) < PAGE_SIZE:
+            break
+        offset += PAGE_SIZE
+
+    fetched = stats.get("features", 0)
+    if fetched:
+        note = "newest first" if order else "in table order (no date field to sort on)"
+        print(f"        {fetched} records read {note}, {len(items)} in your areas"
+              + (f", {stats['other_neighbourhood']} in other neighbourhoods"
+                 if stats.get("other_neighbourhood") else ""))
+    return items, status

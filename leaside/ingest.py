@@ -22,8 +22,10 @@ def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> 
         started = db.utcnow()
         try:
             if src.kind == "arcgis_feature":
-                url = src.url or _discover(src, cfg, fetcher, layers)
-                items, status = arcgis.fetch_features(src, fetcher, areas, layer_url=url)
+                title, url = _discover(src, cfg, fetcher, layers)
+                items, status = arcgis.fetch_features(
+                    src, fetcher, areas, layer_url=url,
+                    label=arcgis.offence_label(title) if title else None)
             elif src.kind == "arcgis_multi":
                 items, status = [], 200
                 for title, url in _discover_many(src, cfg, fetcher, layers):
@@ -121,18 +123,15 @@ def _discover_many(src, cfg, fetcher, cache) -> list[tuple[str, str]]:
     return found
 
 
-def _discover(src, cfg, fetcher, cache) -> str:
-    parent = cfg.by_id(src.discover_from)
-    if parent is None:
-        raise RuntimeError(f"{src.id}: discover_from '{src.discover_from}' is not a source")
-    if parent.id not in cache:
-        resp = fetcher.get(parent.url, timeout=parent.timeout, retries=parent.retries)
-        resp.raise_for_status()
-        cache[parent.id] = arcgis.catalogue_entries(resp.text)
-    url = arcgis.find_layer(cache[parent.id], src.discover_match)
-    if not url:
-        listing = _write_catalogue(parent, cache[parent.id])
+def _discover(src, cfg, fetcher, cache) -> tuple[str | None, str]:
+    """Return (dataset title, layer url). The title becomes the item label."""
+    if src.url:
+        return None, src.url
+    parent, entries = _catalogue(src, cfg, fetcher, cache)
+    found = arcgis.find_layers(entries, src.discover_match)
+    if not found:
+        listing = _write_catalogue(parent, entries)
         raise RuntimeError(
             f"no layer matching {src.discover_match!r}. Available names: {listing}"
         )
-    return url
+    return found[0]
