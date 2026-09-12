@@ -55,6 +55,14 @@ CREATE TABLE IF NOT EXISTS runs (
     failed      INTEGER
 );
 
+CREATE TABLE IF NOT EXISTS digests (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    sent_at  TEXT NOT NULL,
+    items    INTEGER,
+    ok       INTEGER NOT NULL,
+    detail   TEXT
+);
+
 CREATE TABLE IF NOT EXISTS probe_results (
     source_id    TEXT PRIMARY KEY,
     checked_at   TEXT NOT NULL,
@@ -207,6 +215,22 @@ def recent_runs(conn: sqlite3.Connection, n: int = 2) -> list[str]:
     """Start times of the latest runs, newest first."""
     return [r[0] for r in conn.execute(
         "SELECT started_at FROM runs ORDER BY started_at DESC LIMIT ?", (n,))]
+
+
+def last_digest(conn: sqlite3.Connection) -> str | None:
+    """When the last digest was sent successfully. Everything newer is unreported."""
+    row = conn.execute(
+        "SELECT sent_at FROM digests WHERE ok = 1 ORDER BY sent_at DESC LIMIT 1"
+    ).fetchone()
+    return row[0] if row else None
+
+
+def record_digest(conn: sqlite3.Connection, items: int, ok: bool, detail: str = "") -> None:
+    conn.execute(
+        "INSERT INTO digests (sent_at, items, ok, detail) VALUES (?,?,?,?)",
+        (utcnow(), items, 1 if ok else 0, detail[:500]),
+    )
+    conn.commit()
 
 
 def drop_unseen(conn: sqlite3.Connection, source_id: str, since: str) -> int:

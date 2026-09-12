@@ -25,6 +25,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 .venv/bin/python -m leaside.cli discover  # scan directory pages for new feeds
 .venv/bin/python -m leaside.cli doctor    # write config/health-report.md
+.venv/bin/python -m leaside.cli digest --dry-run   # preview the weekly email
 ```
 
 `probe` is not optional. Every endpoint in `config/sources.yaml` is a documented
@@ -48,6 +49,8 @@ To see the site render without any network:
 | `docs/SOURCE-INVENTORY.md` | What data exists, what it costs, what is blocked |
 | `docs/ROADMAP.md` | Phased plan and five more things worth tracking |
 | `docs/MAILING-LISTS.md` | Which newsletters to join, and why a separate address |
+| `docs/EMAIL-DIGEST.md` | Setting up the weekly email, once |
+| `.github/workflows/weekly-digest.yml` | Runs weekly on GitHub and emails the digest |
 | `config/health-report.md` | Written every run: what came in, duplicates, failures |
 | `tests/` | Parser tests against fixtures, no network |
 | `run-windows.bat` | Double-click launcher for Windows |

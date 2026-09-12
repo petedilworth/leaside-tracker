@@ -2,11 +2,13 @@
 import json
 import pathlib
 import sys
+
+import pytest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from leaside import geo, sources  # noqa: E402
+from leaside import db, geo, sources  # noqa: E402
 from leaside.fetchers import arcgis, notices, rss_feed  # noqa: E402
 
 FIX = Path(__file__).parent / "fixtures"
@@ -1024,3 +1026,116 @@ def test_layer_queries_ask_for_newest_first_and_page_through():
     assert arcgis.query_url("https://x/FeatureServer").endswith("/0/query")
     assert arcgis.query_url("https://x/FeatureServer/3").endswith("/3/query")
     assert arcgis.query_url("https://x/FeatureServer/3/query").endswith("/3/query")
+
+
+# ---------------------------------------------------------------- the weekly email
+
+def _digest_db(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    from leaside import db
+
+    conn = db.connect(tmp_path / "t.db")
+    now = datetime.now(timezone.utc)
+    run = db.start_run(conn)
+    db.upsert_item(conn, _item(source_id="city_public_notices", category="city_notice",
+                               title="Committee of Adjustment hearing, 123 Millwood Rd",
+                               url="https://secure.toronto.ca/nm/api/individual/notice/1.do",
+                               summary="Minor variance <b>application</b>", area="leaside",
+                               published_at=now.isoformat()))
+    db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime",
+                               title="Break and Enter", url=None, area="leaside",
+                               published_at=(now - timedelta(days=90)).isoformat()))
+    db.finish_run(conn, run, {"new": 2, "seen": 2, "failed": 0})
+    conn.commit()
+    return conn
+
+
+def test_digest_reports_what_arrived_since_the_last_one(tmp_path):
+    from leaside import digest, geo, sources
+
+    conn = _digest_db(tmp_path)
+    data = digest.gather(conn, geo.Areas.load(), sources.load())
+    assert data["total"] == 2
+    names = [name for name, _ in data["sections"]]
+    assert names.index("City notices") < names.index("Reported crime"), \
+        "things needing a response come before the record-keeping"
+
+
+def test_digest_covers_a_missed_week_rather_than_losing_it(tmp_path):
+    from leaside import db, digest, geo, sources
+
+    conn = _digest_db(tmp_path)
+    db.record_digest(conn, 2, True, "first")
+    data = digest.gather(conn, geo.Areas.load(), sources.load())
+    assert data["total"] == 0, "already reported"
+
+    import time
+    time.sleep(1.1)                       # timestamps are second-resolution
+    db.upsert_item(conn, _item(source_id="ra_leaside", title="something new",
+                               url="https://x/new", published_at="2026-09-12T00:00:00+00:00"))
+    conn.commit()
+    later = digest.gather(conn, geo.Areas.load(), sources.load())
+    assert later["total"] == 1, "a week with one new item reports one item"
+    assert later["sections"][0][1][0]["title"] == "something new"
+
+
+def test_digest_caps_a_huge_first_email_but_says_so(tmp_path):
+    from leaside import digest, geo, sources
+
+    conn = _digest_db(tmp_path)
+    for i in range(digest.MAX_ITEMS + 15):
+        db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime",
+                                   title=f"Assault {i}", url=None, area="leaside",
+                                   published_at="2026-09-01T00:00:00+00:00"))
+    conn.commit()
+    data = digest.gather(conn, geo.Areas.load(), sources.load())
+    assert data["shown"] == digest.MAX_ITEMS
+    assert data["overflow"] > 0
+    assert f"{data['overflow']} more" in digest.render_text(data)
+    assert f"{data['overflow']} more" in digest.render_html(data)
+
+
+def test_digest_email_is_safe_and_self_contained(tmp_path):
+    from leaside import digest, geo, sources
+
+    conn = _digest_db(tmp_path)
+    data = digest.gather(conn, geo.Areas.load(), sources.load())
+    html_body = digest.render_html(data)
+    text_body = digest.render_text(data)
+
+    assert "<b>application</b>" not in html_body, "publisher markup must be escaped"
+    assert "Minor variance" in html_body and "Minor variance" in text_body
+    assert "secure.toronto.ca" in html_body, "items must be clickable"
+    assert "data.tps.ca" in text_body, "a record with no article links to its source"
+    assert "nearest intersection" in html_body, "the location caveat travels with the email"
+    assert "style=" in html_body and "flex" not in html_body, "email clients need inline styles"
+    assert digest.subject(data).startswith("Leaside: 2 new items")
+
+
+def test_digest_says_so_when_nothing_happened(tmp_path):
+    from leaside import digest, geo, sources
+
+    conn = db.connect(tmp_path / "empty.db")
+    data = digest.gather(conn, geo.Areas.load(), sources.load())
+    assert data["total"] == 0
+    assert "nothing new" in digest.subject(data).lower()
+    assert "Nothing new this week" in digest.render_html(data)
+
+
+def test_digest_refuses_to_send_without_credentials(tmp_path, monkeypatch):
+    from leaside import digest
+
+    conn = _digest_db(tmp_path)
+    conn.commit()
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
+    monkeypatch.delenv("DIGEST_TO", raising=False)
+    with pytest.raises(RuntimeError, match="RESEND_API_KEY"):
+        digest.run(db_path=tmp_path / "t.db")
+
+
+def test_digest_uses_the_only_sender_the_free_tier_allows():
+    """Resend permits onboarding@resend.dev and the account owner's address only."""
+    from leaside import digest
+
+    assert "onboarding@resend.dev" in digest.SENDER
