@@ -755,8 +755,9 @@ def test_crime_outside_our_neighbourhoods_is_rejected_whatever_the_rectangle_say
     ours["features"][0]["attributes"]["NEIGHBOURHOOD_158"] = "Leaside-Bennington (56)"
     kept = arcgis.parse_features(json.dumps(ours), src, AREAS)
     assert len(kept) == 1
-    assert "Robbery - Business" in kept[0]["summary"]
-    assert "Commercial" in kept[0]["summary"]
+    assert kept[0]["title"] == "Robbery - Business", "the offence is the headline"
+    assert "Commercial" in kept[0]["summary"], "premises type goes underneath"
+    assert "Leaside-Bennington" in kept[0]["summary"]
 
 
 def test_crime_with_no_neighbourhood_field_still_uses_the_rectangle():
@@ -843,3 +844,61 @@ def test_every_runnable_source_earns_its_request():
             continue
         assert s.category, s.id
         assert s.home or s.category == "registry", f"{s.id} has nowhere to link"
+
+
+def test_collision_records_read_as_a_place_not_a_code():
+    """Every collision used to render as "Incident" over a division code."""
+    from leaside.fetchers import arcgis
+
+    src = CFG.by_id("tps_traffic_collisions")
+    raw = json.dumps({"features": [{
+        "attributes": {"OBJECTID": 5, "OCC_DATE": 1781928000000,
+                       "STREET1": "BAYVIEW AVE", "STREET2": "MILLWOOD RD",
+                       "INJURY": "Major", "DIVISION": "D53",
+                       "NEIGHBOURHOOD_158": "Leaside-Bennington (56)"},
+        "geometry": {"x": -79.365, "y": 43.705}}]})
+    it = arcgis.parse_features(raw, src, AREAS, label="Traffic Collision")[0]
+    assert it["title"] == "Traffic Collision at BAYVIEW AVE & MILLWOOD RD"
+    assert "Major" in it["summary"]
+    assert it["lat"] == 43.705 and it["lon"] == -79.365, "so the map link works"
+    assert it["title"] != "Incident"
+
+
+def test_an_intersection_field_is_preferred_over_two_street_names():
+    from leaside.fetchers import arcgis
+
+    raw = json.dumps({"features": [{
+        "attributes": {"OBJECTID": 1, "OCC_DATE": 1781928000000,
+                       "INTERSECTION": "BAYVIEW AVE & MCRAE DR",
+                       "STREET1": "BAYVIEW AVE", "ROAD_CLASS": "Major Arterial",
+                       "NEIGHBOURHOOD_158": "Leaside-Bennington (56)"},
+        "geometry": {"x": -79.365, "y": 43.705}}]})
+    it = arcgis.parse_features(raw, CFG.by_id("tps_traffic_collisions"), AREAS,
+                               label="Traffic Collision")[0]
+    assert it["title"] == "Traffic Collision at BAYVIEW AVE & MCRAE DR"
+    assert "Major Arterial" not in it["title"], "road class is not a street name"
+
+
+def test_layer_labels_are_singular_because_each_item_is_one_event():
+    from leaside.fetchers import arcgis as a
+
+    assert a.offence_label("Traffic Collisions Open Data (ASR-T-TBL-001)") == "Traffic Collision"
+    assert a.offence_label("Bicycle Thefts Open Data") == "Bicycle Theft"
+    assert a.offence_label("Break and Enter Open Data") == "Break and Enter"
+    assert a.offence_label("Assault Open Data") == "Assault"
+
+
+def test_page_warns_that_police_locations_are_approximate(tmp_path):
+    from leaside import db, render
+
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, _item(source_id="tps_traffic_collisions", category="collision",
+                               title="Traffic Collision at Bayview & Millwood", url=None,
+                               area="leaside", lat=43.705, lon=-79.365,
+                               published_at="2026-09-01"))
+    conn.commit()
+    html = render.run(db_path=tmp_path / "t.db", out_name="t.html").read_text(encoding="utf-8")
+    assert "openstreetmap.org" in html
+    assert "Nearest intersection on a map" in html
+    assert "nearest road intersection, not" in html
+    assert "data.tps.ca" in html, "collisions have no article, so the source page is the link"

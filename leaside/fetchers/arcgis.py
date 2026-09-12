@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 
+from .. import fields
+
 FEATURE_HINTS = ("FeatureServer", "MapServer")
 
 
@@ -72,11 +74,14 @@ def find_layers(entries: list[dict], matches) -> list[tuple[str, str]]:
 
 
 def offence_label(dataset_title: str) -> str:
-    """"Break and Enter Open Data" -> "Break and Enter"."""
+    """"Bicycle Thefts Open Data" -> "Bicycle Theft". One record, so singular."""
     label = dataset_title
     for noise in (" Open Data", " open data"):
         label = label.replace(noise, "")
-    return label.split("(")[0].strip() or dataset_title
+    label = label.split("(")[0].strip()
+    if label.endswith("s") and not label.endswith("ss"):
+        label = label[:-1]
+    return label or dataset_title
 
 
 def queryable_titles(entries: list[dict]) -> list[str]:
@@ -148,21 +153,15 @@ def parse_features(text: str, source, areas, label: str | None = None,
             tally["outside_areas"] += 1
             continue
         tally["kept"] += 1
-        title = (
-            attrs.get("MCI_CATEGORY")
-            or attrs.get("OFFENCE")
-            or attrs.get("Category")
-            or label
-            or "Incident"
-        )
+        title, summary = _where_and_what(attrs, label)
         occ = attrs.get("OCC_DATE") or attrs.get("REPORT_DATE") or attrs.get("OCC_YEAR")
         items.append(
             {
                 "source_id": source.id,
                 "category": source.category,
-                "title": str(title),
+                "title": title,
                 "url": None,
-                "summary": _crime_summary(attrs),
+                "summary": summary,
                 "published_at": _epoch_to_iso(occ),
                 "external_id": str(attrs.get("EVENT_UNIQUE_ID") or attrs.get("OBJECTID")),
                 "area": area,
@@ -174,17 +173,53 @@ def parse_features(text: str, source, areas, label: str | None = None,
     return items
 
 
-def _crime_summary(attrs: dict) -> str | None:
-    """The offence in full, where it happened, and the neighbourhood, if given."""
-    parts = [attrs.get("OFFENCE"), attrs.get("PREMISES_TYPE"),
-             attrs.get("NEIGHBOURHOOD_158") or attrs.get("DIVISION")]
+def _streets(attrs: dict) -> str | None:
+    """Whatever the layer calls its location: an intersection, or one or two streets."""
+    flat = fields.flatten(attrs)
+    for key in ("INTERSECTION", "LOCATION", "LOCATION_DESC", "ADDRESS"):
+        value = flat.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    named = []
+    for key, value in flat.items():
+        lk = key.lower()
+        if ("street" in lk or lk.startswith("road") or lk in {"st1", "st2"}) \
+                and "class" not in lk and isinstance(value, str) and value.strip():
+            named.append((lk, value.strip()))
+    named.sort()
+    picked = [v for _, v in named][:2]
+    return " & ".join(picked) or None
+
+
+def _where_and_what(attrs: dict, label: str | None) -> tuple[str, str | None]:
+    """A readable title and a one-line description of where it happened.
+
+    Collision layers carry no offence field, so without this every record read
+    "Incident" with a division code under it.
+    """
+    flat = fields.flatten(attrs)
+    # What happened, in the publisher's words. Injury severity is not a headline,
+    # so it belongs in the line underneath.
+    title = (flat.get("OFFENCE") or flat.get("MCI_CATEGORY") or flat.get("CSI_CATEGORY")
+             or flat.get("Category") or flat.get("IMPACTYPE") or label or "Incident")
+    where = _streets(attrs)
+    if where:
+        title = f"{title} at {where}"
+    parts = [
+        flat.get("OFFENCE") if flat.get("OFFENCE") != title else None,
+        flat.get("PREMISES_TYPE") or flat.get("LOCATION_TYPE"),
+        flat.get("INJURY"),
+        flat.get("INVTYPE"),
+        flat.get("NEIGHBOURHOOD_158") or flat.get("NEIGHBOURHOOD_140")
+        or flat.get("DIVISION"),
+    ]
     seen, out = set(), []
     for part in parts:
         text = str(part).strip() if part else ""
-        if text and text.lower() not in seen:
+        if text and text.lower() not in seen and text.lower() not in title.lower():
             seen.add(text.lower())
             out.append(text)
-    return " · ".join(out) or None
+    return str(title), " · ".join(out) or None
 
 
 def _epoch_to_iso(value):

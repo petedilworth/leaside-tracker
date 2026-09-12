@@ -14,6 +14,9 @@
             --card:#1e1c19; --accent:#e0a08e; --accent-soft:#33241f; --new:#7fc39a; }
   }
   * { box-sizing:border-box; }
+  /* Author styles beat the browser's [hidden] rule, and li.item sets display:grid.
+     Without this, filtered-out items stay visible while the counters say otherwise. */
+  [hidden] { display:none !important; }
   html { scroll-behavior:smooth; }
   body { margin:0; background:var(--bg); color:var(--fg);
          font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
@@ -158,7 +161,9 @@
       <div class="links">
         {% if it.url %}<a href="{{ it.url }}" target="_blank" rel="noopener">Read the original &rarr;</a>
         {% elif it.source_home %}<a href="{{ it.source_home }}" target="_blank" rel="noopener">Where this came from &rarr;</a>{% endif %}
-        {% if it.lat and it.lon %}<a href="https://www.openstreetmap.org/?mlat={{ it.lat }}&amp;mlon={{ it.lon }}#map=17/{{ it.lat }}/{{ it.lon }}" target="_blank" rel="noopener">See it on a map &rarr;</a>{% endif %}
+        {% if it.lat and it.lon %}<a href="https://www.openstreetmap.org/?mlat={{ it.lat }}&amp;mlon={{ it.lon }}#map=17/{{ it.lat }}/{{ it.lon }}"
+           target="_blank" rel="noopener"
+           {% if it.category in ('crime', 'collision') %}title="Approximate. Police move these to the nearest intersection on purpose, so this is the junction, not the address."{% endif %}>{{ 'Nearest intersection on a map' if it.category in ('crime', 'collision') else 'See it on a map' }} &rarr;</a>{% endif %}
         {% if it.url and it.source_home %}<a href="{{ it.source_home }}" target="_blank" rel="noopener">{{ it.source_name }}</a>{% endif %}
       </div>
     </div>
@@ -201,7 +206,11 @@
   </table>
 </details>
 
-<p class="foot">Read state is remembered by this browser only.<br>
+<p class="foot">
+Police crime and collision records are placed at the nearest road intersection, not
+at the address, and they arrive months or years after the event. Widen
+<strong>Since</strong> to see them.<br>
+Read state is remembered by this browser only.<br>
 Page generated {{ generated_at[:16] }} UTC by code {{ code_version }}.</p>
 </div>
 

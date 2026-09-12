@@ -22,6 +22,19 @@ playwright = pytest.importorskip("playwright.sync_api")
 pytestmark = pytest.mark.skipif(CHROME is None, reason="no Chromium found")
 
 
+def shown_count(pg) -> int:
+    """How many items a person can actually see.
+
+    Counting `li.item:not([hidden])` only checks the attribute. A CSS rule once
+    kept every filtered item on screen while that count said they were gone, and
+    only a screenshot caught it.
+    """
+    return pg.evaluate(
+        "() => Array.from(document.querySelectorAll('li.item'))"
+        ".filter(li => li.offsetParent !== null).length"
+    )
+
+
 @pytest.fixture(scope="module")
 def demo_url():
     subprocess.run([sys.executable, "-m", "leaside.cli", "demo"], check=True,
@@ -41,9 +54,10 @@ def test_read_state_and_filters_work_like_a_person_expects(demo_url):
             return int(pg.locator("#unread-count").inner_text())
 
         def visible():
-            return pg.locator("li.item:not([hidden])").count()
+            return shown_count(pg)
 
         assert unread() == 5 and visible() == 5
+        assert pg.locator("li.item").count() == 6, "one item is outside the default window"
 
         pg.locator("li.item .done").first.click()
         assert unread() == 4 and visible() == 4, "ticked item should leave the unread view"
@@ -54,10 +68,14 @@ def test_read_state_and_filters_work_like_a_person_expects(demo_url):
         pg.locator("#mark-all").click()
         assert unread() == 0 and visible() == 0
         assert pg.locator("#mark-all").is_hidden()
-        assert pg.locator("h2.day:not([hidden])").count() == 0, "empty day headings hide"
+        assert pg.evaluate("() => Array.from(document.querySelectorAll('h2.day'))"
+                           ".filter(h => h.offsetParent !== null).length") == 0, \
+            "empty day headings hide"
 
         pg.locator('.row[data-group="read"] .chip[data-filter="all"]').click()
-        assert visible() == 5 and pg.locator("h2.day:not([hidden])").count() == 5
+        assert visible() == 5
+        assert pg.evaluate("() => Array.from(document.querySelectorAll('h2.day'))"
+                           ".filter(h => h.offsetParent !== null).length") == 5
 
         # Areas are toggles, not a single choice: turn Leaside off, the rest stay on.
         before = visible()
@@ -134,7 +152,7 @@ def test_since_control_reaches_late_arriving_records(demo_url):
         pg.goto(demo_url)
 
         def visible():
-            return pg.locator("li.item:not([hidden])").count()
+            return shown_count(pg)
 
         default_view = visible()
         assert int(pg.locator("#view-count").inner_text()) == default_view

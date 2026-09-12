@@ -257,3 +257,36 @@ showing the last 120 days, yet both cost a request on every run.
 Fourteen sources now run. Of those, six are neighbourhood feeds, two are local
 papers, two are business, one is community, one is planning advocacy, and three are
 municipal or police data.
+
+## Collisions and crime, 12 September 2026
+
+Three questions from the owner, answered in the code.
+
+**Do collisions have a location?** Yes, coordinates on every record, so each one
+gets a map link. But the pin is the nearest road intersection, not the address:
+Toronto Police move these deliberately for privacy. The page says so next to the
+link and in its footer rather than only in this file.
+
+Records now read as a place rather than a code. "Traffic Collision at BAYVIEW AVE
+& MILLWOOD RD" with severity and neighbourhood underneath, instead of "Incident"
+over a division code. An explicit intersection field wins over two street names,
+and road class is never mistaken for a street.
+
+**Is there a link to the original?** For collisions and crime, no article exists
+anywhere. These are spreadsheet rows, not stories. Each links to the publisher's
+data portal plus the map. Every other source links to its own article.
+
+**Why were collisions missing?** My age caps at ingest. A 90-day cap discarded all
+960 records in the area; a one-year cap discarded the same 960. They are now stored
+in full and the page's Since control decides what is shown.
+
+### A bug only a screenshot found
+
+Filtered-out items stayed on screen while the counters correctly said they were
+hidden. `li.item` sets `display:grid`, and an author rule beats the browser's own
+`[hidden]` rule. Every browser test had been counting the attribute rather than
+what a person sees, so all of them passed.
+
+Fixed with an explicit `[hidden] { display:none !important; }`, and the tests now
+count elements with a rendered box. Removing the CSS line again fails two tests, so
+the guard is real.
