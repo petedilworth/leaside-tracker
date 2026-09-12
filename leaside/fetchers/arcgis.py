@@ -123,7 +123,14 @@ def parse_features(text: str, source, areas, label: str | None = None) -> list[d
         lon, lat = geom.get("x"), geom.get("y")
         if lon is None and isinstance(geom.get("coordinates"), list):
             lon, lat = geom["coordinates"][0], geom["coordinates"][1]
-        area = areas.match_point(lat, lon)
+        # Toronto Police state the City neighbourhood on every record. That beats
+        # a hand-drawn rectangle: a South Rosedale box was wide enough to claim a
+        # robbery in North St.James Town, four kilometres away.
+        official = (attrs.get("NEIGHBOURHOOD_158") or attrs.get("NEIGHBOURHOOD_140")
+                    or attrs.get("Neighbourhood"))
+        if official and not areas.is_official_ours(official):
+            continue
+        area = areas.match_point(lat, lon) or areas.match_official(official)
         if not area:
             continue
         title = (
@@ -140,7 +147,7 @@ def parse_features(text: str, source, areas, label: str | None = None) -> list[d
                 "category": source.category,
                 "title": str(title),
                 "url": None,
-                "summary": attrs.get("NEIGHBOURHOOD_158") or attrs.get("DIVISION"),
+                "summary": _crime_summary(attrs),
                 "published_at": _epoch_to_iso(occ),
                 "external_id": str(attrs.get("EVENT_UNIQUE_ID") or attrs.get("OBJECTID")),
                 "area": area,
@@ -150,6 +157,19 @@ def parse_features(text: str, source, areas, label: str | None = None) -> list[d
             }
         )
     return items
+
+
+def _crime_summary(attrs: dict) -> str | None:
+    """The offence in full, where it happened, and the neighbourhood, if given."""
+    parts = [attrs.get("OFFENCE"), attrs.get("PREMISES_TYPE"),
+             attrs.get("NEIGHBOURHOOD_158") or attrs.get("DIVISION")]
+    seen, out = set(), []
+    for part in parts:
+        text = str(part).strip() if part else ""
+        if text and text.lower() not in seen:
+            seen.add(text.lower())
+            out.append(text)
+    return " · ".join(out) or None
 
 
 def _epoch_to_iso(value):

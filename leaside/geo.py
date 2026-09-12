@@ -26,6 +26,36 @@ class Areas:
                     return f["properties"]["key"]
         return None
 
+    @staticmethod
+    def _norm(name: str) -> str:
+        """"North St.James Town (74)" -> "northstjamestown". Drops the id and punctuation."""
+        name = re.sub(r"\(\s*\d+\s*\)\s*$", "", str(name)).strip()
+        return re.sub(r"[^a-z0-9]", "", name.lower())
+
+    def official_names(self) -> set[str]:
+        """Normalised City neighbourhood names that fall inside our areas."""
+        return {self._norm(n) for f in self.features
+                for n in f["properties"].get("official", [])}
+
+    def is_official_ours(self, name: str | None) -> bool:
+        """True when a publisher's own neighbourhood label is one of ours."""
+        return bool(name) and self._norm(name) in self.official_names()
+
+    def match_official(self, name: str | None) -> str | None:
+        """Map a City neighbourhood name to one of our areas.
+
+        Several of our areas share one City neighbourhood - Rosedale-Moore Park
+        covers three - so this is a fallback for when coordinates are missing, not
+        a replacement for them.
+        """
+        if not name:
+            return None
+        target = self._norm(name)
+        for f in self.features:
+            if target in {self._norm(n) for n in f["properties"].get("official", [])}:
+                return f["properties"]["key"]
+        return None
+
     def match_text(self, *texts: str | None) -> str | None:
         """Return the area whose keyword appears earliest in the joined text."""
         blob = " ".join(t for t in texts if t).lower()

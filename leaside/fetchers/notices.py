@@ -15,6 +15,9 @@ from urllib.parse import urljoin
 from .. import fields
 
 BASE = "https://secure.toronto.ca/nm/"
+# The feed carries no link field at all. The public detail page is built from the
+# notice id; this pattern is confirmed against pages the City has published.
+DETAIL = "https://secure.toronto.ca/nm/api/individual/notice/{}.do"
 
 TITLE = dict(exact=("noticeTitle", "title", "subject"),
              contains=("title", "subject", "heading"), exclude=("file", "type", "sub"))
@@ -42,6 +45,21 @@ def _records(payload):
     return []
 
 
+def _coords(rec: dict):
+    """Notices carry an address list with coordinates. Use them, not keyword guessing."""
+    for entry in rec.get("addressList") or []:
+        if not isinstance(entry, dict):
+            continue
+        _, lat = fields.pick(entry, contains=("latitude",), exclude=())
+        _, lon = fields.pick(entry, contains=("longitude",), exclude=())
+        try:
+            if lat and lon:
+                return float(lat), float(lon)
+        except ValueError:
+            continue
+    return None, None
+
+
 def parse(text: str, source) -> list[dict]:
     payload = json.loads(text)
     items = []
@@ -55,6 +73,10 @@ def parse(text: str, source) -> list[dict]:
         _, when = fields.pick(rec, **DATE)
         _, body = fields.pick(rec, **BODY)
         _, ext = fields.pick(rec, **ID)
+        notice_id = rec.get("noticeId") or ext
+        if not url and notice_id:
+            url = DETAIL.format(notice_id)
+        lat, lon = _coords(rec)
         items.append(
             {
                 "source_id": source.id,
@@ -64,6 +86,8 @@ def parse(text: str, source) -> list[dict]:
                 "summary": (body or "")[:1500] or None,
                 "published_at": when,
                 "external_id": ext or url or title,
+                "lat": lat,
+                "lon": lon,
                 "raw": rec,
             }
         )
@@ -94,9 +118,14 @@ def fetch(source, http, areas) -> tuple[list[dict], int]:
     items = parse(resp.text, source)
     kept = []
     for it in items:
-        blob = json.dumps(it.get("raw", {}), default=str)
-        area = areas.match_text(it["title"], it.get("summary"), blob)
+        # Coordinates first; only fall back to reading street names out of the text.
+        area = areas.match_point(it.get("lat"), it.get("lon"))
+        if not area:
+            blob = json.dumps(it.get("raw", {}), default=str)
+            area = areas.match_text(it["title"], it.get("summary"), blob)
         if area:
             it["area"] = area
             kept.append(it)
+    located = sum(1 for it in kept if it.get("lat"))
+    print(f"        kept {len(kept)} of {len(items)} notices, {located} placed by coordinates")
     return kept, resp.status_code

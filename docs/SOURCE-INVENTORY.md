@@ -207,3 +207,43 @@ Also found, and worth knowing about:
   up this year", which is a different question from "what happened this week".
 - **Traffic Collisions Open Data (ASR-T-TBL-001)**, confirmed as the annual
   statistical table already retired from this project.
+
+## First clean run, 12 September 2026
+
+Sixteen sources, no failures, no duplicates, 228 rows instead of 1,502. The report
+was then good enough to expose three real defects.
+
+**City notices carry no link field at all.** Not under any name. The date guess was
+fixed last session, but there was never a URL to find. The public detail page is
+built from the notice id, confirmed against pages the City has published:
+`https://secure.toronto.ca/nm/api/individual/notice/{noticeId}.do`. Notices also
+carry an `addressList` with coordinates, so they are now placed by location rather
+than by spotting a street name in the text, and each one gets a map link.
+
+**A robbery in North St.James Town was filed as South Rosedale.** Four kilometres
+away. The hand-drawn South Rosedale rectangle is wide enough to contain it. Every
+Toronto Police record states its own City neighbourhood, so that now decides: a
+record whose neighbourhood is not one of ours is dropped regardless of where the
+rectangle thinks it falls. Records with no such field still use the rectangle.
+
+This does not repair the overlapping rectangles, it routes around them for the one
+source where the publisher knows better. Each area now also lists the official
+neighbourhood names covering it:
+
+| Our area | City neighbourhood |
+| --- | --- |
+| Leaside, Bennington Heights | Leaside-Bennington |
+| North Rosedale, South Rosedale, Moore Park | Rosedale-Moore Park |
+| Davisville | Mount Pleasant East |
+| Lawrence Park | Lawrence Park South, Lawrence Park North |
+
+Note the middle row. The City treats three of the seven areas as one neighbourhood,
+which is why coordinates still decide and the official name is only a fallback.
+
+**Crime data arrives about twelve weeks late.** On 12 September the newest record
+was 20 June, 84 days old. A 90-day cap left a six-day window and returned two
+incidents for the entire area. The cap is now a year.
+
+Two feeds have posted nothing in over a year and can never appear on a page showing
+the last 120 days: Lawrence Park Ratepayers, last post November 2023, and Leaside
+Baseball, last post February 2024.

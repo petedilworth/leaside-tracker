@@ -1,6 +1,6 @@
 {
   "type": "FeatureCollection",
-  "note": "PLACEHOLDER GEOMETRY. Each polygon is a hand-drawn rectangle roughly covering the named area. Replace with the City of Toronto official neighbourhood boundaries (open.toronto.ca dataset 'Neighbourhoods') once you have fetched them locally. See docs/SOURCE-INVENTORY.md. Deer Park and Lytton Park were removed in September 2026: both border the seven areas rather than sitting in them, and neither produced anything worth reading.",
+  "note": "PLACEHOLDER GEOMETRY. Each polygon is a hand-drawn rectangle roughly covering the named area. Replace with the City of Toronto official neighbourhood boundaries (open.toronto.ca dataset 'Neighbourhoods') once you have fetched them locally. See docs/SOURCE-INVENTORY.md. Deer Park and Lytton Park were removed in September 2026: both border the seven areas rather than sitting in them, and neither produced anything worth reading. Each area also lists the City of Toronto official neighbourhood names that cover it. Where a publisher states the neighbourhood itself, that is trusted over these rectangles.",
   "features": [
     {
       "type": "Feature",
@@ -21,6 +21,9 @@
           "bessborough",
           "trace manes",
           "serena gundy"
+        ],
+        "official": [
+          "Leaside-Bennington"
         ]
       },
       "geometry": {
@@ -62,6 +65,9 @@
           "governor's bridge",
           "governors bridge",
           "moore avenue"
+        ],
+        "official": [
+          "Leaside-Bennington"
         ]
       },
       "geometry": {
@@ -103,6 +109,9 @@
           "chorley park",
           "whitney park",
           "douglas drive"
+        ],
+        "official": [
+          "Rosedale-Moore Park"
         ]
       },
       "geometry": {
@@ -144,6 +153,9 @@
           "crescent road",
           "elm avenue",
           "rosedale valley"
+        ],
+        "official": [
+          "Rosedale-Moore Park"
         ]
       },
       "geometry": {
@@ -185,6 +197,9 @@
           "mount pleasant cemetery",
           "heath street",
           "welland avenue"
+        ],
+        "official": [
+          "Rosedale-Moore Park"
         ]
       },
       "geometry": {
@@ -226,6 +241,9 @@
           "south eglinton",
           "june rowlands park",
           "merton street"
+        ],
+        "official": [
+          "Mount Pleasant East"
         ]
       },
       "geometry": {
@@ -267,6 +285,10 @@
           "blythwood",
           "alexandra gate",
           "dawlish"
+        ],
+        "official": [
+          "Lawrence Park South",
+          "Lawrence Park North"
         ]
       },
       "geometry": {

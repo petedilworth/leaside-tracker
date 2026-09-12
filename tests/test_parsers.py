@@ -712,3 +712,89 @@ def test_health_report_and_page_both_state_their_version(tmp_path):
     assert label in report
     html = render.run(db_path=tmp_path / "t.db", out_name="t.html").read_text(encoding="utf-8")
     assert label in html
+
+
+# ---------------------------------------------------------------- evidence from the live run
+
+def test_crime_outside_our_neighbourhoods_is_rejected_whatever_the_rectangle_says():
+    """A real robbery in North St.James Town was being filed as South Rosedale.
+
+    The rectangle is wide enough to contain it; Toronto Police state the real
+    neighbourhood on every record, so that is what decides.
+    """
+    from leaside.fetchers import arcgis
+
+    src = CFG.by_id("tps_reported_crime")
+    downtown = {"features": [{
+        "attributes": {"EVENT_UNIQUE_ID": "GO-20261277447", "OCC_DATE": 1781928000000,
+                       "OFFENCE": "Robbery - Business", "PREMISES_TYPE": "Commercial",
+                       "NEIGHBOURHOOD_158": "North St.James Town (74)"},
+        "geometry": {"x": -79.37575275526954, "y": 43.66966190876556}}]}
+    assert AREAS.match_point(43.66966190876556, -79.37575275526954) == "south_rosedale", \
+        "the rectangle does contain it, which is the bug this guards"
+    assert arcgis.parse_features(json.dumps(downtown), src, AREAS) == []
+
+    ours = json.loads(json.dumps(downtown))
+    ours["features"][0]["attributes"]["NEIGHBOURHOOD_158"] = "Leaside-Bennington (56)"
+    kept = arcgis.parse_features(json.dumps(ours), src, AREAS)
+    assert len(kept) == 1
+    assert "Robbery - Business" in kept[0]["summary"]
+    assert "Commercial" in kept[0]["summary"]
+
+
+def test_crime_with_no_neighbourhood_field_still_uses_the_rectangle():
+    """Older layers may not carry the field. Do not throw those away."""
+    from leaside.fetchers import arcgis
+
+    src = CFG.by_id("tps_reported_crime")
+    raw = json.dumps({"features": [{
+        "attributes": {"EVENT_UNIQUE_ID": "GO-1", "OCC_DATE": 1781928000000},
+        "geometry": {"x": -79.365, "y": 43.705}}]})
+    assert len(arcgis.parse_features(raw, src, AREAS, label="Assault")) == 1
+
+
+def test_notices_get_a_link_built_from_their_id_because_the_feed_has_none():
+    from leaside.fetchers import notices
+
+    src = CFG.by_id("city_public_notices")
+    rec = {"noticeId": 7923, "title": "Notice of Application - 2654 Bayview Ave",
+           "noticeDate": 1789099200000,
+           "noticeDescription": "<p>NOTICE OF APPLICATION</p>",
+           "addressList": [{"city": "Toronto", "latitudeCoordinate": "43.705",
+                            "longitudeCoordinate": "-79.365"}]}
+    it = notices.parse(json.dumps([rec]), src)[0]
+    assert it["url"] == "https://secure.toronto.ca/nm/api/individual/notice/7923.do"
+    assert it["published_at"] and it["lat"] == 43.705 and it["lon"] == -79.365
+    assert "7923" in it["external_id"]
+
+
+def test_notice_coordinates_place_it_without_reading_street_names():
+    from leaside.fetchers import notices
+
+    src = CFG.by_id("city_public_notices")
+    rec = {"noticeId": 1, "title": "Notice of Public Meeting", "noticeDate": 1789099200000,
+           "addressList": [{"latitudeCoordinate": 43.705, "longitudeCoordinate": -79.365}]}
+    it = notices.parse(json.dumps([rec]), src)[0]
+    assert AREAS.match_point(it["lat"], it["lon"]) == "leaside"
+    # no address list, no coordinates, and that must not crash
+    bare = notices.parse(json.dumps([{"noticeId": 2, "title": "No address here",
+                                      "noticeDate": 1789099200000}]), src)[0]
+    assert bare["lat"] is None and bare["url"].endswith("/2.do")
+
+
+def test_official_neighbourhood_names_map_to_our_areas():
+    assert AREAS.is_official_ours("Leaside-Bennington (56)")
+    assert AREAS.is_official_ours("leaside-bennington")
+    assert AREAS.is_official_ours("Mount Pleasant East (99)")
+    assert not AREAS.is_official_ours("North St.James Town (74)")
+    assert not AREAS.is_official_ours("Thorncliffe Park (55)")
+    assert not AREAS.is_official_ours(None)
+    assert AREAS.match_official("Lawrence Park North (105)") == "lawrence_park"
+    # Rosedale-Moore Park covers three of our areas, so coordinates must win
+    assert AREAS.match_official("Rosedale-Moore Park (98)") in {
+        "north_rosedale", "south_rosedale", "moore_park"}
+
+
+def test_crime_window_is_wide_enough_for_how_late_the_data_arrives():
+    """On 12 Sep 2026 the newest record was 84 days old; a 90-day cap kept six days."""
+    assert CFG.by_id("tps_reported_crime").max_age_days >= 365

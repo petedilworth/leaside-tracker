@@ -317,7 +317,7 @@ sources:
       - "Theft From Motor Vehicle Open Data"
       - "Bicycle Thefts Open Data"
     timeout: 120
-    max_age_days: 90
+    max_age_days: 365
     snapshot: true
     status: documented
     notes: >
@@ -332,7 +332,13 @@ sources:
       distress and mapping them onto a neighbourhood page is not something this
       project should do.
       Points are OFFSET to the nearest intersection for privacy. Never present them
-      as exact addresses. Refresh is roughly monthly.
+      as exact addresses.
+      The cap is a year, not 90 days, because the data lags: on 12 September 2026 the
+      newest record was 20 June, 84 days old. A 90-day cap left a six-day window and
+      returned two incidents for the whole area.
+      Every record states its City neighbourhood, which is trusted over this project's
+      hand-drawn rectangles - one of which was claiming a robbery in North St.James
+      Town, four kilometres away, as South Rosedale.
 
   - id: tps_traffic_collisions
     name: TPS Traffic Collisions (ASR-T-TBL-001)
