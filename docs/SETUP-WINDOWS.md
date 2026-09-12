@@ -142,8 +142,12 @@ You only need to do this once, or again in a year when the list changes.
 **You no longer need to do anything.** The launcher collects updates itself, as
 step 0, before it does anything else. You just double-click **run-windows.bat**.
 
-If it cannot update it says so and carries on with the code you have. That happens
-when a file in the folder has been edited by hand. Send those lines to Claude.
+If it cannot update it now tries to clear the problem itself and update again. If
+it still cannot, it stops and prints the blocking file. Send that whole window to
+Claude.
+
+Nothing in the folder is precious. The news is collected fresh on every run, and
+what you have read is stored in your browser, not here.
 
 Every output now says which version of the code produced it: the first line of the
 black window, the first line of `config\health-report.md`, and the bottom of your

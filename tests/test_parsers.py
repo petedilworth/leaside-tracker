@@ -1,5 +1,6 @@
 """Parser tests run entirely offline against fixtures. No network, ever."""
 import json
+import pathlib
 import sys
 from pathlib import Path
 
@@ -902,3 +903,21 @@ def test_page_warns_that_police_locations_are_approximate(tmp_path):
     assert "Nearest intersection on a map" in html
     assert "nearest road intersection, not" in html
     assert "data.tps.ca" in html, "collisions have no article, so the source page is the link"
+
+
+def test_generated_files_are_not_tracked_by_git():
+    """Committing a file the program rewrites blocks every future `git pull`.
+
+    config/health-report.md was tracked and rewritten on every run, so git saw a
+    local edit each time and refused to update. Five sessions of fixes never
+    reached the owner's machine because of it.
+    """
+    import subprocess
+
+    root = pathlib.Path(__file__).resolve().parents[1]
+    tracked = subprocess.run(["git", "ls-files"], cwd=root, capture_output=True,
+                             text=True, check=True).stdout.split()
+    generated = [f for f in tracked
+                 if f.endswith(("-report.md", "-catalogue.md"))
+                 or f in {"config/health-report.md", "config/probe-report.md"}]
+    assert not generated, f"these are outputs and must not be tracked: {generated}"

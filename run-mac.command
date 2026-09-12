@@ -23,9 +23,13 @@ if command -v git >/dev/null 2>&1; then
   echo "Step 0 of 4: collecting updates..."
   if ! git pull --ff-only; then
     echo ""
-    echo "COULD NOT UPDATE. Results below will be out of date."
-    echo "To fix: git checkout -- . && git pull"
-    git status --short
+    echo "A file looks edited to git. Trying to clear it automatically..."
+    if git checkout -- . && git pull --ff-only; then
+      echo "Cleared. Updated successfully."
+    else
+      echo "Still stuck. Send this whole window to Claude."
+      git status --short
+    fi
     echo ""
   fi
   echo ""

@@ -53,21 +53,26 @@ if errorlevel 1 (
     echo   COULD NOT UPDATE. The results below will be OUT OF DATE.
     echo  ============================================================
     echo.
-    echo  Almost always this is a file in this folder that git thinks
-    echo  you edited. Windows line endings cause it on their own.
+    echo  A file in this folder looks edited to git, so it refused to
+    echo  update. The file is named below.
     echo.
-    echo  To fix it, close this window and run these three lines:
+    echo  Trying to clear it automatically...
     echo.
-    echo      cd /d "%%~dp0"
-    echo      git checkout -- .
-    echo      git pull
-    echo.
-    echo  Nothing you care about is lost: the news is re-collected
-    echo  every run, and what you have read is stored in your browser.
-    echo.
-    git status --short
-    echo.
-    pause
+    git checkout -- . && git pull --ff-only
+    if errorlevel 1 (
+      echo.
+      echo  Still stuck. Copy this whole window and send it to Claude.
+      echo  Nothing is lost: the news is collected fresh every run, and
+      echo  what you have read is stored in your browser, not here.
+      echo.
+      git status --short
+      echo.
+      pause
+    ) else (
+      echo.
+      echo  Cleared. Updated successfully.
+      echo.
+    )
   )
   echo.
 )

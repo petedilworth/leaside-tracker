@@ -290,3 +290,19 @@ what a person sees, so all of them passed.
 Fixed with an explicit `[hidden] { display:none !important; }`, and the tests now
 count elements with a rendered box. Removing the CSS line again fails two tests, so
 the guard is real.
+
+## Why five sessions of fixes never arrived
+
+`config/health-report.md` was committed to the repository. The program rewrites it
+on every run, so git saw a local edit every time and refused to pull. Three
+identical health reports in a row, and an apparently endless loop of "you need to
+pull", all traced to one generated file that should never have been tracked.
+
+Now ignored, along with every other generated output: the probe report, the
+associations report, and the dataset catalogues. A test reads `git ls-files` and
+fails if any of them is ever tracked again. Re-adding one and running the test
+confirms it bites.
+
+The launcher also tries to clear a blocked update by itself before giving up, and
+its recovery instructions no longer print `%~dp0`, which only expands inside a
+running script and would have failed if typed by hand.
