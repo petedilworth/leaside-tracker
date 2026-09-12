@@ -24,6 +24,14 @@ def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> 
             if src.kind == "arcgis_feature":
                 url = src.url or _discover(src, cfg, fetcher, layers)
                 items, status = arcgis.fetch_features(src, fetcher, areas, layer_url=url)
+            elif src.kind == "arcgis_multi":
+                items, status = [], 200
+                for title, url in _discover_many(src, cfg, fetcher, layers):
+                    got, status = arcgis.fetch_features(
+                        src, fetcher, areas, layer_url=url,
+                        label=arcgis.offence_label(title))
+                    print(f"        {arcgis.offence_label(title):<28} {len(got):>4} in area")
+                    items += got
             else:
                 items, status = REGISTRY[src.kind](src, fetcher, areas)
             for it in items:
@@ -74,28 +82,57 @@ def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> 
     return totals
 
 
+def _catalogue(src, cfg, fetcher, cache):
+    parent = cfg.by_id(src.discover_from)
+    if parent is None:
+        raise RuntimeError(f"{src.id}: discover_from '{src.discover_from}' is not a source")
+    if parent.id not in cache:
+        resp = fetcher.get(parent.url, timeout=parent.timeout, retries=parent.retries)
+        resp.raise_for_status()
+        cache[parent.id] = arcgis.catalogue_entries(resp.text)
+    return parent, cache[parent.id]
+
+
+def _write_catalogue(parent, entries) -> Path:
+    listing = Path(f"config/{parent.id}-catalogue.md")
+    titles = arcgis.queryable_titles(entries)
+    listing.write_text(
+        f"# Datasets published by {parent.name}\n\n"
+        f"{len(titles)} of them can be queried directly. Send this file to Claude "
+        f"when a layer cannot be found.\n\n"
+        + "\n".join(f"- {t}" for t in titles) + "\n",
+        encoding="utf-8",
+    )
+    return listing
+
+
+def _discover_many(src, cfg, fetcher, cache) -> list[tuple[str, str]]:
+    parent, entries = _catalogue(src, cfg, fetcher, cache)
+    found = arcgis.find_layers(entries, src.discover_match)
+    if not found:
+        listing = _write_catalogue(parent, entries)
+        raise RuntimeError(
+            f"none of {src.discover_match!r} matched a layer. Available names: {listing}"
+        )
+    missing = [m for m in src.discover_match
+               if not any(m.lower() in t.lower() for t, _ in found)]
+    if missing:
+        print(f"        note: no layer named {', '.join(missing)}")
+    return found
+
+
 def _discover(src, cfg, fetcher, cache) -> str:
     parent = cfg.by_id(src.discover_from)
     if parent is None:
         raise RuntimeError(f"{src.id}: discover_from '{src.discover_from}' is not a source")
     if parent.id not in cache:
-        resp = fetcher.get(parent.url)
+        resp = fetcher.get(parent.url, timeout=parent.timeout, retries=parent.retries)
         resp.raise_for_status()
         cache[parent.id] = arcgis.catalogue_entries(resp.text)
     url = arcgis.find_layer(cache[parent.id], src.discover_match)
     if not url:
-        listing = Path(f"config/{parent.id}-catalogue.md")
-        titles = arcgis.queryable_titles(cache[parent.id])
-        listing.write_text(
-            f"# Datasets published by {parent.name}\n\n"
-            f"{len(titles)} of them can be queried directly. Send this file to Claude "
-            f"when a layer cannot be found.\n\n"
-            + "\n".join(f"- {t}" for t in titles)
-            + "\n",
-            encoding="utf-8",
-        )
+        listing = _write_catalogue(parent, cache[parent.id])
         raise RuntimeError(
-            f"no layer matching {src.discover_match!r}. "
-            f"The {len(titles)} available names are listed in {listing}"
+            f"no layer matching {src.discover_match!r}. Available names: {listing}"
         )
     return url

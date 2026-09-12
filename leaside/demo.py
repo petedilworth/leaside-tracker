@@ -24,7 +24,7 @@ def run(db_path=db.DEMO_DB) -> int:
     items += notices.parse((FIX / "notices.json").read_text(encoding="utf-8"), cfg.by_id("city_public_notices"))
     items += arcgis.parse_features(
         (FIX / "arcgis_features.json").read_text(encoding="utf-8"),
-        cfg.by_id("tps_major_crime_indicators"),
+        cfg.by_id("tps_reported_crime"),
         areas,
     )
 

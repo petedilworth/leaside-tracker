@@ -168,3 +168,42 @@ it off by default remains in the code for the next one that turns out to be nois
 
 The lesson for future additions: the test is whether a source's boundary touches one
 of the seven areas, not whether its feed is busy. I added two on the wrong test.
+
+## The police catalogue, resolved
+
+The 71 dataset names Toronto Police actually publish arrived on 12 September 2026,
+and they explain a failure that had repeated on every run since the start.
+
+**There is no "Major Crime Indicators" layer.** It does not exist under that name,
+nor as MCI. Toronto Police publish each offence as its own dataset. The source was
+looking for something the publisher had never offered.
+
+Now collected as one source, `tps_reported_crime`, gathering six layers:
+
+| Layer | Why |
+| --- | --- |
+| Break and Enter Open Data | The crime residents ask about most |
+| Auto Theft Open Data | Ontario-wide concern, and a driveway crime |
+| Theft From Motor Vehicle Open Data | Far more common than auto theft |
+| Robbery Open Data | Person-on-person, on the street |
+| Assault Open Data | Highest volume of the six |
+| Bicycle Thefts Open Data | High volume in this part of the city |
+
+Deliberately left out, though all are available:
+
+| Layer | Why not |
+| --- | --- |
+| Homicides, Shooting and Firearm Discharges | Rare enough that Leaside Life or the Bulldog will tell you first, and with context |
+| Hate Crimes | Reported counts are contested and easy to misread from a map pin |
+| Mental Health Act Apprehensions, Persons in Crisis Calls | These are people in distress, not neighbourhood news. Mapping them onto a residential page is not something this project should do. |
+| Intimate Partner and Family Violence | Same reasoning, with an added safety concern about locating victims |
+
+Also found, and worth knowing about:
+
+- **Killed and Seriously Injured**, plus Pedestrian, Cyclist, Automobile, Motorcylist,
+  Passenger and Fatals KSI. A fallback if the City's collision dataset fails again.
+- **Neighbourhood Crime Rates Open Data** and **Community Safety Indicators**. Rates
+  per neighbourhood rather than incidents. The right source for "is break-and-enter
+  up this year", which is a different question from "what happened this week".
+- **Traffic Collisions Open Data (ASR-T-TBL-001)**, confirmed as the annual
+  statistical table already retired from this project.

@@ -41,7 +41,7 @@ def test_notices_handles_wrapped_payload():
 
 
 def test_arcgis_filters_by_area():
-    src = CFG.by_id("tps_major_crime_indicators")
+    src = CFG.by_id("tps_reported_crime")
     items = arcgis.parse_features((FIX / "arcgis_features.json").read_text(encoding="utf-8"), src, AREAS)
     assert len(items) == 1, "the downtown incident must be dropped"
     assert items[0]["title"] == "Break and Enter"
@@ -99,8 +99,40 @@ def test_unknown_dates_are_kept_not_dropped():
 
 def test_high_volume_sources_are_age_capped():
     """Crime and collision history must not bury the neighbourhood news."""
-    for sid in ("tps_major_crime_indicators", "tps_traffic_collisions", "city_ksi_collisions"):
+    for sid in ("tps_reported_crime", "tps_traffic_collisions", "city_ksi_collisions"):
         assert CFG.by_id(sid).max_age_days, f"{sid} needs an age cap"
+
+
+def test_crime_gathers_every_offence_layer_because_there_is_no_single_one():
+    """TPS publish no "Major Crime Indicators" layer. Each offence is its own dataset."""
+    from leaside.fetchers import arcgis as a
+
+    entries = [
+        {"title": t, "distribution": [{"accessURL": f"https://x/{i}/FeatureServer/0"}]}
+        for i, t in enumerate([
+            "Break and Enter Open Data", "Assault Open Data", "Auto Theft Open Data",
+            "Budget 2026", "Homicides Open Data (ASR-RC-TBL-002)",
+        ])
+    ]
+    src = CFG.by_id("tps_reported_crime")
+    found = a.find_layers(entries, src.discover_match)
+    titles = [t for t, _ in found]
+    assert "Break and Enter Open Data" in titles and "Assault Open Data" in titles
+    assert "Budget 2026" not in titles
+    assert "Homicides Open Data (ASR-RC-TBL-002)" not in titles, "deliberately excluded"
+    assert a.offence_label("Break and Enter Open Data") == "Break and Enter"
+    assert len({u for _, u in found}) == len(found), "no layer fetched twice"
+
+
+def test_crime_items_are_labelled_with_their_offence():
+    from leaside.fetchers import arcgis as a
+
+    src = CFG.by_id("tps_reported_crime")
+    raw = json.dumps({"features": [
+        {"attributes": {"EVENT_UNIQUE_ID": "GO-9", "OCC_DATE": 1780000000000},
+         "geometry": {"x": -79.365, "y": 43.705}}]})
+    items = a.parse_features(raw, src, AREAS, label="Break and Enter")
+    assert items[0]["title"] == "Break and Enter", "no offence field, so use the layer name"
 
 
 def test_layer_discovery_survives_a_renamed_dataset():
@@ -396,7 +428,7 @@ def test_only_datasets_are_marked_as_snapshots():
     """Feeds are streams. Marking one a snapshot would delete your reading history."""
     snapshots = {s.id for s in CFG.sources if s.snapshot}
     assert snapshots == {
-        "tps_hub_dcat", "tps_major_crime_indicators",
+        "tps_hub_dcat", "tps_reported_crime",
         "tps_traffic_collisions", "city_ksi_collisions",
     }
     assert not any(s.snapshot for s in CFG.sources if s.kind == "rss")

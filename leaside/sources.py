@@ -8,7 +8,8 @@ import yaml
 
 DEFAULT_CONFIG = Path("config/sources.yaml")
 
-RUNNABLE_KINDS = {"rss", "json_api", "arcgis_dcat", "arcgis_feature", "ckan_dataset", "html_list"}
+RUNNABLE_KINDS = {"rss", "json_api", "arcgis_dcat", "arcgis_feature",
+                  "arcgis_multi", "ckan_dataset", "html_list"}
 
 
 @dataclass

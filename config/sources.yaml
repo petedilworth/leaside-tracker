@@ -302,29 +302,37 @@ sources:
       Probe returned a large valid JSON catalogue. Layer URLs are discovered from here
       rather than hard-coded, because TPS has moved this portal between domains before.
 
-  - id: tps_major_crime_indicators
-    name: TPS Major Crime Indicators
+  - id: tps_reported_crime
+    name: Toronto Police reported crime
     category: crime
     area: null
-    kind: arcgis_feature
+    kind: arcgis_multi
     url: null
     discover_from: tps_hub_dcat
     discover_match:
-      - "major crime indicators"
-      - "mci"
-      - "major crime"
+      - "Break and Enter Open Data"
+      - "Auto Theft Open Data"
+      - "Robbery Open Data"
+      - "Assault Open Data"
+      - "Theft From Motor Vehicle Open Data"
+      - "Bicycle Thefts Open Data"
     timeout: 120
     max_age_days: 90
     snapshot: true
-    home_url: https://data.tps.ca/
     status: documented
     notes: >
-      Has no URL of its own by design - the ingest step looks it up in the catalogue
-      above. The first real run found no title matching "major crime indicators", so
-      several candidate names are now tried and the full list of available dataset names
-      is written to config/tps_hub_dcat-catalogue.md when none of them hit.
-      Points are OFFSET to the nearest intersection for privacy. Never present them as
-      exact addresses. Refresh is roughly monthly.
+      Replaces tps_major_crime_indicators, which failed on every run. The catalogue
+      confirms why: Toronto Police publish no layer called "Major Crime Indicators".
+      They publish each offence separately, so this source gathers six layers and
+      labels each item with its offence.
+      Deliberately left out: Homicides, Shootings and Firearm Discharges, Hate Crimes,
+      Mental Health Act Apprehensions, Persons in Crisis, and Intimate Partner and
+      Family Violence. All are available under those names. The first two are rare
+      enough that a news source will tell you sooner; the rest concern people in
+      distress and mapping them onto a neighbourhood page is not something this
+      project should do.
+      Points are OFFSET to the nearest intersection for privacy. Never present them
+      as exact addresses. Refresh is roughly monthly.
 
   - id: tps_traffic_collisions
     name: TPS Traffic Collisions (ASR-T-TBL-001)
@@ -364,7 +372,10 @@ sources:
       First real run brought back 129 records for your areas. Reached through the CKAN
       API. Covers killed or seriously injured only - ordinary fender benders are in no
       open dataset anywhere in Toronto. Note these are people involved, not collisions,
-      so one crash can appear as several rows.
+      so one crash can appear as several rows; the stable key collapses them.
+      If this ever stops working, Toronto Police publish the same thing as
+      "Killed and Seriously Injured" on their ArcGIS hub, along with per-mode
+      versions (Pedestrian KSI, Cyclist KSI, Automobile KSI, Fatals KSI).
 
   - id: tps_news_releases
     name: Toronto Police Service news releases

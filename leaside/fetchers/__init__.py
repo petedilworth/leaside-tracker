@@ -7,5 +7,6 @@ REGISTRY = {
     "json_api": notices.fetch,
     "arcgis_dcat": arcgis.fetch_catalogue,
     "arcgis_feature": arcgis.fetch_features,
+    "arcgis_multi": arcgis.fetch_features,   # ingest drives this one per layer
     "ckan_dataset": ckan.fetch_dataset,
 }

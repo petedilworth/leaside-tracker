@@ -49,6 +49,36 @@ def find_layer(entries: list[dict], match) -> str | None:
     return None
 
 
+def find_layers(entries: list[dict], matches) -> list[tuple[str, str]]:
+    """Every layer matching any of `matches`, as (title, url).
+
+    Toronto Police do not publish one "Major Crime Indicators" layer. They publish
+    each offence separately - Assault Open Data, Break and Enter Open Data and so on -
+    so a crime source has to gather several layers rather than pick one.
+    """
+    wanted = [matches] if isinstance(matches, str) else list(matches)
+    found, seen = [], set()
+    for phrase in wanted:
+        needle = phrase.lower().strip()
+        for ds in entries:
+            title = (ds.get("title") or "")
+            if needle not in title.lower():
+                continue
+            url = _layer_url(ds)
+            if url and url not in seen:
+                seen.add(url)
+                found.append((title, url))
+    return found
+
+
+def offence_label(dataset_title: str) -> str:
+    """"Break and Enter Open Data" -> "Break and Enter"."""
+    label = dataset_title
+    for noise in (" Open Data", " open data"):
+        label = label.replace(noise, "")
+    return label.split("(")[0].strip() or dataset_title
+
+
 def queryable_titles(entries: list[dict]) -> list[str]:
     """Titles of every dataset we could actually query. For when discovery fails."""
     return sorted(ds.get("title", "untitled") for ds in entries if _layer_url(ds))
@@ -84,7 +114,7 @@ def bbox_of(areas) -> tuple[float, float, float, float]:
     return min(xs), min(ys), max(xs), max(ys)
 
 
-def parse_features(text: str, source, areas) -> list[dict]:
+def parse_features(text: str, source, areas, label: str | None = None) -> list[dict]:
     data = json.loads(text)
     items = []
     for feat in data.get("features", []):
@@ -100,6 +130,7 @@ def parse_features(text: str, source, areas) -> list[dict]:
             attrs.get("MCI_CATEGORY")
             or attrs.get("OFFENCE")
             or attrs.get("Category")
+            or label
             or "Incident"
         )
         occ = attrs.get("OCC_DATE") or attrs.get("REPORT_DATE") or attrs.get("OCC_YEAR")
@@ -131,7 +162,8 @@ def _epoch_to_iso(value):
     return str(value)
 
 
-def fetch_features(source, http, areas, layer_url: str | None = None):
+def fetch_features(source, http, areas, layer_url: str | None = None,
+                   label: str | None = None):
     url = layer_url or source.url
     if not url:
         raise RuntimeError(
@@ -157,4 +189,4 @@ def fetch_features(source, http, areas, layer_url: str | None = None):
     resp = http.get(query, params=params, timeout=source.timeout,
                     retries=source.retries)
     resp.raise_for_status()
-    return parse_features(resp.text, source, areas), resp.status_code
+    return parse_features(resp.text, source, areas, label=label), resp.status_code
