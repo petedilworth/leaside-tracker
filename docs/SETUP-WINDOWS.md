@@ -44,26 +44,21 @@ You said you have used Git before. In that same black window, type these
 three lines, pressing **Enter** after each one.
 
 ```
-cd %USERPROFILE%\Desktop
+cd %USERPROFILE%\Documents
 ```
 
 ```
-git clone https://github.com/petedilworth/leaside-tracker.git
-```
-
-```
-cd leaside-tracker && git checkout claude/leaside-news-tracker-8p523i
+git clone -b claude/leaside-news-tracker-8p523i https://github.com/petedilworth/leaside-tracker.git
 ```
 
 What those do, in plain English:
 
 | Line | What it does |
 | --- | --- |
-| `cd %USERPROFILE%\Desktop` | Move to your Desktop, so the folder lands somewhere you can find it |
-| `git clone ...` | Download the project |
-| `git checkout ...` | Switch to the version with the actual code in it. Skipping this leaves you with an almost empty folder. |
+| `cd %USERPROFILE%\Documents` | Move to your Documents folder, so the project lands somewhere you can find it |
+| `git clone -b ...` | Download the project, already on the right branch |
 
-You should now have a folder called **leaside-tracker** on your Desktop.
+You should now have a folder called **leaside-tracker** in Documents.
 
 ### If `git` is not recognised
 
@@ -72,13 +67,13 @@ Then Git is not installed after all. Instead:
 1. Go to **https://github.com/petedilworth/leaside-tracker/tree/claude/leaside-news-tracker-8p523i**
 2. Click the green **Code** button, then **Download ZIP**.
 3. Find the ZIP in your Downloads folder, right-click it, choose **Extract All**,
-   and extract it to your Desktop.
+   and extract it to your Documents folder.
 
 ---
 
 ## Step 3. Run it
 
-1. Open the **leaside-tracker** folder on your Desktop.
+1. Open the **leaside-tracker** folder in Documents.
 2. Find the file called **run-windows.bat** and double-click it.
 3. A black window opens and starts working. The first run takes about a minute
    longer than later ones, because it is installing things.
@@ -231,3 +226,22 @@ If you have Anaconda installed, Python may come from there instead of from
 python.org. That is fine and it works. It only matters because Anaconda's Python
 handles foreign characters differently on Windows, which caused the first crash
 of this project. It is fixed.
+
+---
+
+## If a command says "Access is denied"
+
+Windows refuses to rename or delete a folder while something is still using it.
+Usually that is a black window still sitting inside it, or your browser with the
+page open, or backup software mid-sync.
+
+Close every black window and every browser tab showing the page, then try again.
+If it still refuses, do not fight it: clone a fresh copy somewhere else and delete
+the stuck folder later, from File Explorer, after a restart.
+
+## A note on synced folders
+
+If Documents is backed up by OneDrive, this still works, but the first run may be
+slow while thousands of small files sync. If it becomes annoying, right-click the
+leaside-tracker folder, choose **Always keep on this device**, or move the project
+to a plain folder such as `C:\projects\leaside-tracker`.
