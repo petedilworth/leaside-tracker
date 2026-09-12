@@ -134,3 +134,19 @@ Greater Yorkville and about fifteen others publish only on the page itself or by
 email. Toronto Public Library's Leaside branch and Toronto Police 53 Division are
 in the same position. For the ones inside the seven areas, the mailing list route in
 docs/MAILING-LISTS.md is the answer, not a scraper.
+
+## What the first health report showed, 12 September 2026
+
+The first full look at the real database found three field-name guesses that had
+been wrong since day one, without ever raising an error.
+
+| Finding | What it meant | Fix |
+| --- | --- | --- |
+| Every one of 136 city notices had no date and no link | The title guess matched; the date and link guesses did not. Notices sorted by when they were first seen and could not be clicked. | Field names are now matched by fragment, not guessed. Ingest prints which key each field resolved to and warns when one is missing. |
+| Serious collisions went from 137 rows to 1 | The date, latitude and collision-number columns were all guessed wrong. With the new stable key built from missing fields, every row produced the same key and they all collapsed. | Columns discovered from the datastore's own field list. Ingest prints the resolved columns and lists the real ones when a role cannot be filled. |
+| 1,042 police collision rows dated January to June 2014 | The retired annual table left its rows behind. They inflated every neighbourhood count. | Retired dataset and directory sources are swept on every run. Retired feeds keep their history. |
+| Two feeds have posted nothing in over a year | Lawrence Park's newest item is from November 2023; Leaside Baseball's from February 2024. Fetched every run, never on the page. | Reported under "Feeds with nothing new in over a year". Not dropped yet; that is the owner's call. |
+| "Rows not seen in the latest run" listed every source | It compared against the newest timestamp rather than the run start, so a source fetched three minutes earlier looked stale. | Compares against the run start recorded in the runs table. |
+
+For any source where most rows lack a date or a link, the health report now prints
+the raw record's keys and sample values, so the next correction comes from evidence.

@@ -7,7 +7,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import db, geo, sources
+import json
+
+from . import db, fields, geo, sources
 
 REPORT = Path("config/health-report.md")
 
@@ -39,23 +41,45 @@ def gather(conn, areas, cfg) -> dict:
         SELECT source_id, title, COALESCE(published_at,'') pub, COUNT(*) n FROM items
         GROUP BY source_id, title, pub HAVING n > 1 ORDER BY n DESC LIMIT 20""").fetchall()]
 
+    runs = db.recent_runs(conn, 1)
+    latest_run = runs[0] if runs else "0"
     stale = [dict(r) for r in q("""
         SELECT source_id, COUNT(*) n, MAX(last_seen_at) last_seen FROM items
-        WHERE last_seen_at < (SELECT MAX(last_seen_at) FROM items)
-        GROUP BY source_id ORDER BY n DESC""").fetchall()]
+        WHERE last_seen_at < ? GROUP BY source_id ORDER BY n DESC""", (latest_run,)).fetchall()]
+
+    # A feed whose newest item is over a year old is a feed nobody is writing.
+    dormant = [dict(r) for r in q("""
+        SELECT source_id, MAX(published_at) newest FROM items
+        WHERE category != 'registry' GROUP BY source_id
+        HAVING newest < date('now', '-365 days') ORDER BY newest""").fetchall()]
+
+    # For sources that mostly lack a date or a link, show what the raw record holds,
+    # so the parser can be corrected from evidence rather than from another guess.
+    shapes = []
+    for r in per_source:
+        if r["rows"] and (r["undated"] > r["rows"] / 2 or r["no_link"] > r["rows"] / 2):
+            raw = q("SELECT raw FROM items WHERE source_id = ? AND raw IS NOT NULL LIMIT 1",
+                    (r["source_id"],)).fetchone()
+            if raw:
+                try:
+                    shapes.append((r["source_id"], fields.keys_with_samples(json.loads(raw[0]))))
+                except (ValueError, TypeError):
+                    pass
 
     by_area = [dict(r) for r in q("""
         SELECT COALESCE(area,'(none)') area, COUNT(*) n FROM items
         WHERE category != 'registry' GROUP BY area ORDER BY n DESC""").fetchall()]
 
-    runs = [dict(r) for r in q("""
+    runnable = {s.id for s in cfg.sources if s.runnable}
+    results = [dict(r) for r in q("""
         SELECT source_id, ok, item_count, error, ran_at FROM fetch_log
         WHERE ran_at = (SELECT MAX(ran_at) FROM fetch_log f2 WHERE f2.source_id = fetch_log.source_id)
-        ORDER BY ok, source_id""").fetchall()]
+        ORDER BY ok, source_id""").fetchall() if r["source_id"] in runnable]
 
     return {"total": total, "on_page": on_page, "per_source": per_source,
             "dup_links": dup_links, "dup_titles": dup_titles, "stale": stale,
-            "by_area": by_area, "runs": runs, "areas": areas, "cfg": cfg}
+            "dormant": dormant, "shapes": shapes, "latest_run": latest_run,
+            "by_area": by_area, "runs": results, "areas": areas, "cfg": cfg}
 
 
 def render(d: dict) -> str:
@@ -87,7 +111,27 @@ def render(d: dict) -> str:
     else:
         L.append("None found.")
 
-    L += ["", "## Rows not seen in the most recent run", ""]
+    if d["shapes"]:
+        L += ["", "## What the raw records look like", "",
+              "Listed for sources where most rows lack a date or a link. These are the",
+              "actual keys and sample values, so the parser can be matched to them.", ""]
+        for sid, kv in d["shapes"]:
+            L.append(f"### `{sid}`")
+            L.append("")
+            L.append("| key | sample |")
+            L.append("| --- | --- |")
+            for k, v in kv[:40]:
+                L.append(f"| `{k}` | {v.replace('|', '/')} |")
+            L.append("")
+
+    if d["dormant"]:
+        L += ["", "## Feeds with nothing new in over a year", "",
+              "Still fetched every run, never on the page. Candidates to drop.", "",
+              "| source | newest item |", "| --- | --- |"]
+        for r in d["dormant"]:
+            L.append(f"| `{r['source_id']}` | {str(r['newest'])[:10]} |")
+
+    L += ["", f"## Rows not seen in the most recent run (started {str(d['latest_run'])[:16]})", ""]
     if d["stale"]:
         L.append("| source | rows | last seen |")
         L.append("| --- | --- | --- |")

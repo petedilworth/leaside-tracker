@@ -14,7 +14,7 @@
 
 None found.
 
-## Rows not seen in the most recent run
+## Rows not seen in the most recent run (started 0)
 
 None. Everything stored was seen in the last run.
 

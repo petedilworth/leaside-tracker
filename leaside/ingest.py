@@ -67,6 +67,8 @@ def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> 
     fixed = db.refresh_all(conn, areas, cfg)
     if fixed["demo_removed"]:
         print(f"\n  removed {fixed['demo_removed']} leftover demo items")
+    if fixed["orphans_removed"]:
+        print(f"  removed {fixed['orphans_removed']} rows left behind by retired sources")
     print(f"  refreshed {fixed['rows']} stored items, {fixed['changed']} corrected")
     db.finish_run(conn, run_id, totals)
     return totals

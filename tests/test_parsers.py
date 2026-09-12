@@ -462,3 +462,103 @@ def test_probe_is_skipped_when_checked_this_week(tmp_path, monkeypatch, capsys):
     assert "Skipping" in capsys.readouterr().out
     assert probe.is_fresh(report) is not None
     assert probe.is_fresh(tmp_path / "missing.md") is None
+
+
+# ---------------------------------------------------------------- field matching
+
+def test_notices_survive_key_names_nobody_told_us():
+    """The real feed used names that matched none of the guesses. Match, don't guess."""
+    from leaside.fetchers import notices
+
+    src = CFG.by_id("city_public_notices")
+    shapes = [
+        # camelCase with unfamiliar names
+        [{"noticeTitle": "CofA hearing 123 Millwood Rd", "publishDate": "2026-09-01",
+          "noticeLink": "/notice/9911.do", "noticeId": 9911, "fullText": "Minor variance"}],
+        # nested under a wrapper key, snake_case, absolute url
+        {"notices": [{"notice": {"title": "CofA hearing 123 Millwood Rd",
+                                 "date_published": "2026-09-01T10:00:00",
+                                 "detail_url": "https://secure.toronto.ca/notice/9911.do",
+                                 "reference_number": "N-9911",
+                                 "description": "Minor variance"}}]},
+        # decoys that must lose: an end date, an image link
+        [{"title": "CofA hearing 123 Millwood Rd", "endDate": "2099-01-01",
+          "publishedOn": "2026-09-01", "imageUrl": "/img/x.png", "url": "/notice/9911.do",
+          "id": 9911, "body": "Minor variance"}],
+    ]
+    for shape in shapes:
+        items = notices.parse(json.dumps(shape), src)
+        assert len(items) == 1, shape
+        it = items[0]
+        assert it["title"].startswith("CofA hearing")
+        assert it["published_at"] and it["published_at"].startswith("2026-09-01"), shape
+        assert it["url"] == "https://secure.toronto.ca/notice/9911.do", shape
+        assert "9911" in it["external_id"], shape
+        assert it["summary"] == "Minor variance"
+
+
+def test_collision_rows_survive_renamed_columns():
+    from leaside.fetchers import ckan
+
+    src = CFG.by_id("city_ksi_collisions")
+    inside = {"lat": 43.705, "lon": -79.365}     # inside the Leaside box
+    shapes = [
+        {"_id": 1, "ACCNUM": "5001", "DATE": "2026-06-01", "LATITUDE": inside["lat"],
+         "LONGITUDE": inside["lon"], "STREET1": "BAYVIEW AVE", "INJURY": "Major"},
+        {"_id": 2, "accnum": "5001", "occ_date": "2026-06-01T04:00:00", "lat_wgs84": inside["lat"],
+         "long_wgs84": inside["lon"], "street1": "BAYVIEW AVE", "injury": "Major"},
+        {"_id": 3, "COLLISION_ID": "5001", "Date": "2026/06/01", "Latitude": str(inside["lat"]),
+         "Longitude": str(inside["lon"]), "Street_1": "BAYVIEW AVE", "ACCLASS": "Fatal"},
+    ]
+    ids = set()
+    for row in shapes:
+        items = ckan.rows_to_items([row], src, AREAS)
+        assert len(items) == 1, row
+        it = items[0]
+        assert it["area"] == "leaside" and it["lat"] == inside["lat"], row
+        from leaside import dates
+        assert dates.to_iso(it["published_at"]).startswith("2026-06-01"), row
+        assert "5001" in it["external_id"], row
+        ids.add(it["external_id"].split(":")[-1])
+    assert ids == {"5001"}, "same collision, three column styles, one key"
+
+
+def test_column_report_names_what_it_could_not_find():
+    from leaside.fetchers import ckan
+
+    resolved = ckan.resolved_fields({"_id": 1, "Foo": "bar"})
+    assert resolved["date"] is None and resolved["lat"] is None
+
+
+def test_retired_dataset_rows_are_swept_but_feed_history_is_kept(tmp_path):
+    from leaside import db, geo, sources
+
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, _item(source_id="tps_traffic_collisions", title="2014 crash",
+                               url="https://x/1", category="collision"))
+    db.upsert_item(conn, _item(source_id="fontra_directory", title="a link",
+                               url="https://x/2", category="registry"))
+    db.upsert_item(conn, _item(source_id="ra_north_rosedale", title="old newsletter",
+                               url="https://x/3"))
+    db.upsert_item(conn, _item(source_id="no_such_source", title="ghost", url="https://x/4"))
+    conn.commit()
+    counts = db.refresh_all(conn, geo.Areas.load(), sources.load())
+    assert counts["orphans_removed"] == 3
+    left = [r[0] for r in conn.execute("SELECT title FROM items")]
+    assert left == ["old newsletter"], "a retired feed keeps what it collected"
+
+
+def test_doctor_shows_raw_shape_when_dates_or_links_are_missing(tmp_path):
+    from leaside import db, doctor, geo, sources
+
+    conn = db.connect(tmp_path / "t.db")
+    for i in range(3):
+        db.upsert_item(conn, _item(source_id="city_public_notices", title=f"n{i}",
+                                   url=None, published_at=None,
+                                   raw={"noticeTitle": f"n{i}", "publishDate": "2026-09-01",
+                                        "noticeLink": "/notice/1.do"}))
+    conn.commit()
+    d = doctor.gather(conn, geo.Areas.load(), sources.load())
+    out = doctor.render(d)
+    assert "What the raw records look like" in out
+    assert "`publishDate`" in out and "`noticeLink`" in out

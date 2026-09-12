@@ -146,9 +146,21 @@ def refresh_all(conn: sqlite3.Connection, areas, cfg) -> dict:
     Runs at the end of each ingest. It is what carries a logic fix to rows that
     have already dropped out of their feed and will never be fetched again.
     """
-    counts = {"rows": 0, "changed": 0, "demo_removed": 0}
+    counts = {"rows": 0, "changed": 0, "demo_removed": 0, "orphans_removed": 0}
     cur = conn.execute("DELETE FROM items WHERE title LIKE '[demo] %'")
     counts["demo_removed"] = cur.rowcount
+
+    # Rows whose source has been retired. Feeds keep their history because a post
+    # that was true stays true; a dataset or a directory listing does not.
+    known = {s.id: s for s in cfg.sources}
+    for sid in [r[0] for r in conn.execute("SELECT DISTINCT source_id FROM items")]:
+        src = known.get(sid)
+        retire = src is None or (
+            not src.runnable and (src.snapshot or src.category == "registry")
+        )
+        if retire:
+            cur = conn.execute("DELETE FROM items WHERE source_id = ?", (sid,))
+            counts["orphans_removed"] += cur.rowcount
     for row in conn.execute(
         "SELECT id, source_id, title, summary, published_at, area, lat, lon FROM items"
     ).fetchall():

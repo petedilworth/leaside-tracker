@@ -3,29 +3,32 @@
 The single most useful municipal feed for this project. It carries Committee of
 Adjustment hearing notices, road closures and public meetings, published in real time.
 
-The field names below are best guesses drawn from the City's documentation page. The
-parser is deliberately tolerant: it looks for the first plausible key in each group and
-keeps the whole record in `raw` so nothing is lost when the guess is wrong.
+Field names are matched, not guessed - see leaside/fields.py. The first version
+guessed, and the title guess happened to land while the date and link guesses did
+not, which put 136 undated, unlinked notices on the page without any error.
 """
 from __future__ import annotations
 
 import json
+from urllib.parse import urljoin
 
-TITLE_KEYS = ("noticeTitle", "title", "subject", "name")
-URL_KEYS = ("noticeUrl", "url", "link", "detailUrl")
-DATE_KEYS = ("publicationDate", "publishedDate", "postedDate", "date", "startDate")
-BODY_KEYS = ("description", "noticeDescription", "summary", "body", "text")
-ID_KEYS = ("noticeId", "id", "referenceNumber")
+from .. import fields
 
+BASE = "https://secure.toronto.ca/nm/"
 
-def _first(record: dict, keys) -> str | None:
-    for k in keys:
-        v = record.get(k)
-        if isinstance(v, str) and v.strip():
-            return v.strip()
-        if isinstance(v, (int, float)):
-            return str(v)
-    return None
+TITLE = dict(exact=("noticeTitle", "title", "subject"),
+             contains=("title", "subject", "heading"), exclude=("file", "type", "sub"))
+URL = dict(exact=("noticeUrl", "url", "link", "detailUrl", "href"),
+           contains=("url", "link", "href", "path"),
+           exclude=("image", "img", "icon", "logo", "attach"), accept=fields.looks_like_url)
+DATE = dict(exact=("publicationDate", "publishedDate", "publishDate", "postedDate"),
+            contains=("publish", "posted", "created", "issued", "start", "date"),
+            exclude=("end", "expir", "modif", "updat", "close", "deadline"))
+BODY = dict(exact=("description", "noticeDescription", "summary"),
+            contains=("description", "summary", "body", "content", "text", "detail"),
+            exclude=("short", "meta"))
+ID = dict(exact=("noticeId", "id", "referenceNumber", "noticeNumber"),
+          contains=("noticeid", "_id", "number"), exclude=("phone", "file"))
 
 
 def _records(payload):
@@ -43,27 +46,51 @@ def parse(text: str, source) -> list[dict]:
     payload = json.loads(text)
     items = []
     for rec in _records(payload):
-        title = _first(rec, TITLE_KEYS)
+        _, title = fields.pick(rec, **TITLE)
         if not title:
             continue
+        _, url = fields.pick(rec, **URL)
+        if url and url.startswith("/"):
+            url = urljoin(BASE, url)
+        _, when = fields.pick(rec, **DATE)
+        _, body = fields.pick(rec, **BODY)
+        _, ext = fields.pick(rec, **ID)
         items.append(
             {
                 "source_id": source.id,
                 "category": source.category,
                 "title": title,
-                "url": _first(rec, URL_KEYS),
-                "summary": (_first(rec, BODY_KEYS) or "")[:1500] or None,
-                "published_at": _first(rec, DATE_KEYS),
-                "external_id": _first(rec, ID_KEYS) or title,
+                "url": url,
+                "summary": (body or "")[:1500] or None,
+                "published_at": when,
+                "external_id": ext or url or title,
                 "raw": rec,
             }
         )
     return items
 
 
+def field_report(text: str) -> dict:
+    """Which key each field resolved to, on the first record. Printed by ingest."""
+    recs = _records(json.loads(text))
+    if not recs:
+        return {}
+    rec = recs[0]
+    return {
+        name: fields.pick(rec, **spec)[0]
+        for name, spec in (("title", TITLE), ("url", URL), ("date", DATE),
+                           ("body", BODY), ("id", ID))
+    }
+
+
 def fetch(source, http, areas) -> tuple[list[dict], int]:
     resp = http.get(source.url, timeout=source.timeout, retries=source.retries)
     resp.raise_for_status()
+    resolved = field_report(resp.text)
+    missing = [k for k, v in resolved.items() if v is None]
+    print(f"        fields: " + ", ".join(f"{k}={v}" for k, v in resolved.items()))
+    if missing:
+        print(f"        WARNING: could not find {', '.join(missing)} - see health report")
     items = parse(resp.text, source)
     kept = []
     for it in items:
