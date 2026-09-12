@@ -299,6 +299,7 @@ sources:
     timeout: 120
     max_age_days: 365
     snapshot: true
+    home_url: https://data.tps.ca/
     status: documented
     notes: >
       Replaces tps_major_crime_indicators, which failed on every run. The catalogue
