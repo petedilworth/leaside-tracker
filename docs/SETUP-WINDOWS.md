@@ -144,18 +144,19 @@ You only need to do this once, or again in a year when the list changes.
 
 ## Getting my fixes onto your PC
 
-When I change something, you need to pull it down before it takes effect.
-Open the black window, then type these two lines:
+**You no longer need to do anything.** The launcher collects updates itself, as
+step 0, before it does anything else. You just double-click **run-windows.bat**.
 
-```
-cd %USERPROFILE%\Desktop\leaside-tracker
-git pull
-```
+If it cannot update it says so and carries on with the code you have. That happens
+when a file in the folder has been edited by hand. Send those lines to Claude.
 
-Then double-click **run-windows.bat** as usual.
+Every output now says which version of the code produced it: the first line of the
+black window, the first line of `config\health-report.md`, and the bottom of your
+page. If a report looks like nothing changed, check that line first.
 
-If you downloaded the ZIP instead of using Git, download a fresh ZIP and
-replace the folder. Keep your `data` folder if you want to keep old items.
+If you downloaded the ZIP instead of using Git, updates cannot be collected
+automatically. Download a fresh ZIP and replace the folder, keeping your `data`
+folder to keep old items.
 
 ---
 

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import json
 
-from . import db, fields, geo, sources
+from . import db, fields, geo, sources, version
 
 REPORT = Path("config/health-report.md")
 
@@ -84,6 +84,11 @@ def gather(conn, areas, cfg) -> dict:
 
 def render(d: dict) -> str:
     L = ["# Health report", "",
+         f"Produced by code **{version.label()}**.", ""]
+    stale = version.warn_if_stale()
+    if stale:
+        L += [f"> {stale}", ""]
+    L += [
          f"- rows stored: **{d['total']}**",
          f"- rows the page can show: **{d['on_page']}**",
          f"- duplicate links: **{sum(r['n'] - 1 for r in d['dup_links'])}**",

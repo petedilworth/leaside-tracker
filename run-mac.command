@@ -18,6 +18,13 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
+# Collect any fixes before running, so results always reflect the latest code.
+if command -v git >/dev/null 2>&1; then
+  echo "Step 0 of 4: collecting updates..."
+  git pull --ff-only || echo "Could not update automatically; carrying on with local code."
+  echo ""
+fi
+
 if [ ! -d ".venv" ]; then
   echo "First run. Setting up (this takes a minute)..."
   python3 -m venv .venv || { echo "Setup failed."; read -r -p "Press Return."; exit 1; }
@@ -25,6 +32,8 @@ if [ ! -d ".venv" ]; then
   .venv/bin/pip install --quiet -r requirements.txt || { echo "Install failed."; read -r -p "Press Return."; exit 1; }
   echo "Setup done."
   echo ""
+else
+  .venv/bin/pip install --quiet -r requirements.txt
 fi
 
 echo "Step 1 of 4: checking which news sources are working (once a week)..."

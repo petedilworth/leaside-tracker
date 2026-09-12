@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import db, demo, discover, doctor, ingest, probe, render
+from . import db, demo, discover, doctor, ingest, probe, render, version
 
 
 def main(argv=None) -> int:
@@ -20,6 +20,11 @@ def main(argv=None) -> int:
     sub.add_parser("status", help="show what is in the database")
     sub.add_parser("doctor", help="write config/health-report.md")
     args = ap.parse_args(argv)
+    if args.cmd in {"probe", "ingest", "build", "doctor"}:
+        print(f"leaside-tracker {version.label()}")
+        stale = version.warn_if_stale()
+        if stale:
+            print(f"  NOTE: {stale}")
 
     if args.cmd == "probe":
         probe.run(force=args.force)

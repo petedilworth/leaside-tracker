@@ -36,6 +36,26 @@ if not defined PY (
   exit /b 1
 )
 
+REM ---- Step 0: collect any fixes Claude has pushed, before anything else.
+REM Without this the run silently uses old code and the results mislead both of us.
+where git >nul 2>&1
+if errorlevel 1 (
+  echo  Note: git is not installed, so updates cannot be collected automatically.
+  echo.
+) else (
+  echo ----------------------------------------------
+  echo  Step 0 of 4: collecting updates
+  echo ----------------------------------------------
+  git pull --ff-only
+  if errorlevel 1 (
+    echo.
+    echo  Could not update automatically. This is usually because a file here was
+    echo  edited by hand. The run will carry on with the code you already have,
+    echo  but it may be out of date. Send the lines above to Claude.
+  )
+  echo.
+)
+
 if not exist ".venv\Scripts\python.exe" (
   echo First run. Setting up. This takes about a minute.
   echo.
@@ -46,6 +66,9 @@ if not exist ".venv\Scripts\python.exe" (
   if errorlevel 1 goto failed
   echo Setup finished.
   echo.
+) else (
+  REM A pull can add a new dependency. Cheap to re-check, expensive to get wrong.
+  .venv\Scripts\python.exe -m pip install --quiet -r requirements.txt
 )
 
 echo ----------------------------------------------

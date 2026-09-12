@@ -649,3 +649,34 @@ def test_data_sources_point_at_a_page_a_person_can_read():
     for sid in ("city_public_notices", "city_ksi_collisions"):
         home = CFG.by_id(sid).home
         assert home and not home.endswith(".json"), f"{sid} links to raw data"
+
+
+def test_version_stamp_survives_a_checkout_with_no_git():
+    """Every output carries the code version, with or without git on the machine."""
+    from leaside import version
+
+    v = version.describe()
+    assert v["date"], "no date from git and no file fallback"
+    assert v["age_days"] is not None and v["age_days"] >= 0
+    assert version.label() != "version unknown"
+
+
+def test_stale_code_warning_triggers_on_age():
+    from leaside import version
+
+    assert version.warn_if_stale(days=-1), "must warn when the threshold is exceeded"
+    assert version.warn_if_stale(days=10_000) is None
+
+
+def test_health_report_and_page_both_state_their_version(tmp_path):
+    from leaside import db, doctor, geo, render, sources, version
+
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, _item(title="thing", url="https://x/1", area="leaside",
+                               published_at="2026-09-01"))
+    conn.commit()
+    label = version.label()
+    report = doctor.render(doctor.gather(conn, geo.Areas.load(), sources.load()))
+    assert label in report
+    html = render.run(db_path=tmp_path / "t.db", out_name="t.html").read_text(encoding="utf-8")
+    assert label in html

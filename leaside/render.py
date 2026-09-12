@@ -11,7 +11,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from . import db, geo, sources
+from . import db, geo, sources, version
 
 OUT = Path("site")
 WINDOW_DAYS = 120
@@ -84,6 +84,7 @@ def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml",
     data = collect(conn, areas, cfg)
     data["sources"] = cfg.sources
     data["generated_at"] = db.utcnow()
+    data["code_version"] = version.label()
     OUT.mkdir(exist_ok=True)
     target = OUT / out_name
     target.write_text(env.get_template("index.html").render(**data), encoding="utf-8")
