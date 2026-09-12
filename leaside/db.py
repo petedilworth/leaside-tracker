@@ -12,6 +12,10 @@ from . import dates, text
 DEFAULT_DB = Path("data/leaside.db")
 DEMO_DB = Path("data/demo.db")
 
+# Enough for a few paragraphs. The page shows a trimmed version and
+# lets you expand, so this is the ceiling, not what you read at a glance.
+SUMMARY_CHARS = 2400
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS items (
     id            TEXT PRIMARY KEY,
@@ -88,7 +92,7 @@ def normalise(item: dict) -> dict:
     """
     out = dict(item)
     out["title"] = text.clean(item.get("title"), 300) or "(untitled)"
-    out["summary"] = text.clean(item.get("summary"), 1500)
+    out["summary"] = text.clean(item.get("summary"), SUMMARY_CHARS)
     out["published_at"] = dates.to_iso(item.get("published_at"))
     return out
 

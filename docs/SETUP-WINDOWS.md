@@ -180,6 +180,18 @@ the price of the site being a plain file with no account behind it.
 Switch **Show** to **Everything** to see read items again. Dates and the day
 headings are in your own time zone.
 
+Under each item is a link row. **Read the original** opens the article on the site
+that published it. Items from a dataset have no article of their own, so they offer
+**Where this came from** instead, and **See it on a map** when the record has
+coordinates.
+
+Long summaries are trimmed to four lines with a **Show more** button underneath.
+
+The **Where** row is a set of on/off switches, not a single choice. Click a
+neighbourhood to hide it, click again to bring it back. Lytton Park starts switched
+off because it is the furthest area from Leaside. Your choice is remembered.
+**Reset areas** puts it back to the default.
+
 ---
 
 ## If you want to see what a finished page looks like

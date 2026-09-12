@@ -21,6 +21,7 @@ class Source:
     area: str | None = None
     url: str | None = None
     fallback_html: str | None = None
+    home_url: str | None = None
     alt_url: str | None = None
     dataset: str | None = None
     selector: str | None = None
@@ -41,6 +42,23 @@ class Source:
         return self.kind in RUNNABLE_KINDS and bool(
             self.url or self.dataset or self.discover_from
         )
+
+    @property
+    def home(self) -> str | None:
+        """A page a person can actually read, for items that carry no link of their own.
+
+        A feed URL is not it, so strip the feed path off and use the site root.
+        """
+        if self.home_url:
+            return self.home_url
+        if self.fallback_html:
+            return self.fallback_html
+        if not self.url:
+            return None
+        for suffix in ("/feed/", "/feed", "/rss/", "/rss", "/index.xml", "/blog/feed/"):
+            if self.url.endswith(suffix):
+                return self.url[: -len(suffix)] + "/"
+        return self.url
 
     @property
     def probeable(self) -> bool:

@@ -59,11 +59,62 @@ def test_read_state_and_filters_work_like_a_person_expects(demo_url):
         pg.locator('.row[data-group="read"] .chip[data-filter="all"]').click()
         assert visible() == 5 and pg.locator("h2.day:not([hidden])").count() == 5
 
-        pg.locator('.row[data-group="area"] .chip[data-filter="leaside"]').click()
-        assert visible() == 4
+        # Areas are toggles, not a single choice: turn Leaside off, the rest stay on.
+        before = visible()
+        leaside = pg.locator('.chip[data-area="leaside"]')
+        leaside.click()
+        assert visible() < before
+        assert leaside.get_attribute("aria-pressed") == "false"
 
         pg.reload()
+        assert pg.locator('.chip[data-area="leaside"]').get_attribute("aria-pressed") == "false", \
+            "area choice must be remembered"
+
+        pg.locator("#area-reset").click()
+        assert pg.locator('.chip[data-area="leaside"]').get_attribute("aria-pressed") == "true"
+
         assert unread() == 0, "mark-all must persist"
         assert "ago" in pg.locator("li.item time").first.inner_text()
         assert not errors, errors
+        b.close()
+
+
+def test_every_item_offers_a_way_to_read_more(demo_url):
+    with playwright.sync_playwright() as p:
+        b = p.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
+        pg = b.new_context().new_page()
+        pg.goto(demo_url)
+        items = pg.locator("li.item")
+        for i in range(items.count()):
+            row = items.nth(i)
+            assert row.locator(".links a").count() >= 1, \
+                "every item needs somewhere to click through to"
+        # a crime item has coordinates, so it also offers a map
+        assert pg.locator('.links a[href*="openstreetmap"]').count() >= 1
+        assert pg.locator('.links a:has-text("Read the original")').count() >= 1
+        b.close()
+
+
+def test_long_summaries_clip_with_a_show_more_button(demo_url):
+    with playwright.sync_playwright() as p:
+        b = p.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
+        pg = b.new_context().new_page()
+        pg.goto(demo_url)
+        assert pg.locator(".sum.clipped").count() == 1, "the long summary should be clipped"
+        more = pg.locator("button.more").first
+        assert more.count() == 1
+        # Hold the element itself: the locator ".sum.clipped" stops matching once expanded.
+        sum_el = pg.locator(".sum").first
+        clipped_height = sum_el.bounding_box()["height"]
+
+        more.click()
+        assert more.inner_text() == "Show less"
+        assert pg.locator(".sum.clipped").count() == 0
+        assert sum_el.bounding_box()["height"] > clipped_height
+
+        more.click()
+        assert more.inner_text() == "Show more"
+        assert pg.locator(".sum.clipped").count() == 1
+        # short summaries must not sprout a button
+        assert pg.locator("button.more").count() < pg.locator(".sum").count()
         b.close()

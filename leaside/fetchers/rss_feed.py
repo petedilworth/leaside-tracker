@@ -14,6 +14,19 @@ def _to_iso(entry) -> str | None:
     return None
 
 
+def _best_text(entry) -> str:
+    """Feeds carry their text in several places and the short one is not always first.
+
+    `summary` is often a one-line teaser while `content` holds the real body. Take
+    whichever is longest; the stored length cap does the trimming.
+    """
+    candidates = [entry.get("summary") or "", entry.get("subtitle") or ""]
+    for block in entry.get("content") or []:
+        if isinstance(block, dict) and block.get("value"):
+            candidates.append(block["value"])
+    return max(candidates, key=len).strip()
+
+
 def parse(text: str, source) -> list[dict]:
     feed = feedparser.parse(text)
     items = []
@@ -21,14 +34,14 @@ def parse(text: str, source) -> list[dict]:
         title = (e.get("title") or "").strip()
         if not title:
             continue
-        summary = (e.get("summary") or "").strip()
+        summary = _best_text(e)
         items.append(
             {
                 "source_id": source.id,
                 "category": source.category,
                 "title": title,
                 "url": e.get("link"),
-                "summary": summary[:1500],
+                "summary": summary,
                 "published_at": _to_iso(e),
                 "external_id": e.get("id") or e.get("link"),
             }

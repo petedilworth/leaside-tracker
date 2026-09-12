@@ -39,6 +39,9 @@
   .chip:hover { border-color:var(--muted); }
   .chip[aria-pressed="true"] { border-color:var(--accent); background:var(--accent-soft);
                                color:var(--accent); }
+  .row[data-multi] .chip[aria-pressed="false"] { opacity:.5; text-decoration:line-through;
+                                                 text-decoration-thickness:1px; }
+  .chip.reset { margin-left:auto; font-size:12px; }
   .chip.action { margin-left:auto; }
   #shown { font-size:12.5px; color:var(--muted); }
 
@@ -60,8 +63,15 @@
   .meta .sep { color:var(--faint); margin:0 5px; }
   .tag { display:inline-block; border:1px solid var(--line); border-radius:4px;
          padding:0 5px; font-size:11px; margin-right:4px; vertical-align:1px; }
-  .sum { font-size:14px; color:var(--muted); margin-top:5px; line-height:1.45; }
-  li.item:not(.unread) .sum { display:none; }
+  .sum { font-size:14px; color:var(--muted); margin-top:6px; line-height:1.5; }
+  .sum.clipped { display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical;
+                 overflow:hidden; }
+  .more { background:none; border:0; padding:2px 0; margin-top:2px; cursor:pointer;
+          color:var(--accent); font-size:12.5px; font-family:inherit; }
+  .more:hover { text-decoration:underline; }
+  .links { margin-top:6px; font-size:12.5px; }
+  .links a { color:var(--accent); text-decoration:none; margin-right:12px; }
+  .links a:hover { text-decoration:underline; }
   .done { align-self:start; border:0; background:none; color:var(--faint);
           cursor:pointer; font-size:16px; padding:2px 6px; border-radius:6px; }
   .done:hover { color:var(--accent); background:var(--accent-soft); }
@@ -110,12 +120,14 @@
     <button class="chip" aria-pressed="false" data-filter="{{ cat }}">{{ cat.replace('_',' ') }} <small>{{ n }}</small></button>
     {% endfor %}
   </div>
-  <div class="row" data-group="area">
+  <div class="row" data-group="area" data-multi="1">
     <span class="lbl">Where</span>
-    <button class="chip" aria-pressed="true" data-filter="all">Everywhere</button>
     {% for key, n in area_counts.items()|sort %}
-    <button class="chip" aria-pressed="false" data-filter="{{ key }}">{{ area_names[key] }} <small>{{ n }}</small></button>
+    <button class="chip" data-area="{{ key }}"
+            aria-pressed="{{ 'false' if key in area_default_off else 'true' }}"
+            title="Click to show or hide this area">{{ area_names[key] }} <small>{{ n }}</small></button>
     {% endfor %}
+    <button class="chip reset" id="area-reset" title="Back to the default selection">Reset areas</button>
   </div>
   <div class="row"><span id="shown"></span></div>
 </div>
@@ -133,7 +145,13 @@
         <span class="sep">&middot;</span><span class="tag">{{ it.area_name }}</span>
         <span class="sep">&middot;</span><time data-ts="{{ it.when }}">{{ it.when[:10] }}</time>
       </div>
-      {% if it.summary %}<div class="sum">{{ it.summary[:320] }}</div>{% endif %}
+      {% if it.summary %}<div class="sum clipped">{{ it.summary }}</div>{% endif %}
+      <div class="links">
+        {% if it.url %}<a href="{{ it.url }}" target="_blank" rel="noopener">Read the original &rarr;</a>
+        {% elif it.source_home %}<a href="{{ it.source_home }}" target="_blank" rel="noopener">Where this came from &rarr;</a>{% endif %}
+        {% if it.lat and it.lon %}<a href="https://www.openstreetmap.org/?mlat={{ it.lat }}&amp;mlon={{ it.lon }}#map=17/{{ it.lat }}/{{ it.lon }}" target="_blank" rel="noopener">See it on a map &rarr;</a>{% endif %}
+        {% if it.url and it.source_home %}<a href="{{ it.source_home }}" target="_blank" rel="noopener">{{ it.source_name }}</a>{% endif %}
+      </div>
     </div>
     <button class="done" title="Mark as read" aria-label="Mark as read">&#10003;</button>
   </li>
@@ -181,8 +199,32 @@
 (function () {
   'use strict';
   var KEY = 'leaside.read.v1';
+  var VIEW = 'leaside.view.v1';
   var items = Array.prototype.slice.call(document.querySelectorAll('li.item'));
-  var picked = { read: 'unread', cat: 'all', area: 'all' };
+  var picked = { read: 'unread', cat: 'all' };
+  var areaChips = Array.prototype.slice.call(document.querySelectorAll('.chip[data-area]'));
+  var defaultAreas = {};
+  areaChips.forEach(function (c) {
+    defaultAreas[c.dataset.area] = c.getAttribute('aria-pressed') === 'true';
+  });
+  var areas = Object.assign({}, defaultAreas);
+  try {
+    var saved = JSON.parse(localStorage.getItem(VIEW) || 'null');
+    if (saved && saved.areas) {
+      // Keep the stored choice only for areas that still exist on the page.
+      areaChips.forEach(function (c) {
+        if (Object.prototype.hasOwnProperty.call(saved.areas, c.dataset.area)) {
+          areas[c.dataset.area] = !!saved.areas[c.dataset.area];
+        }
+      });
+    }
+  } catch (e) {}
+  function paintAreas() {
+    areaChips.forEach(function (c) {
+      c.setAttribute('aria-pressed', String(!!areas[c.dataset.area]));
+    });
+    try { localStorage.setItem(VIEW, JSON.stringify({ areas: areas })); } catch (e) {}
+  }
 
   // ---- persistence: which ids have been read, and when this browser last looked
   function load() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } }
@@ -264,7 +306,7 @@
       if (!r) unread++;
       var hit = (picked.read === 'all' || !r)
              && (picked.cat === 'all' || li.dataset.cat === picked.cat)
-             && (picked.area === 'all' || li.dataset.area === picked.area);
+             && areas[li.dataset.area] !== false;
       li.hidden = !hit;
       if (hit) shown++;
     });
@@ -280,7 +322,34 @@
     if (uc) uc.textContent = unread;
     if (markAll) markAll.hidden = shown === 0 || picked.read !== 'unread';
   }
-  document.querySelectorAll('.row[data-group]').forEach(function (row) {
+  areaChips.forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      areas[chip.dataset.area] = !areas[chip.dataset.area];
+      paintAreas();
+      apply();
+    });
+  });
+  var areaReset = document.getElementById('area-reset');
+  if (areaReset) areaReset.addEventListener('click', function () {
+    areas = Object.assign({}, defaultAreas);
+    paintAreas();
+    apply();
+  });
+
+  // Long summaries are clipped to four lines with a button to open them.
+  document.querySelectorAll('.sum').forEach(function (sum) {
+    if (sum.scrollHeight - sum.clientHeight < 8) { sum.classList.remove('clipped'); return; }
+    var btn = document.createElement('button');
+    btn.className = 'more';
+    btn.textContent = 'Show more';
+    btn.addEventListener('click', function () {
+      var open = sum.classList.toggle('clipped');
+      btn.textContent = open ? 'Show more' : 'Show less';
+    });
+    sum.parentNode.insertBefore(btn, sum.nextSibling);
+  });
+
+  document.querySelectorAll('.row[data-group]:not([data-multi])').forEach(function (row) {
     var group = row.dataset.group;
     row.querySelectorAll('.chip[data-filter]').forEach(function (chip) {
       chip.addEventListener('click', function () {
@@ -292,6 +361,7 @@
       });
     });
   });
+  paintAreas();
   apply();
   state.__lastVisit = Date.now(); state = save(state);
 })();

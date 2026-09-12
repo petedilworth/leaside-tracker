@@ -562,3 +562,42 @@ def test_doctor_shows_raw_shape_when_dates_or_links_are_missing(tmp_path):
     out = doctor.render(d)
     assert "What the raw records look like" in out
     assert "`publishDate`" in out and "`noticeLink`" in out
+
+
+def test_lytton_park_is_kept_but_off_by_default():
+    """It borders Lawrence Park and is the furthest area from Leaside."""
+    off = AREAS.default_off()
+    assert off == {"lytton_park"}
+    assert "lytton_park" in AREAS.keys(), "off by default, not removed"
+    assert CFG.by_id("ra_lytton_park").runnable, "still collected"
+
+
+def test_page_marks_the_default_off_areas(tmp_path):
+    from leaside import db, render
+
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, _item(title="lytton item", url="https://x/l", area="lytton_park",
+                               published_at="2026-09-01"))
+    db.upsert_item(conn, _item(title="leaside item", url="https://x/k", area="leaside",
+                               published_at="2026-09-01"))
+    conn.commit()
+    html = render.run(db_path=tmp_path / "t.db", out_name="t.html").read_text(encoding="utf-8")
+    assert 'data-area="lytton_park"\n            aria-pressed="false"' in html \
+        or 'aria-pressed="false"' in html
+    assert 'data-area="leaside"' in html
+
+
+def test_rss_prefers_the_fullest_text_a_feed_offers():
+    from leaside.fetchers import rss_feed
+
+    entry = {"title": "T", "summary": "one line teaser",
+             "content": [{"value": "the full body, which is considerably longer than the teaser"}]}
+    assert "full body" in rss_feed._best_text(entry)
+    assert rss_feed._best_text({"title": "T", "summary": "only this"}) == "only this"
+    assert rss_feed._best_text({"title": "T"}) == ""
+
+
+def test_data_sources_point_at_a_page_a_person_can_read():
+    for sid in ("city_public_notices", "city_ksi_collisions"):
+        home = CFG.by_id(sid).home
+        assert home and not home.endswith(".json"), f"{sid} links to raw data"

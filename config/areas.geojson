@@ -348,7 +348,9 @@
           "lytton park",
           "lytton boulevard",
           "glengrove"
-        ]
+        ],
+        "default_off": true,
+        "note": "Kept but unselected by default: it borders Lawrence Park on the west and is the furthest area from Leaside."
       },
       "geometry": {
         "type": "Polygon",

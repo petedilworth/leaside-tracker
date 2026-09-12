@@ -252,6 +252,7 @@ sources:
     timeout: 180
     max_age_days: 120
     retries: 3
+    home_url: https://secure.toronto.ca/nm/notices/current.do
     status: verified
     notes: >
       Works, and it is the single best municipal source. The response is 22.5 MB - every
@@ -337,6 +338,7 @@ sources:
     timeout: 120
     max_age_days: 90
     snapshot: true
+    home_url: https://data.tps.ca/
     status: documented
     notes: >
       Has no URL of its own by design - the ingest step looks it up in the catalogue
@@ -378,6 +380,7 @@ sources:
     timeout: 120
     max_age_days: 365
     snapshot: true
+    home_url: https://open.toronto.ca/dataset/motor-vehicle-collisions-involving-killed-or-seriously-injured-persons/
     status: verified
     notes: >
       First real run brought back 129 records for your areas. Reached through the CKAN

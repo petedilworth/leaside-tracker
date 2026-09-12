@@ -28,11 +28,13 @@ def collect(conn, areas, cfg, window_days: int = WINDOW_DAYS) -> dict:
         (since,),
     ).fetchall()
     names = {s.id: s.name for s in cfg.sources}
+    homes = {s.id: s.home for s in cfg.sources}
     items = []
     for r in rows:
         it = dict(r)
         it["area_name"] = areas.name(it["area"])
         it["source_name"] = names.get(it["source_id"], it["source_id"])
+        it["source_home"] = homes.get(it["source_id"])
         it["when"] = it["published_at"] or it["first_seen_at"]
         items.append(it)
 
@@ -67,6 +69,7 @@ def collect(conn, areas, cfg, window_days: int = WINDOW_DAYS) -> dict:
         "previous_run": runs[1] if len(runs) > 1 else None,
         "new_this_run": new_this_run,
         "window_days": window_days,
+        "area_default_off": sorted(areas.default_off()),
     }
 
 

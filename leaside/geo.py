@@ -45,6 +45,11 @@ class Areas:
                 return f["properties"]["name"]
         return "Unmatched"
 
+    def default_off(self) -> set[str]:
+        """Areas kept in the data but not shown until the reader asks for them."""
+        return {f["properties"]["key"] for f in self.features
+                if f["properties"].get("default_off")}
+
     def keys(self) -> list[str]:
         return [f["properties"]["key"] for f in self.features]
 
