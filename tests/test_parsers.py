@@ -210,19 +210,42 @@ def test_fetchers_no_longer_stamp_an_area_themselves():
         assert '"area": source.area' not in inspect.getsource(module)
 
 
-def test_new_areas_do_not_overlap_their_neighbours():
-    """Overlapping placeholder boxes would make point matching order-dependent."""
-    def box(key):
-        f = next(f for f in AREAS.features if f["properties"]["key"] == key)
-        ring = f["geometry"]["coordinates"][0]
-        xs = [p[0] for p in ring]
-        ys = [p[1] for p in ring]
-        return min(xs), min(ys), max(xs), max(ys)
+def _area_box(key):
+    f = next(f for f in AREAS.features if f["properties"]["key"] == key)
+    ring = f["geometry"]["coordinates"][0]
+    xs = [p[0] for p in ring]
+    ys = [p[1] for p in ring]
+    return min(xs), min(ys), max(xs), max(ys)
 
-    deer, moore = box("deer_park"), box("moore_park")
-    assert deer[2] <= moore[0], "Deer Park must sit west of Moore Park"
-    lytton, lawrence = box("lytton_park"), box("lawrence_park")
-    assert lytton[2] <= lawrence[0], "Lytton Park must sit west of Lawrence Park"
+
+# Known and not yet fixed. The areas are hand-drawn rectangles, so several overlap,
+# and match_point returns the first hit in file order - which makes Leaside win most
+# ties. Replacing them with the City's official boundaries is a pending decision,
+# because the City merges the two Rosedales and Moore Park into one neighbourhood.
+# This test pins the current damage so it cannot quietly grow.
+KNOWN_OVERLAPS = {
+    ("bennington", "leaside"),
+    ("bennington", "north_rosedale"),
+    ("davisville", "leaside"),
+    ("davisville", "moore_park"),
+    ("leaside", "moore_park"),
+    ("moore_park", "north_rosedale"),
+    ("north_rosedale", "south_rosedale"),
+}
+
+
+def test_area_overlaps_are_the_known_set_and_no_worse():
+    import itertools
+
+    boxes = [(k, _area_box(k)) for k in AREAS.keys()]
+    found = set()
+    for (ka, a), (kb, b) in itertools.combinations(boxes, 2):
+        if a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]:
+            found.add(tuple(sorted((ka, kb))))
+    assert found == KNOWN_OVERLAPS, (
+        f"area overlaps changed. new: {found - KNOWN_OVERLAPS}, "
+        f"gone: {KNOWN_OVERLAPS - found}"
+    )
 
 
 # ---------------------------------------------------------------- the four review fixes
@@ -564,27 +587,52 @@ def test_doctor_shows_raw_shape_when_dates_or_links_are_missing(tmp_path):
     assert "`publishDate`" in out and "`noticeLink`" in out
 
 
-def test_lytton_park_is_kept_but_off_by_default():
-    """It borders Lawrence Park and is the furthest area from Leaside."""
-    off = AREAS.default_off()
-    assert off == {"lytton_park"}
-    assert "lytton_park" in AREAS.keys(), "off by default, not removed"
-    assert CFG.by_id("ra_lytton_park").runnable, "still collected"
+def test_areas_are_only_the_seven_that_were_asked_for():
+    """Deer Park, Lytton Park and Bedford Park were dropped: they border, not belong."""
+    assert set(AREAS.keys()) == {
+        "leaside", "bennington", "north_rosedale", "south_rosedale",
+        "moore_park", "davisville", "lawrence_park",
+    }
+    gone = {"ra_deer_park", "ra_lytton_park", "ra_bedford_park"}
+    assert not [s.id for s in CFG.sources if s.id in gone]
+    assert not [s.id for s in CFG.sources if s.area and s.area not in AREAS.keys()]
 
 
-def test_page_marks_the_default_off_areas(tmp_path):
-    from leaside import db, render
+def test_muting_an_area_still_works_even_though_none_is_muted(tmp_path):
+    """The switch stays available for the next area that turns out to be noise."""
+    from leaside import geo
+
+    assert AREAS.default_off() == set(), "no area is muted today"
+    synthetic = geo.Areas([
+        {"type": "Feature",
+         "properties": {"key": "somewhere", "name": "Somewhere", "default_off": True,
+                        "keywords": []},
+         "geometry": {"type": "Polygon",
+                      "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]}},
+    ])
+    assert synthetic.default_off() == {"somewhere"}
+
+
+def test_page_switches_off_a_muted_area(tmp_path, monkeypatch):
+    from leaside import db, geo, render
 
     conn = db.connect(tmp_path / "t.db")
-    db.upsert_item(conn, _item(title="lytton item", url="https://x/l", area="lytton_park",
-                               published_at="2026-09-01"))
-    db.upsert_item(conn, _item(title="leaside item", url="https://x/k", area="leaside",
+    db.upsert_item(conn, _item(title="an item", url="https://x/k", area="leaside",
                                published_at="2026-09-01"))
     conn.commit()
+    real = geo.Areas.load
+
+    def muted(*a, **k):
+        areas = real(*a, **k)
+        for f in areas.features:
+            if f["properties"]["key"] == "leaside":
+                f["properties"]["default_off"] = True
+        return areas
+
+    monkeypatch.setattr(geo.Areas, "load", staticmethod(muted))
     html = render.run(db_path=tmp_path / "t.db", out_name="t.html").read_text(encoding="utf-8")
-    assert 'data-area="lytton_park"\n            aria-pressed="false"' in html \
-        or 'aria-pressed="false"' in html
     assert 'data-area="leaside"' in html
+    assert 'aria-pressed="false"' in html
 
 
 def test_rss_prefers_the_fullest_text_a_feed_offers():

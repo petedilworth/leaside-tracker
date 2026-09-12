@@ -188,9 +188,8 @@ coordinates.
 Long summaries are trimmed to four lines with a **Show more** button underneath.
 
 The **Where** row is a set of on/off switches, not a single choice. Click a
-neighbourhood to hide it, click again to bring it back. Lytton Park starts switched
-off because it is the furthest area from Leaside. Your choice is remembered.
-**Reset areas** puts it back to the default.
+neighbourhood to hide it, click again to bring it back. Your choice is remembered
+between visits, and **Reset areas** puts it back to showing all seven.
 
 ---
 

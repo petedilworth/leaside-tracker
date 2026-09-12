@@ -109,28 +109,6 @@ sources:
       the Moore Park and Davisville addresses above were corrected. Revisit only if a new
       association appears. FONTRA also takes positions on planning files.
 
-  - id: ra_deer_park
-    name: Deer Park Residents' Group
-    category: ra_news
-    area: deer_park
-    kind: rss
-    url: https://deerparkresidents.ca/feed/
-    status: verified
-    notes: >
-      Directory scan returned 10 entries. Borders Moore Park on the west at Yonge and
-      St Clair. New area added for it.
-
-  - id: ra_lytton_park
-    name: Lytton Park Residents' Organization
-    category: ra_news
-    area: lytton_park
-    kind: rss
-    url: http://www.lyttonparkro.ca/feed/
-    status: verified
-    notes: >
-      Directory scan returned 16 entries, the most active feed found. Borders Lawrence
-      Park on the west. New area added for it.
-
   # ---------------------------------------------------------------- local media, part two
   - id: media_south_bayview_bulldog
     name: The South Bayview Bulldog

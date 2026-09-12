@@ -150,3 +150,21 @@ been wrong since day one, without ever raising an error.
 
 For any source where most rows lack a date or a link, the health report now prints
 the raw record's keys and sample values, so the next correction comes from evidence.
+
+## Areas cut, September 2026
+
+Deer Park, Lytton Park and Bedford Park are out. All three border the seven areas
+rather than sitting in them, and none was ever going to be read.
+
+| Area | What happened |
+| --- | --- |
+| Lytton Park | Added from the directory scan on the strength of having the most active feed found, 16 entries. Activity is not relevance. It sits west of Lawrence Park and two neighbourhoods from Leaside. Removed with its source. |
+| Deer Park | Added because it borders Moore Park. Bordering the thing you care about is not the same as being it. Removed with its source. |
+| Bedford Park | Never added. Rejected during the directory scan as too far north, and that judgement stands. |
+
+Their stored rows are removed automatically on the next run, because a source that
+is no longer configured has its items swept. The ability to keep an area but switch
+it off by default remains in the code for the next one that turns out to be noise.
+
+The lesson for future additions: the test is whether a source's boundary touches one
+of the seven areas, not whether its feed is busy. I added two on the wrong test.
