@@ -21,7 +21,13 @@ fi
 # Collect any fixes before running, so results always reflect the latest code.
 if command -v git >/dev/null 2>&1; then
   echo "Step 0 of 4: collecting updates..."
-  git pull --ff-only || echo "Could not update automatically; carrying on with local code."
+  if ! git pull --ff-only; then
+    echo ""
+    echo "COULD NOT UPDATE. Results below will be out of date."
+    echo "To fix: git checkout -- . && git pull"
+    git status --short
+    echo ""
+  fi
   echo ""
 fi
 

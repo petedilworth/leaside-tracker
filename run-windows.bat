@@ -49,9 +49,25 @@ if errorlevel 1 (
   git pull --ff-only
   if errorlevel 1 (
     echo.
-    echo  Could not update automatically. This is usually because a file here was
-    echo  edited by hand. The run will carry on with the code you already have,
-    echo  but it may be out of date. Send the lines above to Claude.
+    echo  ============================================================
+    echo   COULD NOT UPDATE. The results below will be OUT OF DATE.
+    echo  ============================================================
+    echo.
+    echo  Almost always this is a file in this folder that git thinks
+    echo  you edited. Windows line endings cause it on their own.
+    echo.
+    echo  To fix it, close this window and run these three lines:
+    echo.
+    echo      cd /d "%%~dp0"
+    echo      git checkout -- .
+    echo      git pull
+    echo.
+    echo  Nothing you care about is lost: the news is re-collected
+    echo  every run, and what you have read is stored in your browser.
+    echo.
+    git status --short
+    echo.
+    pause
   )
   echo.
 )
