@@ -4,3 +4,11 @@ __pycache__/
 data/*.db
 site/
 .probe-cache/
+
+# Generated on every run. These were tracked by mistake, which made `git pull`
+# refuse to update on any machine that had run the project - the reports always
+# look locally modified. They are outputs, not source.
+config/health-report.md
+config/probe-report.md
+config/associations-report.md
+config/*-catalogue.md

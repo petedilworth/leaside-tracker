@@ -6,6 +6,7 @@ occasionally nothing at all. An item with no date is never dropped for being old
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 
 FORMATS = (
     "%Y-%m-%dT%H:%M:%S%z",
@@ -37,6 +38,11 @@ def parse(value) -> datetime | None:
         dt = datetime.fromisoformat(text)
         return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
     except ValueError:
+        pass
+    try:  # RFC 2822, the shape RSS uses: "Wed, 03 Sep 2025 14:00:00 +0000"
+        dt = parsedate_to_datetime(text)
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
         return None
 
 
@@ -46,3 +52,11 @@ def within_days(value, days: int) -> bool:
     if dt is None:
         return True
     return dt >= datetime.now(timezone.utc) - timedelta(days=days)
+
+
+def to_iso(value) -> str | None:
+    """One canonical shape for storage so text sorting is date sorting: UTC, seconds."""
+    dt = parse(value)
+    if dt is None:
+        return None
+    return dt.astimezone(timezone.utc).isoformat(timespec="seconds")

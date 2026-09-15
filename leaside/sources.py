@@ -8,7 +8,8 @@ import yaml
 
 DEFAULT_CONFIG = Path("config/sources.yaml")
 
-RUNNABLE_KINDS = {"rss", "json_api", "arcgis_dcat", "arcgis_feature", "ckan_dataset", "html_list"}
+RUNNABLE_KINDS = {"rss", "json_api", "arcgis_dcat", "arcgis_feature",
+                  "arcgis_multi", "ckan_dataset", "html_list"}
 
 
 @dataclass
@@ -21,6 +22,7 @@ class Source:
     area: str | None = None
     url: str | None = None
     fallback_html: str | None = None
+    home_url: str | None = None
     alt_url: str | None = None
     dataset: str | None = None
     selector: str | None = None
@@ -29,6 +31,7 @@ class Source:
     timeout: int | None = None
     retries: int | None = None
     max_age_days: int | None = None
+    snapshot: bool = False
     notes: str = ""
     extra: dict = field(default_factory=dict)
 
@@ -42,6 +45,23 @@ class Source:
         )
 
     @property
+    def home(self) -> str | None:
+        """A page a person can actually read, for items that carry no link of their own.
+
+        A feed URL is not it, so strip the feed path off and use the site root.
+        """
+        if self.home_url:
+            return self.home_url
+        if self.fallback_html:
+            return self.fallback_html
+        if not self.url:
+            return None
+        for suffix in ("/feed/", "/feed", "/rss/", "/rss", "/index.xml", "/blog/feed/"):
+            if self.url.endswith(suffix):
+                return self.url[: -len(suffix)] + "/"
+        return self.url
+
+    @property
     def probeable(self) -> bool:
         """True when there is a URL worth checking, even if we expect it to fail."""
         return bool(self.url or self.fallback_html or self.alt_url)
@@ -53,6 +73,7 @@ class Config:
     timeout: int
     delay: float
     sources: list[Source]
+    directories: list[str] = field(default_factory=list)
 
     def by_id(self, sid: str) -> Source | None:
         return next((s for s in self.sources if s.id == sid), None)
@@ -72,4 +93,5 @@ def load(path: Path | str = DEFAULT_CONFIG) -> Config:
         timeout=int(d.get("timeout", 30)),
         delay=float(d.get("request_delay_seconds", 2)),
         sources=sources,
+        directories=list(raw.get("directories") or []),
     )

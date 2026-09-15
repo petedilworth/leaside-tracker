@@ -1,27 +1,325 @@
 {
   "type": "FeatureCollection",
-  "note": "PLACEHOLDER GEOMETRY. Each polygon is a hand-drawn rectangle roughly covering the named area. Replace with the City of Toronto official neighbourhood boundaries (open.toronto.ca dataset 'Neighbourhoods') once you have fetched them locally. See docs/SOURCE-INVENTORY.md.",
+  "note": "PLACEHOLDER GEOMETRY. Each polygon is a hand-drawn rectangle roughly covering the named area. Replace with the City of Toronto official neighbourhood boundaries (open.toronto.ca dataset 'Neighbourhoods') once you have fetched them locally. See docs/SOURCE-INVENTORY.md. Deer Park and Lytton Park were removed in September 2026: both border the seven areas rather than sitting in them, and neither produced anything worth reading. Each area also lists the City of Toronto official neighbourhood names that cover it. Where a publisher states the neighbourhood itself, that is trusted over these rectangles.",
   "features": [
-    {"type":"Feature","properties":{"key":"leaside","name":"Leaside","primary":true,
-      "keywords":["leaside","bayview avenue","laird","millwood","sunnybrook plaza","south bayview","mcrae","rumsey","donlea","bessborough","trace manes","serena gundy"]},
-     "geometry":{"type":"Polygon","coordinates":[[[-79.3820,43.6950],[-79.3480,43.6950],[-79.3480,43.7190],[-79.3820,43.7190],[-79.3820,43.6950]]]}},
-    {"type":"Feature","properties":{"key":"bennington","name":"Bennington Heights","primary":true,
-      "keywords":["bennington","governor's bridge","governors bridge","moore avenue"]},
-     "geometry":{"type":"Polygon","coordinates":[[[-79.3720,43.6890],[-79.3580,43.6890],[-79.3580,43.6980],[-79.3720,43.6980],[-79.3720,43.6890]]]}},
-    {"type":"Feature","properties":{"key":"north_rosedale","name":"North Rosedale","primary":false,
-      "keywords":["north rosedale","chorley park","whitney park","douglas drive"]},
-     "geometry":{"type":"Polygon","coordinates":[[[-79.3860,43.6790],[-79.3670,43.6790],[-79.3670,43.6910],[-79.3860,43.6910],[-79.3860,43.6790]]]}},
-    {"type":"Feature","properties":{"key":"south_rosedale","name":"South Rosedale","primary":false,
-      "keywords":["south rosedale","crescent road","elm avenue","rosedale valley"]},
-     "geometry":{"type":"Polygon","coordinates":[[[-79.3860,43.6690],[-79.3670,43.6690],[-79.3670,43.6800],[-79.3860,43.6800],[-79.3860,43.6690]]]}},
-    {"type":"Feature","properties":{"key":"moore_park","name":"Moore Park","primary":false,
-      "keywords":["moore park","mount pleasant cemetery","heath street","welland avenue"]},
-     "geometry":{"type":"Polygon","coordinates":[[[-79.3940,43.6870],[-79.3760,43.6870],[-79.3760,43.6980],[-79.3940,43.6980],[-79.3940,43.6870]]]}},
-    {"type":"Feature","properties":{"key":"davisville","name":"Davisville","primary":false,
-      "keywords":["davisville","south eglinton","june rowlands park","merton street"]},
-     "geometry":{"type":"Polygon","coordinates":[[[-79.4000,43.6960],[-79.3760,43.6960],[-79.3760,43.7080],[-79.4000,43.7080],[-79.4000,43.6960]]]}},
-    {"type":"Feature","properties":{"key":"lawrence_park","name":"Lawrence Park","primary":false,
-      "keywords":["lawrence park","blythwood","alexandra gate","dawlish"]},
-     "geometry":{"type":"Polygon","coordinates":[[[-79.4050,43.7250],[-79.3750,43.7250],[-79.3750,43.7400],[-79.4050,43.7400],[-79.4050,43.7250]]]}}
+    {
+      "type": "Feature",
+      "properties": {
+        "key": "leaside",
+        "name": "Leaside",
+        "primary": true,
+        "keywords": [
+          "leaside",
+          "bayview avenue",
+          "laird",
+          "millwood",
+          "sunnybrook plaza",
+          "south bayview",
+          "mcrae",
+          "rumsey",
+          "donlea",
+          "bessborough",
+          "trace manes",
+          "serena gundy"
+        ],
+        "official": [
+          "Leaside-Bennington"
+        ]
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -79.382,
+              43.695
+            ],
+            [
+              -79.348,
+              43.695
+            ],
+            [
+              -79.348,
+              43.719
+            ],
+            [
+              -79.382,
+              43.719
+            ],
+            [
+              -79.382,
+              43.695
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "key": "bennington",
+        "name": "Bennington Heights",
+        "primary": true,
+        "keywords": [
+          "bennington",
+          "governor's bridge",
+          "governors bridge",
+          "moore avenue"
+        ],
+        "official": [
+          "Leaside-Bennington"
+        ]
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -79.372,
+              43.689
+            ],
+            [
+              -79.358,
+              43.689
+            ],
+            [
+              -79.358,
+              43.698
+            ],
+            [
+              -79.372,
+              43.698
+            ],
+            [
+              -79.372,
+              43.689
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "key": "north_rosedale",
+        "name": "North Rosedale",
+        "primary": false,
+        "keywords": [
+          "north rosedale",
+          "chorley park",
+          "whitney park",
+          "douglas drive"
+        ],
+        "official": [
+          "Rosedale-Moore Park"
+        ]
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -79.386,
+              43.679
+            ],
+            [
+              -79.367,
+              43.679
+            ],
+            [
+              -79.367,
+              43.691
+            ],
+            [
+              -79.386,
+              43.691
+            ],
+            [
+              -79.386,
+              43.679
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "key": "south_rosedale",
+        "name": "South Rosedale",
+        "primary": false,
+        "keywords": [
+          "south rosedale",
+          "crescent road",
+          "elm avenue",
+          "rosedale valley"
+        ],
+        "official": [
+          "Rosedale-Moore Park"
+        ]
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -79.386,
+              43.669
+            ],
+            [
+              -79.367,
+              43.669
+            ],
+            [
+              -79.367,
+              43.68
+            ],
+            [
+              -79.386,
+              43.68
+            ],
+            [
+              -79.386,
+              43.669
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "key": "moore_park",
+        "name": "Moore Park",
+        "primary": false,
+        "keywords": [
+          "moore park",
+          "mount pleasant cemetery",
+          "heath street",
+          "welland avenue"
+        ],
+        "official": [
+          "Rosedale-Moore Park"
+        ]
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -79.394,
+              43.687
+            ],
+            [
+              -79.376,
+              43.687
+            ],
+            [
+              -79.376,
+              43.698
+            ],
+            [
+              -79.394,
+              43.698
+            ],
+            [
+              -79.394,
+              43.687
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "key": "davisville",
+        "name": "Davisville",
+        "primary": false,
+        "keywords": [
+          "davisville",
+          "south eglinton",
+          "june rowlands park",
+          "merton street"
+        ],
+        "official": [
+          "Mount Pleasant East",
+          "South Eglinton-Davisville"
+        ]
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -79.4,
+              43.696
+            ],
+            [
+              -79.376,
+              43.696
+            ],
+            [
+              -79.376,
+              43.708
+            ],
+            [
+              -79.4,
+              43.708
+            ],
+            [
+              -79.4,
+              43.696
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "key": "lawrence_park",
+        "name": "Lawrence Park",
+        "primary": false,
+        "keywords": [
+          "lawrence park",
+          "blythwood",
+          "alexandra gate",
+          "dawlish"
+        ],
+        "official": [
+          "Lawrence Park South",
+          "Lawrence Park North"
+        ],
+        "note": "Kept as an area after its residents' association feed was dropped in September 2026 for having posted nothing since November 2023. City notices and police records here are still matched by coordinates and by the official names Lawrence Park South and Lawrence Park North."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -79.405,
+              43.725
+            ],
+            [
+              -79.375,
+              43.725
+            ],
+            [
+              -79.375,
+              43.74
+            ],
+            [
+              -79.405,
+              43.74
+            ],
+            [
+              -79.405,
+              43.725
+            ]
+          ]
+        ]
+      }
+    }
   ]
 }

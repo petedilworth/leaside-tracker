@@ -1,0 +1,3 @@
+-r requirements.txt
+pytest>=8
+playwright>=1.40   # python package only; uses whatever Chromium is on the machine

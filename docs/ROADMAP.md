@@ -39,6 +39,17 @@ Committee of Adjustment via the public notices feed first. TMMIS North York Comm
 Council agenda scraping second. Application Information Centre last, only after you
 have asked the City for documented access.
 
+## Phase 4b - done. The weekly email.
+
+GitHub runs the collection every Monday and emails everything new, through Resend.
+The project was pull-only until this: nothing arrived unless someone remembered to
+double-click. Setup is in docs/EMAIL-DIGEST.md and takes ten minutes, once.
+
+The database is kept on a separate `state` branch between runs, deliberately not
+alongside the code. A database committed to the working branch makes `git pull`
+conflict on any machine that also runs the project, which is the exact fault that
+hid five sessions of fixes from the owner's PC.
+
 ## Phase 5 - only if you go public.
 
 Attribution, a robots-respecting fetcher, no republished article bodies, and a

@@ -6,144 +6,407 @@
 <title>Leaside Tracker</title>
 <style>
   :root {
-    --bg:#fbfaf8; --fg:#1b1a18; --muted:#6b6660; --line:#e2ded7;
-    --card:#ffffff; --accent:#7a3b2e;
+    --bg:#f7f5f1; --fg:#1c1b19; --muted:#6f6a63; --faint:#a39d94; --line:#e4e0d8;
+    --card:#fffdf9; --accent:#8a3b2a; --accent-soft:#f3e4df; --new:#2e6b47;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#161513; --fg:#eae7e1; --muted:#9d968c; --line:#2f2c28;
-            --card:#1e1d1a; --accent:#d99a86; }
+    :root { --bg:#161513; --fg:#ebe7e0; --muted:#a19a90; --faint:#6b665e; --line:#2c2925;
+            --card:#1e1c19; --accent:#e0a08e; --accent-soft:#33241f; --new:#7fc39a; }
   }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 -apple-system,
-         BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
-  .wrap { max-width:860px; margin:0 auto; padding:32px 20px 80px; }
-  h1 { font-size:26px; margin:0 0 4px; letter-spacing:-0.01em; }
-  .sub { color:var(--muted); font-size:14px; margin:0 0 28px; }
-  .bar { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 24px; }
+  /* Author styles beat the browser's [hidden] rule, and li.item sets display:grid.
+     Without this, filtered-out items stay visible while the counters say otherwise. */
+  [hidden] { display:none !important; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  a { color:inherit; }
+  .wrap { max-width:760px; margin:0 auto; padding:28px 20px 96px; }
+
+  header h1 { font-size:24px; margin:0; letter-spacing:-0.01em; }
+  .stamp { color:var(--muted); font-size:13.5px; margin:4px 0 18px; }
+  .stats { display:flex; gap:10px; flex-wrap:wrap; margin:0 0 18px; }
+  .stat { background:var(--card); border:1px solid var(--line); border-radius:10px;
+          padding:10px 14px; min-width:120px; }
+  .stat b { display:block; font-size:22px; line-height:1.1; }
+  .stat span { font-size:12.5px; color:var(--muted); }
+  .stat.new b { color:var(--new); }
+
+  .bar { position:sticky; top:0; z-index:5; background:var(--bg);
+         padding:10px 0 8px; border-bottom:1px solid var(--line); margin-bottom:8px; }
+  .row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; align-items:center; }
+  .row .lbl { font-size:11.5px; text-transform:uppercase; letter-spacing:.06em;
+              color:var(--faint); margin-right:2px; min-width:44px; }
   .chip { border:1px solid var(--line); background:var(--card); border-radius:999px;
-          padding:5px 12px; font-size:13px; color:var(--muted); cursor:pointer; }
-  .chip[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }
+          padding:4px 11px; font-size:13px; color:var(--muted); cursor:pointer; line-height:1.3; }
+  .chip:hover { border-color:var(--muted); }
+  .chip[aria-pressed="true"] { border-color:var(--accent); background:var(--accent-soft);
+                               color:var(--accent); }
+  .row[data-multi] .chip[aria-pressed="false"] { opacity:.5; text-decoration:line-through;
+                                                 text-decoration-thickness:1px; }
+  .chip.reset { margin-left:auto; font-size:12px; }
+  .chip.action { margin-left:auto; }
+  #shown { font-size:12.5px; color:var(--muted); }
+
+  h2.day { font-size:12.5px; text-transform:uppercase; letter-spacing:.07em;
+           color:var(--muted); margin:26px 0 6px; padding-bottom:4px;
+           border-bottom:1px solid var(--line); }
   ul.items { list-style:none; margin:0; padding:0; }
-  li.item { border-bottom:1px solid var(--line); padding:14px 0; }
-  li.item a { color:var(--fg); text-decoration:none; font-weight:600; }
-  li.item a:hover { color:var(--accent); }
-  .meta { font-size:12.5px; color:var(--muted); margin-top:4px; }
+  li.item { display:grid; grid-template-columns:14px 1fr auto; gap:0 10px;
+            padding:11px 0 11px 4px; border-bottom:1px solid var(--line); }
+  li.item .dot { width:8px; height:8px; border-radius:50%; margin-top:9px;
+                 background:var(--new); visibility:hidden; }
+  li.item.unread .dot { visibility:visible; }
+  li.item .t { font-weight:600; text-decoration:none; }
+  li.item .t:hover { color:var(--accent); text-decoration:underline; }
+  li.item:not(.unread) .t { font-weight:500; color:var(--muted); }
+  .meta { font-size:12.5px; color:var(--muted); margin-top:3px; }
+  .meta .src { color:var(--fg); }
+  li.item:not(.unread) .meta .src { color:var(--muted); }
+  .meta .sep { color:var(--faint); margin:0 5px; }
   .tag { display:inline-block; border:1px solid var(--line); border-radius:4px;
-         padding:1px 6px; margin-right:6px; font-size:11.5px; }
-  .sum { font-size:14px; color:var(--muted); margin-top:6px; }
-  h2 { font-size:15px; text-transform:uppercase; letter-spacing:0.06em;
-       color:var(--muted); margin:48px 0 12px; }
-  table { width:100%; border-collapse:collapse; font-size:13.5px; }
-  th,td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
-  .ok { color:#2f7d4f; } .bad { color:#b3402e; }
-  .empty { border:1px dashed var(--line); border-radius:8px; padding:24px;
+         padding:0 5px; font-size:11px; margin-right:4px; vertical-align:1px; }
+  .sum { font-size:14px; color:var(--muted); margin-top:6px; line-height:1.5; }
+  .sum.clipped { display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical;
+                 overflow:hidden; }
+  .more { background:none; border:0; padding:2px 0; margin-top:2px; cursor:pointer;
+          color:var(--accent); font-size:12.5px; font-family:inherit; }
+  .more:hover { text-decoration:underline; }
+  .links { margin-top:6px; font-size:12.5px; }
+  .links a { color:var(--accent); text-decoration:none; margin-right:12px; }
+  .links a:hover { text-decoration:underline; }
+  .done { align-self:start; border:0; background:none; color:var(--faint);
+          cursor:pointer; font-size:16px; padding:2px 6px; border-radius:6px; }
+  .done:hover { color:var(--accent); background:var(--accent-soft); }
+  li.item:not(.unread) .done { visibility:hidden; }
+
+  details { margin-top:44px; }
+  summary { cursor:pointer; font-size:13px; text-transform:uppercase; letter-spacing:.06em;
+            color:var(--muted); }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; margin-top:10px; }
+  th,td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line);
+          vertical-align:top; }
+  .ok { color:var(--new); } .bad { color:var(--accent); }
+  .empty { border:1px dashed var(--line); border-radius:10px; padding:24px;
            color:var(--muted); font-size:14px; }
   code { font-size:12.5px; background:var(--card); padding:1px 5px; border-radius:4px; }
+  .foot { margin-top:40px; font-size:12.5px; color:var(--faint); }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-<h1>Leaside Tracker</h1>
-<p class="sub">Private dashboard &middot; generated {{ generated_at }}</p>
+<header>
+  <h1>Leaside Tracker</h1>
+  <p class="stamp">Last collected <time data-ts="{{ latest_run or generated_at }}">{{ (latest_run or generated_at)[:16] }}</time>
+     &middot; <span id="scope">{{ total_stored }} items held</span>{% if truncated %} (capped){% endif %}</p>
+</header>
 
 {% if items %}
-<div class="bar" data-group="cat">
-  <button class="chip" aria-pressed="true" data-filter="all">All types ({{ items|length }})</button>
-  {% for cat, n in counts.items()|sort %}
-  <button class="chip" aria-pressed="false" data-filter="{{ cat }}">{{ cat }} ({{ n }})</button>
-  {% endfor %}
+<div class="stats">
+  <div class="stat new"><b id="unread-count">{{ in_window }}</b><span>unread in view</span></div>
+  <div class="stat"><b>{{ new_this_run }}</b><span>new in the last collection</span></div>
+  <div class="stat"><b id="view-count">{{ in_window }}</b><span>items in view</span></div>
 </div>
 
-<div class="bar" data-group="area">
-  <button class="chip" aria-pressed="true" data-filter="all">Everywhere</button>
-  {% for key, n in area_counts.items()|sort %}
-  <button class="chip" aria-pressed="false" data-filter="{{ key }}">{{ area_names[key] }} ({{ n }})</button>
-  {% endfor %}
+<div class="bar">
+  <div class="row" data-group="read">
+    <span class="lbl">Show</span>
+    <button class="chip" aria-pressed="true" data-filter="unread">Unread</button>
+    <button class="chip" aria-pressed="false" data-filter="all">Everything</button>
+    <button class="chip action" id="mark-all" title="Mark every visible item as read">Mark all read</button>
+  </div>
+  <div class="row" data-group="since">
+    <span class="lbl">Since</span>
+    {% for days, label in window_choices %}
+    <button class="chip" aria-pressed="{{ 'true' if days == window_days else 'false' }}"
+            data-filter="{{ days }}">{{ label }}</button>
+    {% endfor %}
+    <span class="chip" style="border:0;background:none;cursor:default;color:var(--faint)"
+          title="Police collision and crime records arrive months, sometimes years, late">late data lives here</span>
+  </div>
+  <div class="row" data-group="cat">
+    <span class="lbl">Type</span>
+    <button class="chip" aria-pressed="true" data-filter="all">All</button>
+    {% for cat, n in counts.items()|sort %}
+    <button class="chip" aria-pressed="false" data-filter="{{ cat }}">{{ cat.replace('_',' ') }} <small>{{ n }}</small></button>
+    {% endfor %}
+  </div>
+  <div class="row" data-group="area" data-multi="1">
+    <span class="lbl">Where</span>
+    {% for key, n in area_counts.items()|sort %}
+    <button class="chip" data-area="{{ key }}"
+            aria-pressed="{{ 'false' if key in area_default_off else 'true' }}"
+            title="Click to show or hide this area">{{ area_names[key] }} <small>{{ n }}</small></button>
+    {% endfor %}
+    <button class="chip reset" id="area-reset" title="Back to the default selection">Reset areas</button>
+  </div>
+  <div class="row"><span id="shown"></span></div>
 </div>
 
-<p class="sub" id="shown"></p>
-
-<ul class="items">
+<ul class="items" id="list">
 {% for it in items %}
-  <li class="item" data-cat="{{ it.category }}" data-area="{{ it.area or 'none' }}">
-    {% if it.url %}<a href="{{ it.url }}" rel="noopener">{{ it.title }}</a>
-    {% else %}<span style="font-weight:600">{{ it.title }}</span>{% endif %}
-    <div class="meta">
-      <span class="tag">{{ it.category }}</span>
-      <span class="tag">{{ it.area_name }}</span>
-      {{ it.published_at or it.first_seen_at }} &middot; {{ it.source_id }}
+  <li class="item unread" id="i-{{ it.id }}" data-id="{{ it.id }}" data-cat="{{ it.category }}"
+      data-area="{{ it.area or 'none' }}" data-when="{{ it.when }}" data-seen="{{ it.first_seen_at }}">
+    <span class="dot" aria-hidden="true"></span>
+    <div>
+      {% if it.url %}<a class="t" href="{{ it.url }}" target="_blank" rel="noopener">{{ it.title }}</a>
+      {% else %}<span class="t">{{ it.title }}</span>{% endif %}
+      <div class="meta">
+        <span class="src">{{ it.source_name }}</span>
+        <span class="sep">&middot;</span><span class="tag">{{ it.area_name }}</span>
+        <span class="sep">&middot;</span><time data-ts="{{ it.when }}">{{ it.when[:10] }}</time>
+      </div>
+      {% if it.summary %}<div class="sum clipped">{{ it.summary }}</div>{% endif %}
+      <div class="links">
+        {% if it.url %}<a href="{{ it.url }}" target="_blank" rel="noopener">Read the original &rarr;</a>
+        {% elif it.source_home %}<a href="{{ it.source_home }}" target="_blank" rel="noopener">Where this came from &rarr;</a>{% endif %}
+        {% if it.lat and it.lon %}<a href="https://www.openstreetmap.org/?mlat={{ it.lat }}&amp;mlon={{ it.lon }}#map=17/{{ it.lat }}/{{ it.lon }}"
+           target="_blank" rel="noopener"
+           {% if it.category in ('crime', 'collision') %}title="Approximate. Police move these to the nearest intersection on purpose, so this is the junction, not the address."{% endif %}>{{ 'Nearest intersection on a map' if it.category in ('crime', 'collision') else 'See it on a map' }} &rarr;</a>{% endif %}
+        {% if it.url and it.source_home %}<a href="{{ it.source_home }}" target="_blank" rel="noopener">{{ it.source_name }}</a>{% endif %}
+      </div>
     </div>
-    {% if it.summary %}<div class="sum">{{ it.summary[:280] }}</div>{% endif %}
+    <button class="done" title="Mark as read" aria-label="Mark as read">&#10003;</button>
   </li>
 {% endfor %}
 </ul>
 {% else %}
 <div class="empty">
-  <strong>No items yet.</strong><br>
-  Run <code>python -m leaside.cli probe</code> to find out which sources actually work,
-  fix <code>config/sources.yaml</code>, then run <code>python -m leaside.cli ingest</code>.
+  <strong>Nothing collected in the last {{ window_days }} days.</strong><br>
+  Run <code>run-windows.bat</code>, or check <code>config/health-report.md</code>.
 </div>
 {% endif %}
 
-<h2>Source health</h2>
-{% if fetches %}
-<table>
-  <tr><th>Source</th><th>Last run</th><th>Result</th><th>Items</th></tr>
-  {% for f in fetches %}
-  <tr>
-    <td><code>{{ f.source_id }}</code></td>
-    <td>{{ f.ran_at }}</td>
-    <td class="{{ 'ok' if f.ok else 'bad' }}">{{ 'ok' if f.ok else (f.error or 'failed') }}</td>
-    <td>{{ f.item_count }}</td>
-  </tr>
-  {% endfor %}
-</table>
-{% else %}
-<p class="sub">Nothing has been fetched yet.</p>
-{% endif %}
+<details>
+  <summary>Source health</summary>
+  {% if fetches %}
+  <table>
+    <tr><th>Source</th><th>Last run</th><th>Result</th><th>Items</th></tr>
+    {% for f in fetches %}
+    <tr>
+      <td>{{ f.source_name }}</td>
+      <td><time data-ts="{{ f.ran_at }}">{{ f.ran_at[:10] }}</time></td>
+      <td class="{{ 'ok' if f.ok else 'bad' }}">{{ 'ok' if f.ok else (f.error or 'failed')[:90] }}</td>
+      <td>{{ f.item_count }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="sub">Nothing has been fetched yet.</p>{% endif %}
+</details>
 
-<h2>Configured sources</h2>
-<table>
-  <tr><th>Source</th><th>Kind</th><th>Status</th></tr>
-  {% for s in sources %}
-  <tr>
-    <td>{{ s.name }}</td>
-    <td><code>{{ s.kind }}</code></td>
-    <td class="{{ 'bad' if s.status in ('blocked','manual') else '' }}">{{ s.status }}</td>
-  </tr>
-  {% endfor %}
-</table>
+<details>
+  <summary>Configured sources</summary>
+  <table>
+    <tr><th>Source</th><th>Kind</th><th>Status</th></tr>
+    {% for s in sources %}
+    <tr><td>{{ s.name }}</td><td><code>{{ s.kind }}</code></td>
+        <td class="{{ 'bad' if s.status in ('blocked','manual') else '' }}">{{ s.status }}</td></tr>
+    {% endfor %}
+  </table>
+</details>
 
+<p class="foot">
+Police crime and collision records are placed at the nearest road intersection, not
+at the address, and they arrive months or years after the event. Widen
+<strong>Since</strong> to see them.<br>
+Read state is remembered by this browser only.<br>
+Page generated {{ generated_at[:16] }} UTC by code {{ code_version }}.</p>
 </div>
+
 <script>
-  const picked = { cat: 'all', area: 'all' };
-  const items = document.querySelectorAll('li.item');
-  const shown = document.getElementById('shown');
-
-  function apply() {
-    let n = 0;
-    items.forEach(li => {
-      const hit = (picked.cat === 'all' || li.dataset.cat === picked.cat)
-               && (picked.area === 'all' || li.dataset.area === picked.area);
-      li.hidden = !hit;
-      if (hit) n++;
+(function () {
+  'use strict';
+  var KEY = 'leaside.read.v1';
+  var VIEW = 'leaside.view.v1';
+  var items = Array.prototype.slice.call(document.querySelectorAll('li.item'));
+  var picked = { read: 'unread', cat: 'all', since: {{ window_days }} };
+  var areaChips = Array.prototype.slice.call(document.querySelectorAll('.chip[data-area]'));
+  var defaultAreas = {};
+  areaChips.forEach(function (c) {
+    defaultAreas[c.dataset.area] = c.getAttribute('aria-pressed') === 'true';
+  });
+  var areas = Object.assign({}, defaultAreas);
+  try {
+    var saved = JSON.parse(localStorage.getItem(VIEW) || 'null');
+    if (saved && typeof saved.since === 'number') {
+      picked.since = saved.since;
+      document.querySelectorAll('.row[data-group="since"] .chip[data-filter]')
+        .forEach(function (c) {
+          c.setAttribute('aria-pressed',
+            String(parseInt(c.dataset.filter, 10) === picked.since));
+        });
+    }
+    if (saved && saved.areas) {
+      // Keep the stored choice only for areas that still exist on the page.
+      areaChips.forEach(function (c) {
+        if (Object.prototype.hasOwnProperty.call(saved.areas, c.dataset.area)) {
+          areas[c.dataset.area] = !!saved.areas[c.dataset.area];
+        }
+      });
+    }
+  } catch (e) {}
+  function paintAreas() {
+    areaChips.forEach(function (c) {
+      c.setAttribute('aria-pressed', String(!!areas[c.dataset.area]));
     });
-    if (shown) shown.textContent = n + ' of ' + items.length + ' items shown';
+    try { localStorage.setItem(VIEW, JSON.stringify({ areas: areas })); } catch (e) {}
   }
 
-  document.querySelectorAll('.bar').forEach(bar => {
-    const group = bar.dataset.group;
-    bar.querySelectorAll('.chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        bar.querySelectorAll('.chip').forEach(o =>
-          o.setAttribute('aria-pressed', String(o === chip)));
-        picked[group] = chip.dataset.filter;
+  // ---- persistence: which ids have been read, and when this browser last looked
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } }
+  function save(state) {
+    // keep only ids still on the page, so the store never grows without bound
+    var keep = {};
+    items.forEach(function (li) { var id = li.dataset.id; if (state[id]) keep[id] = state[id]; });
+    if (state.__lastVisit) keep.__lastVisit = state.__lastVisit;
+    try { localStorage.setItem(KEY, JSON.stringify(keep)); } catch (e) {}
+    return keep;
+  }
+  var state = load();
+
+  // ---- local time
+  var fmtDay = new Intl.DateTimeFormat('en-CA', { weekday: 'short', day: 'numeric', month: 'short' });
+  var fmtTime = new Intl.DateTimeFormat('en-CA', { hour: 'numeric', minute: '2-digit' });
+  function relative(d) {
+    var s = (Date.now() - d.getTime()) / 1000;
+    if (s < 3600) return Math.max(1, Math.round(s / 60)) + ' min ago';
+    if (s < 86400) return Math.round(s / 3600) + ' h ago';
+    if (s < 86400 * 7) return Math.round(s / 86400) + ' d ago';
+    return fmtDay.format(d);
+  }
+  document.querySelectorAll('time[data-ts]').forEach(function (t) {
+    var d = new Date(t.dataset.ts);
+    if (isNaN(d)) return;
+    t.textContent = relative(d);
+    t.title = fmtDay.format(d) + ', ' + fmtTime.format(d);
+  });
+
+  // ---- day headings, inserted in the reader's own time zone
+  function dayKey(d) {
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var that = new Date(d); that.setHours(0, 0, 0, 0);
+    var diff = Math.round((today - that) / 86400000);
+    if (diff === 0) return 'Today';
+    if (diff === 1) return 'Yesterday';
+    return fmtDay.format(d);
+  }
+  var list = document.getElementById('list');
+  if (list) {
+    var last = null;
+    items.forEach(function (li) {
+      var d = new Date(li.dataset.when);
+      var k = isNaN(d) ? 'Undated' : dayKey(d);
+      if (k !== last) {
+        var h = document.createElement('h2'); h.className = 'day'; h.textContent = k;
+        h.dataset.day = '1';
+        list.insertBefore(h, li);
+        last = k;
+      }
+      li.dataset.day = k;
+    });
+  }
+
+  // ---- read state
+  function isRead(li) { return !!state[li.dataset.id]; }
+  function paint(li) { li.classList.toggle('unread', !isRead(li)); }
+  function markRead(li) { state[li.dataset.id] = Date.now(); state = save(state); paint(li); apply(); }
+  items.forEach(function (li) {
+    paint(li);
+    var t = li.querySelector('a.t');
+    if (t) t.addEventListener('click', function () { markRead(li); });
+    li.querySelector('.done').addEventListener('click', function () { markRead(li); });
+  });
+  var markAll = document.getElementById('mark-all');
+  if (markAll) markAll.addEventListener('click', function () {
+    items.forEach(function (li) { if (!li.hidden) state[li.dataset.id] = Date.now(); });
+    state = save(state);
+    items.forEach(paint);
+    apply();
+  });
+
+  // ---- filters
+  function apply() {
+    var shown = 0, unread = 0, inScope = 0;
+    var floor = picked.since > 0 ? Date.now() - picked.since * 86400000 : -Infinity;
+    items.forEach(function (li) {
+      var when = new Date(li.dataset.when).getTime();
+      var dated = !isNaN(when);
+      var withinWindow = !dated || when >= floor;   // undated items always show
+      var r = isRead(li);
+      var scoped = withinWindow
+                && (picked.cat === 'all' || li.dataset.cat === picked.cat)
+                && areas[li.dataset.area] !== false;
+      if (scoped) {
+        inScope++;
+        if (!r) unread++;
+      }
+      var hit = scoped && (picked.read === 'all' || !r);
+      li.hidden = !hit;
+      if (hit) shown++;
+    });
+    // hide a day heading when nothing under it is visible
+    document.querySelectorAll('h2.day').forEach(function (h) {
+      var any = false, n = h.nextElementSibling;
+      while (n && n.tagName !== 'H2') { if (!n.hidden) { any = true; break; } n = n.nextElementSibling; }
+      h.hidden = !any;
+    });
+    var s = document.getElementById('shown');
+    if (s) s.textContent = shown + ' shown · ' + unread + ' unread of ' + inScope + ' in view';
+    var uc = document.getElementById('unread-count');
+    if (uc) uc.textContent = unread;
+    var vc = document.getElementById('view-count');
+    if (vc) vc.textContent = inScope;
+    if (markAll) markAll.hidden = shown === 0 || picked.read !== 'unread';
+  }
+  areaChips.forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      areas[chip.dataset.area] = !areas[chip.dataset.area];
+      paintAreas();
+      apply();
+    });
+  });
+  var areaReset = document.getElementById('area-reset');
+  if (areaReset) areaReset.addEventListener('click', function () {
+    areas = Object.assign({}, defaultAreas);
+    paintAreas();
+    apply();
+  });
+
+  // Long summaries are clipped to four lines with a button to open them.
+  document.querySelectorAll('.sum').forEach(function (sum) {
+    if (sum.scrollHeight - sum.clientHeight < 8) { sum.classList.remove('clipped'); return; }
+    var btn = document.createElement('button');
+    btn.className = 'more';
+    btn.textContent = 'Show more';
+    btn.addEventListener('click', function () {
+      var open = sum.classList.toggle('clipped');
+      btn.textContent = open ? 'Show more' : 'Show less';
+    });
+    sum.parentNode.insertBefore(btn, sum.nextSibling);
+  });
+
+  document.querySelectorAll('.row[data-group]:not([data-multi])').forEach(function (row) {
+    var group = row.dataset.group;
+    row.querySelectorAll('.chip[data-filter]').forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        row.querySelectorAll('.chip[data-filter]').forEach(function (o) {
+          o.setAttribute('aria-pressed', String(o === chip));
+        });
+        picked[group] = group === 'since'
+          ? parseInt(chip.dataset.filter, 10)
+          : chip.dataset.filter;
+        try {
+          localStorage.setItem(VIEW, JSON.stringify({ areas: areas, since: picked.since }));
+        } catch (e) {}
         apply();
       });
     });
   });
+  paintAreas();
   apply();
+  state.__lastVisit = Date.now(); state = save(state);
+})();
 </script>
 </body>
 </html>

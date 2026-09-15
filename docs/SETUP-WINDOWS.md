@@ -44,26 +44,21 @@ You said you have used Git before. In that same black window, type these
 three lines, pressing **Enter** after each one.
 
 ```
-cd %USERPROFILE%\Desktop
+cd %USERPROFILE%\Documents
 ```
 
 ```
-git clone https://github.com/petedilworth/leaside-tracker.git
-```
-
-```
-cd leaside-tracker && git checkout claude/leaside-news-tracker-8p523i
+git clone -b claude/leaside-news-tracker-8p523i https://github.com/petedilworth/leaside-tracker.git
 ```
 
 What those do, in plain English:
 
 | Line | What it does |
 | --- | --- |
-| `cd %USERPROFILE%\Desktop` | Move to your Desktop, so the folder lands somewhere you can find it |
-| `git clone ...` | Download the project |
-| `git checkout ...` | Switch to the version with the actual code in it. Skipping this leaves you with an almost empty folder. |
+| `cd %USERPROFILE%\Documents` | Move to your Documents folder, so the project lands somewhere you can find it |
+| `git clone -b ...` | Download the project, already on the right branch |
 
-You should now have a folder called **leaside-tracker** on your Desktop.
+You should now have a folder called **leaside-tracker** in Documents.
 
 ### If `git` is not recognised
 
@@ -72,13 +67,13 @@ Then Git is not installed after all. Instead:
 1. Go to **https://github.com/petedilworth/leaside-tracker/tree/claude/leaside-news-tracker-8p523i**
 2. Click the green **Code** button, then **Download ZIP**.
 3. Find the ZIP in your Downloads folder, right-click it, choose **Extract All**,
-   and extract it to your Desktop.
+   and extract it to your Documents folder.
 
 ---
 
 ## Step 3. Run it
 
-1. Open the **leaside-tracker** folder on your Desktop.
+1. Open the **leaside-tracker** folder in Documents.
 2. Find the file called **run-windows.bat** and double-click it.
 3. A black window opens and starts working. The first run takes about a minute
    longer than later ones, because it is installing things.
@@ -93,6 +88,15 @@ Click **More info**, then **Run anyway**.
 ---
 
 ## Step 4. Read what happened
+
+The run now ends by writing **`config\health-report.md`** and opening it in Notepad
+behind your browser. That one file is everything Claude needs to know about how the
+run went: what came in, from where, whether anything is duplicated, and what failed.
+
+**When Claude asks how the run went, send that file.** You no longer need to
+screenshot the page or copy the black window.
+
+
 
 Two things are worth looking at after the first run.
 
@@ -118,20 +122,40 @@ stay thin, because right now none of those web addresses has ever been tested.
 
 ---
 
+## Finding more residents' associations
+
+There is a one-off job that finds associations this project does not know about yet.
+It reads the Federation of North Toronto Residents' Associations member list, follows
+every link on it, and tests each website for a news feed.
+
+1. Double-click **find-associations.bat**.
+2. Wait. It visits about forty websites, politely, one at a time. Several minutes.
+3. It opens `config\associations-report.md` in Notepad when it finishes.
+4. Copy that whole file and send it to Claude.
+
+You only need to do this once, or again in a year when the list changes.
+
+---
+
 ## Getting my fixes onto your PC
 
-When I change something, you need to pull it down before it takes effect.
-Open the black window, then type these two lines:
+**You no longer need to do anything.** The launcher collects updates itself, as
+step 0, before it does anything else. You just double-click **run-windows.bat**.
 
-```
-cd %USERPROFILE%\Desktop\leaside-tracker
-git pull
-```
+If it cannot update it now tries to clear the problem itself and update again. If
+it still cannot, it stops and prints the blocking file. Send that whole window to
+Claude.
 
-Then double-click **run-windows.bat** as usual.
+Nothing in the folder is precious. The news is collected fresh on every run, and
+what you have read is stored in your browser, not here.
 
-If you downloaded the ZIP instead of using Git, download a fresh ZIP and
-replace the folder. Keep your `data` folder if you want to keep old items.
+Every output now says which version of the code produced it: the first line of the
+black window, the first line of `config\health-report.md`, and the bottom of your
+page. If a report looks like nothing changed, check that line first.
+
+If you downloaded the ZIP instead of using Git, updates cannot be collected
+automatically. Download a fresh ZIP and replace the folder, keeping your `data`
+folder to keep old items.
 
 ---
 
@@ -140,25 +164,55 @@ replace the folder. Keep your `data` folder if you want to keep old items.
 Just double-click **run-windows.bat** again. It picks up anything new and
 rebuilds the page. Once a day is plenty. Once a week is fine.
 
+Runs are quicker now. The source check in step 1 only repeats once a week; on other
+days it says so and moves on.
+
+## Reading the page
+
+The page opens showing only what you have not read. Each item has a green dot. Click
+a headline to open it in a new tab, which also marks it read. Click the tick on the
+right to mark it read without opening it. **Mark all read** clears everything in view.
+
+Your read history lives in your browser, not in the project. Clearing browser data
+or switching browsers starts you fresh. That is a limitation, not a bug, and it is
+the price of the site being a plain file with no account behind it.
+
+Switch **Show** to **Everything** to see read items again. Dates and the day
+headings are in your own time zone.
+
+Under each item is a link row. **Read the original** opens the article on the site
+that published it. Items from a dataset have no article of their own, so they offer
+**Where this came from** instead, and **See it on a map** when the record has
+coordinates.
+
+Long summaries are trimmed to four lines with a **Show more** button underneath.
+
+The **Since** row decides how far back the page looks. It opens on the last 120
+days, which is right for news. Police collision and crime records arrive months,
+sometimes years, after the event, so they will not appear in that window. Click
+**Everything** to see them. Your choice is remembered.
+
+The **Where** row is a set of on/off switches, not a single choice. Click a
+neighbourhood to hide it, click again to bring it back. Your choice is remembered
+between visits, and **Reset areas** puts it back to showing all seven.
+
 ---
 
-## If you want to see it working right now
+## If you want to see what a finished page looks like
 
-Before any of the real sources are fixed, you can load fake sample items so you
-can see what the finished page looks like. In the black window, inside the
-leaside-tracker folder, type:
+You can load five fake sample items and see the layout. This is completely
+separate from your real data and cannot mix with it. In the black window, inside
+the leaside-tracker folder, type:
 
 ```
 .venv\Scripts\python.exe -m leaside.cli demo
 ```
 
-```
-.venv\Scripts\python.exe -m leaside.cli build
-```
+Then open `site\demo.html` in the folder. Every fake item is labelled `[demo]`.
+Your real page is `site\index.html` and the demo never touches it.
 
-Then open `site\index.html`. Every fake item is labelled `[demo]` so you will
-never confuse it with real news. To clear them out later, delete the file
-`data\leaside.db` and run the launcher again.
+If you ran an older version of the demo, a few `[demo]` items may have crept into
+your real page. The next normal run removes them automatically and says so.
 
 ---
 
@@ -181,3 +235,22 @@ If you have Anaconda installed, Python may come from there instead of from
 python.org. That is fine and it works. It only matters because Anaconda's Python
 handles foreign characters differently on Windows, which caused the first crash
 of this project. It is fixed.
+
+---
+
+## If a command says "Access is denied"
+
+Windows refuses to rename or delete a folder while something is still using it.
+Usually that is a black window still sitting inside it, or your browser with the
+page open, or backup software mid-sync.
+
+Close every black window and every browser tab showing the page, then try again.
+If it still refuses, do not fight it: clone a fresh copy somewhere else and delete
+the stuck folder later, from File Explorer, after a restart.
+
+## A note on synced folders
+
+If Documents is backed up by OneDrive, this still works, but the first run may be
+slow while thousands of small files sync. If it becomes annoying, right-click the
+leaside-tracker folder, choose **Always keep on this device**, or move the project
+to a plain folder such as `C:\projects\leaside-tracker`.

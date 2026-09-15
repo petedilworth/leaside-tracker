@@ -1,0 +1,107 @@
+name: Weekly digest
+
+# Collect the news and email it, whether or not any computer of Pete's is awake.
+#
+# State: GitHub gives each run a clean machine, so the SQLite database has to be
+# carried between runs or every week would look like the first. It is kept on a
+# separate `state` branch rather than alongside the code, because a database
+# committed to the working branch makes `git pull` conflict on any machine that
+# also runs the project - which is exactly the fault that hid five sessions of
+# fixes on Pete's PC.
+
+on:
+  schedule:
+    # 11:00 UTC Monday is 07:00 in Toronto during daylight saving, 06:00 in winter.
+    - cron: "0 11 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the email instead of sending it"
+        type: boolean
+        default: false
+
+concurrency:
+  group: leaside-digest
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install --quiet -r requirements.txt
+
+      - name: Restore last week's database
+        run: |
+          mkdir -p data
+          if git ls-remote --exit-code --heads origin state >/dev/null 2>&1; then
+            git fetch --depth 1 origin state
+            if git cat-file -e origin/state:leaside.db 2>/dev/null; then
+              git show origin/state:leaside.db > data/leaside.db
+              echo "Restored $(stat -c%s data/leaside.db) bytes."
+            else
+              echo "The state branch has no database yet. Starting fresh."
+            fi
+          else
+            echo "No state branch yet. This is the first run."
+          fi
+
+      - name: Collect
+        run: python -m leaside.cli ingest
+
+      - name: Build the page and the health report
+        run: |
+          python -m leaside.cli build
+          python -m leaside.cli doctor
+
+      - name: Send the digest
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          DIGEST_TO: ${{ secrets.DIGEST_TO }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python -m leaside.cli digest --dry-run
+          else
+            python -m leaside.cli digest
+          fi
+
+      - name: Save the database for next week
+        if: always() && inputs.dry_run != true
+        run: |
+          git config user.name "leaside-tracker"
+          git config user.email "noreply@github.com"
+          rm -rf /tmp/state && mkdir -p /tmp/state
+          cp data/leaside.db /tmp/state/leaside.db
+          cp config/health-report.md /tmp/state/health-report.md 2>/dev/null || true
+          cp site/index.html /tmp/state/index.html 2>/dev/null || true
+          cd /tmp/state
+          git init -q -b state
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          git add -A
+          git commit -q -m "State after $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q --force origin state
+          echo "Saved to the state branch."
+
+      - name: Keep the page and reports as downloads
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: leaside-page
+          path: |
+            site/index.html
+            config/health-report.md
+          retention-days: 30
+          if-no-files-found: warn

@@ -14,6 +14,15 @@ defaults:
   timeout: 30
   request_delay_seconds: 2
 
+# Directory pages listing residents' associations. `python -m leaside.cli discover`
+# reads each one, follows every outbound link, tests it for a news feed, and writes
+# config/associations-report.md. This is how the Moore Park and Davisville addresses
+# were corrected, and how any association missing below will be found.
+directories:
+  - https://fontra.com/member-associations/
+  - https://fontra.com/other-organizations/
+  - https://leasideresidents.ca/resources/
+
 sources:
 
   # ---------------------------------------------------------------- residents' associations
@@ -67,15 +76,6 @@ sources:
       Probe returned 7 entries. Domain corrected from the earlier mpra.ca guess, which
       returned 404. Found via the FONTRA member list.
 
-  - id: ra_lawrence_park
-    name: Lawrence Park Ratepayers' Association
-    category: ra_news
-    area: lawrence_park
-    kind: rss
-    url: https://lpra.ca/feed/
-    status: verified
-    notes: Probe returned 8 entries. Covers Lawrence Ave E, Blythwood, Yonge, Bayview.
-
   - id: ra_davisville
     name: South Eglinton Davisville Residents' Association (SEDRA)
     category: ra_news
@@ -99,6 +99,82 @@ sources:
       Probe found a plain HTML page with no feed. Already served its purpose: it is how
       the Moore Park and Davisville addresses above were corrected. Revisit only if a new
       association appears. FONTRA also takes positions on planning files.
+
+  # ---------------------------------------------------------------- local media, part two
+  - id: media_south_bayview_bulldog
+    name: The South Bayview Bulldog
+    category: media
+    area: leaside
+    kind: rss
+    url: https://bayview-news.com/feed/
+    status: verified
+    notes: >
+      THE BEST SOURCE IN THIS PROJECT. A local news service that states its own coverage
+      area as South Bayview including Leaside, Davisville, Bennington Heights and Moore
+      Park - almost exactly your seven areas. Run by Ted Stuebing, a long-time area
+      retailer and journalist. Directory scan returned 12 entries, and it publishes far
+      more often than the monthly paper. Area is set to leaside only as a fallback: a
+      story naming another neighbourhood is matched to that neighbourhood instead.
+
+  # ---------------------------------------------------------------- business and community
+  - id: biz_bayview_leaside_bia
+    name: Bayview-Leaside Business Improvement Area
+    category: business
+    area: leaside
+    kind: rss
+    url: http://bayviewleasidebia.com/feed/
+    status: verified
+    notes: >
+      Directory scan returned 10 entries. I previously told you this was email only.
+      That was wrong - it has a working feed. This is your source for shop openings,
+      closings and street events on Bayview.
+
+  - id: biz_leaside_business_park
+    name: Leaside Business Park Association
+    category: business
+    area: leaside
+    kind: rss
+    url: https://leasidebusinesspark.com/feed/
+    status: verified
+    notes: >
+      Directory scan returned 3 entries. Covers the industrial and commercial lands east
+      of Laird, which is where most large redevelopment pressure in Leaside sits.
+
+  - id: community_leaside_gardens
+    name: Leaside Memorial Community Gardens
+    category: community
+    area: leaside
+    kind: rss
+    url: https://leasidegardens.com/feed/
+    status: verified
+    notes: Directory scan returned 10 entries. The arena and community centre. Events and closures.
+
+  - id: heritage_leaside
+    name: Leaside Heritage Preservation Society
+    category: community
+    area: leaside
+    kind: manual
+    url: https://leasideheritage.ca/
+    status: manual
+    notes: >
+      Settled, negatively. The first failure was a connection problem, not a missing
+      feed. With that cleared the site answers and the feed path returns HTTP 404, so
+      no feed exists. The site itself is alive. Route is their mailing list, or a
+      scraper of their news page. Heritage designation fights on Leaside streets are
+      worth having, just not by this route.
+
+  # ---------------------------------------------------------------- planning advocacy
+  - id: planning_fontra
+    name: Federation of North Toronto Residents' Associations
+    category: planning
+    area: null
+    kind: rss
+    url: https://fontra.com/feed/
+    status: verified
+    notes: >
+      Directory scan returned 10 entries. The umbrella group publishes submissions on
+      planning and development matters across north Toronto. No area is forced, so an
+      item only appears against a neighbourhood when it names one.
 
   # ---------------------------------------------------------------- local media
   - id: media_leaside_life
@@ -134,12 +210,14 @@ sources:
     timeout: 180
     max_age_days: 120
     retries: 3
-    status: documented
+    home_url: https://secure.toronto.ca/nm/notices/current.do
+    status: verified
     notes: >
-      THE source for Committee of Adjustment hearings, road closures and public meetings.
-      Probe timed out reading the body at 30 seconds. That is a slow, large response, not
-      a dead endpoint - it returns every notice published since 2018 in one file.
-      Now allowed 180 seconds and three attempts. Documented at secure.toronto.ca/nm/opendata.do
+      Works, and it is the single best municipal source. The response is 22.5 MB - every
+      notice published since 2018 in one file - which is why it needed 180 seconds rather
+      than 30. First real run matched 119 notices to your areas. Carries Committee of
+      Adjustment hearings, road closures and public meetings.
+      Documented at secure.toronto.ca/nm/opendata.do
 
   - id: city_ckan_catalogue
     name: City of Toronto Open Data (CKAN)
@@ -198,32 +276,50 @@ sources:
     url: https://data.tps.ca/api/feed/dcat-us/1.1.json
     alt_url: https://opendata-torontops.opendata.arcgis.com/api/feed/dcat-us/1.1.json
     timeout: 90
+    snapshot: true
     status: verified
     notes: >
       Probe returned a large valid JSON catalogue. Layer URLs are discovered from here
       rather than hard-coded, because TPS has moved this portal between domains before.
 
-  - id: tps_major_crime_indicators
-    name: TPS Major Crime Indicators
+  - id: tps_reported_crime
+    name: Toronto Police reported crime
     category: crime
     area: null
-    kind: arcgis_feature
+    kind: arcgis_multi
     url: null
     discover_from: tps_hub_dcat
     discover_match:
-      - "major crime indicators"
-      - "mci"
-      - "major crime"
+      - "Break and Enter Open Data"
+      - "Auto Theft Open Data"
+      - "Robbery Open Data"
+      - "Assault Open Data"
+      - "Theft From Motor Vehicle Open Data"
+      - "Bicycle Thefts Open Data"
     timeout: 120
-    max_age_days: 90
+    snapshot: true
+    home_url: https://data.tps.ca/
     status: documented
     notes: >
-      Has no URL of its own by design - the ingest step looks it up in the catalogue
-      above. The first real run found no title matching "major crime indicators", so
-      several candidate names are now tried and the full list of available dataset names
-      is written to config/tps_hub_dcat-catalogue.md when none of them hit.
-      Points are OFFSET to the nearest intersection for privacy. Never present them as
-      exact addresses. Refresh is roughly monthly.
+      Replaces tps_major_crime_indicators, which failed on every run. The catalogue
+      confirms why: Toronto Police publish no layer called "Major Crime Indicators".
+      They publish each offence separately, so this source gathers six layers and
+      labels each item with its offence.
+      Deliberately left out: Homicides, Shootings and Firearm Discharges, Hate Crimes,
+      Mental Health Act Apprehensions, Persons in Crisis, and Intimate Partner and
+      Family Violence. All are available under those names. The first two are rare
+      enough that a news source will tell you sooner; the rest concern people in
+      distress and mapping them onto a neighbourhood page is not something this
+      project should do.
+      Points are OFFSET to the nearest intersection for privacy. Never present them
+      as exact addresses.
+      No age cap. The data lags: on 12 September 2026 the newest record was 20 June,
+      84 days old, so a 90-day cap left a six-day window and returned two incidents
+      for the whole area. Rather than guess at the right cap, everything is stored
+      and the page's "Since" control decides what is shown.
+      Every record states its City neighbourhood, which is trusted over this project's
+      hand-drawn rectangles - one of which was claiming a robbery in North St.James
+      Town, four kilometres away, as South Rosedale.
 
   - id: tps_traffic_collisions
     name: TPS Traffic Collisions (ASR-T-TBL-001)
@@ -236,13 +332,16 @@ sources:
       - "traffic collisions"
       - "collisions"
     timeout: 120
-    max_age_days: 365
-    status: verified
+    snapshot: true
+    home_url: https://data.tps.ca/
+    status: documented
     notes: >
-      The layer was found and returned 1042 records inside your areas, but every one was
-      older than 90 days, so the cap threw them all away and you saw nothing. Police
-      collision data lags by months. Cap raised to a year, which is the honest window
-      for this dataset.
+      Re-enabled with no age cap, because the owner asked for collision detail even
+      when it is late. This is what was hiding it: a 90-day cap threw away all 960
+      records in the area, then a one-year cap threw away all 960 again. The records
+      are real, they are just old - ASR-T-TBL-001 is an Annual Statistical Report
+      table, so it is a historical series rather than a current feed. Expect years,
+      not weeks. The page's "Since" control decides what you actually look at.
 
   - id: city_ksi_collisions
     name: Motor vehicle collisions involving killed or seriously injured persons (KSI)
@@ -251,13 +350,20 @@ sources:
     kind: ckan_dataset
     dataset: motor-vehicle-collisions-involving-killed-or-seriously-injured-persons
     timeout: 120
-    max_age_days: 365
+    snapshot: true
+    home_url: https://open.toronto.ca/dataset/motor-vehicle-collisions-involving-killed-or-seriously-injured-persons/
     status: verified
     notes: >
       First real run brought back 129 records for your areas. Reached through the CKAN
       API. Covers killed or seriously injured only - ordinary fender benders are in no
       open dataset anywhere in Toronto. Note these are people involved, not collisions,
-      so one crash can appear as several rows.
+      so one crash can appear as several rows; the stable key collapses them.
+      Returned zero rows on 12 September 2026 with a one-year cap, which is why the
+      cap is gone and the fetch now reports how many rows it read, how many fell in
+      your areas, and how many had no coordinates.
+      If this ever stops working, Toronto Police publish the same thing as
+      "Killed and Seriously Injured" on their ArcGIS hub, along with per-mode
+      versions (Pedestrian KSI, Cyclist KSI, Automobile KSI, Fatals KSI).
 
   - id: tps_news_releases
     name: Toronto Police Service news releases

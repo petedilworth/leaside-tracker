@@ -4,29 +4,51 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import db, demo, ingest, probe, render
+from . import db, demo, digest, discover, doctor, ingest, probe, render, version
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="leaside")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("probe", help="check every configured URL and write config/probe-report.md")
+    pr = sub.add_parser("probe", help="check every configured URL and write config/probe-report.md")
+    pr.add_argument("--force", action="store_true", help="re-check even if checked this week")
     ing = sub.add_parser("ingest", help="pull every runnable source into SQLite")
     ing.add_argument("--only", nargs="*", help="limit to these source ids")
     sub.add_parser("build", help="render site/index.html from SQLite")
     sub.add_parser("demo", help="load test fixtures so the site renders offline")
+    sub.add_parser("discover", help="scan directory pages for association feeds")
     sub.add_parser("status", help="show what is in the database")
+    sub.add_parser("doctor", help="write config/health-report.md")
+    dg = sub.add_parser("digest", help="email everything new since the last digest")
+    dg.add_argument("--dry-run", action="store_true",
+                    help="print the email instead of sending it")
+    dg.add_argument("--to", help="recipient; defaults to the DIGEST_TO environment variable")
+    dg.add_argument("--send-empty", action="store_true",
+                    help="send even when nothing is new")
     args = ap.parse_args(argv)
+    if args.cmd in {"probe", "ingest", "build", "doctor", "digest"}:
+        print(f"leaside-tracker {version.label()}")
+        stale = version.warn_if_stale()
+        if stale:
+            print(f"  NOTE: {stale}")
 
     if args.cmd == "probe":
-        probe.run()
+        probe.run(force=args.force)
     elif args.cmd == "ingest":
         totals = ingest.run(only=set(args.only) if args.only else None)
         print(f"\n{totals['new']} new, {totals['seen']} seen, {totals['failed']} sources failed")
+    elif args.cmd == "discover":
+        print(f"Wrote {discover.run()}")
     elif args.cmd == "demo":
-        print(f"Loaded {demo.run()} fixture items")
+        n = demo.run()
+        page = render.run(db_path=db.DEMO_DB, out_name="demo.html")
+        print(f"Loaded {n} fixture items into {db.DEMO_DB} and wrote {page}")
     elif args.cmd == "build":
         print(f"Wrote {render.run()}")
+    elif args.cmd == "digest":
+        digest.run(dry_run=args.dry_run, to=args.to, skip_empty=not args.send_empty)
+    elif args.cmd == "doctor":
+        print(f"Wrote {doctor.run()}")
     elif args.cmd == "status":
         conn = db.connect()
         for row in conn.execute(

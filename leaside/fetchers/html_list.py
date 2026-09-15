@@ -28,7 +28,6 @@ def parse(html: str, source, base_url: str) -> list[dict]:
                 "summary": None,
                 "published_at": None,
                 "external_id": url,
-                "area": source.area,
             }
         )
     return items
@@ -38,8 +37,4 @@ def fetch(source, http, areas) -> tuple[list[dict], int]:
     url = source.url or source.fallback_html
     resp = http.get(url, timeout=source.timeout, retries=source.retries)
     resp.raise_for_status()
-    items = parse(resp.text, source, url)
-    for it in items:
-        if not it.get("area"):
-            it["area"] = areas.match_text(it["title"])
-    return items, resp.status_code
+    return parse(resp.text, source, url), resp.status_code

@@ -7,7 +7,14 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import dates, text
+
 DEFAULT_DB = Path("data/leaside.db")
+DEMO_DB = Path("data/demo.db")
+
+# Enough for a few paragraphs. The page shows a trimmed version and
+# lets you expand, so this is the ceiling, not what you read at a glance.
+SUMMARY_CHARS = 2400
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS items (
@@ -39,6 +46,23 @@ CREATE TABLE IF NOT EXISTS fetch_log (
     error       TEXT
 );
 
+CREATE TABLE IF NOT EXISTS runs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at  TEXT NOT NULL,
+    finished_at TEXT,
+    new_items   INTEGER,
+    seen_items  INTEGER,
+    failed      INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS digests (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    sent_at  TEXT NOT NULL,
+    items    INTEGER,
+    ok       INTEGER NOT NULL,
+    detail   TEXT
+);
+
 CREATE TABLE IF NOT EXISTS probe_results (
     source_id    TEXT PRIMARY KEY,
     checked_at   TEXT NOT NULL,
@@ -68,17 +92,41 @@ def item_id(source_id: str, key: str) -> str:
     return hashlib.sha1(f"{source_id}|{key}".encode()).hexdigest()
 
 
-def upsert_item(conn: sqlite3.Connection, item: dict) -> bool:
-    """Insert an item, or refresh last_seen_at if we already have it.
+def normalise(item: dict) -> dict:
+    """Every write goes through here, so stored rows always share one shape.
 
-    Returns True when the item is new.
+    Titles and summaries are plain text. Dates are UTC ISO strings or None, which
+    makes the text sort in the renderer a real date sort.
+    """
+    out = dict(item)
+    out["title"] = text.clean(item.get("title"), 300) or "(untitled)"
+    out["summary"] = text.clean(item.get("summary"), SUMMARY_CHARS)
+    out["published_at"] = dates.to_iso(item.get("published_at"))
+    return out
+
+
+def upsert_item(conn: sqlite3.Connection, item: dict) -> bool:
+    """Insert an item, or bring an existing one up to date.
+
+    An existing row gets its derived fields refreshed - area, date, cleaned text -
+    so an improvement to the matching or parsing logic reaches rows we already hold.
+    Only first_seen_at is fixed for life. Returns True when the item is new.
     """
     now = utcnow()
     key = item.get("external_id") or item.get("url") or item["title"]
     iid = item_id(item["source_id"], key)
+    item = normalise(item)
     existing = conn.execute("SELECT id FROM items WHERE id = ?", (iid,)).fetchone()
     if existing:
-        conn.execute("UPDATE items SET last_seen_at = ? WHERE id = ?", (now, iid))
+        conn.execute(
+            """UPDATE items SET last_seen_at = ?, title = ?, summary = ?,
+                   published_at = ?, area = ?, lat = ?, lon = ?, url = ?
+               WHERE id = ?""",
+            (
+                now, item["title"], item.get("summary"), item.get("published_at"),
+                item.get("area"), item.get("lat"), item.get("lon"), item.get("url"), iid,
+            ),
+        )
         return False
     conn.execute(
         """INSERT INTO items
@@ -102,6 +150,100 @@ def upsert_item(conn: sqlite3.Connection, item: dict) -> bool:
         ),
     )
     return True
+
+
+def refresh_all(conn: sqlite3.Connection, areas, cfg) -> dict:
+    """Re-derive text, dates and areas for every stored row.
+
+    Runs at the end of each ingest. It is what carries a logic fix to rows that
+    have already dropped out of their feed and will never be fetched again.
+    """
+    counts = {"rows": 0, "changed": 0, "demo_removed": 0, "orphans_removed": 0}
+    cur = conn.execute("DELETE FROM items WHERE title LIKE '[demo] %'")
+    counts["demo_removed"] = cur.rowcount
+
+    # Rows whose source has been retired. Feeds keep their history because a post
+    # that was true stays true; a dataset or a directory listing does not.
+    known = {s.id: s for s in cfg.sources}
+    for sid in [r[0] for r in conn.execute("SELECT DISTINCT source_id FROM items")]:
+        src = known.get(sid)
+        retire = src is None or (
+            not src.runnable and (src.snapshot or src.category == "registry")
+        )
+        if retire:
+            cur = conn.execute("DELETE FROM items WHERE source_id = ?", (sid,))
+            counts["orphans_removed"] += cur.rowcount
+    for row in conn.execute(
+        "SELECT id, source_id, title, summary, published_at, area, lat, lon FROM items"
+    ).fetchall():
+        counts["rows"] += 1
+        fixed = normalise({"title": row["title"], "summary": row["summary"],
+                           "published_at": row["published_at"]})
+        if row["lat"] is not None and row["lon"] is not None:
+            area = areas.match_point(row["lat"], row["lon"]) or row["area"]
+        else:
+            src = cfg.by_id(row["source_id"])
+            area = (areas.match_text(fixed["title"], fixed["summary"])
+                    or (src.area if src else None) or row["area"])
+        if (fixed["title"], fixed["summary"], fixed["published_at"], area) != (
+            row["title"], row["summary"], row["published_at"], row["area"]
+        ):
+            conn.execute(
+                "UPDATE items SET title=?, summary=?, published_at=?, area=? WHERE id=?",
+                (fixed["title"], fixed["summary"], fixed["published_at"], area, row["id"]),
+            )
+            counts["changed"] += 1
+    conn.commit()
+    return counts
+
+
+def start_run(conn: sqlite3.Connection) -> int:
+    cur = conn.execute("INSERT INTO runs (started_at) VALUES (?)", (utcnow(),))
+    conn.commit()
+    return cur.lastrowid
+
+
+def finish_run(conn: sqlite3.Connection, run_id: int, totals: dict) -> None:
+    conn.execute(
+        "UPDATE runs SET finished_at=?, new_items=?, seen_items=?, failed=? WHERE id=?",
+        (utcnow(), totals["new"], totals["seen"], totals["failed"], run_id),
+    )
+    conn.commit()
+
+
+def recent_runs(conn: sqlite3.Connection, n: int = 2) -> list[str]:
+    """Start times of the latest runs, newest first."""
+    return [r[0] for r in conn.execute(
+        "SELECT started_at FROM runs ORDER BY started_at DESC LIMIT ?", (n,))]
+
+
+def last_digest(conn: sqlite3.Connection) -> str | None:
+    """When the last digest was sent successfully. Everything newer is unreported."""
+    row = conn.execute(
+        "SELECT sent_at FROM digests WHERE ok = 1 ORDER BY sent_at DESC LIMIT 1"
+    ).fetchone()
+    return row[0] if row else None
+
+
+def record_digest(conn: sqlite3.Connection, items: int, ok: bool, detail: str = "") -> None:
+    conn.execute(
+        "INSERT INTO digests (sent_at, items, ok, detail) VALUES (?,?,?,?)",
+        (utcnow(), items, 1 if ok else 0, detail[:500]),
+    )
+    conn.commit()
+
+
+def drop_unseen(conn: sqlite3.Connection, source_id: str, since: str) -> int:
+    """Remove rows from a snapshot source that were not in the latest snapshot.
+
+    Feeds are a stream and old entries are worth keeping. A dataset is a photograph:
+    if a row is no longer in it, it should not be on the page either. Without this,
+    every run of a dataset whose internal row numbers shift leaves a full duplicate set.
+    """
+    cur = conn.execute(
+        "DELETE FROM items WHERE source_id = ? AND last_seen_at < ?", (source_id, since)
+    )
+    return cur.rowcount
 
 
 def log_fetch(conn, source_id, ok, http_status=None, item_count=0, error=None):
