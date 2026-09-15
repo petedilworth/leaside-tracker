@@ -22,6 +22,8 @@ def _classify(resp) -> tuple[str, str]:
     body = resp.text[:400_000]
     if resp.status_code >= 400:
         return "dead", f"HTTP {resp.status_code}"
+    if not body.strip():
+        return "empty", "HTTP 200 with no body"
     if "json" in ctype or body.lstrip()[:1] in "[{":
         size = int(resp.headers.get("content-length") or len(resp.content))
         return "json", f"{size:,} bytes of JSON"

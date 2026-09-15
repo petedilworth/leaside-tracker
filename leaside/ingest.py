@@ -66,7 +66,8 @@ def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> 
             print(f"  ok    {src.id:<32} {len(items):>5} items, {new:>4} new{tail}")
             if undated:
                 sample = next(it["published_at"] for it in items
-                              if dates.to_iso(it.get("published_at")) is None)
+                              if it.get("published_at")
+                              and dates.to_iso(it["published_at"]) is None)
                 print(f"        {undated} dates could not be read, e.g. {sample!r}")
         except Exception as exc:
             db.log_fetch(conn, src.id, False, None, 0, f"{type(exc).__name__}: {exc}"[:500])

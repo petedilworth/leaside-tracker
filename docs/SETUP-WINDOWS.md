@@ -142,6 +142,11 @@ You only need to do this once, or again in a year when the list changes.
 **You no longer need to do anything.** The launcher collects updates itself, as
 step 0, before it does anything else. You just double-click **run-windows.bat**.
 
+That file is deliberately tiny and never changes. It collects the update and then
+hands over to `scripts\run-windows-main.bat`, which does the real work. Windows
+reads a script while it runs, so if an update rewrote the file you had just
+double-clicked, the rest of the run would go wrong. Splitting it avoids that.
+
 If it cannot update it now tries to clear the problem itself and update again. If
 it still cannot, it stops and prints the blocking file. Send that whole window to
 Claude.

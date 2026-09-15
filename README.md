@@ -53,9 +53,10 @@ To see the site render without any network:
 | `.github/workflows/weekly-digest.yml` | Runs weekly on GitHub and emails the digest |
 | `config/health-report.md` | Written every run: what came in, duplicates, failures |
 | `tests/` | Parser tests against fixtures, no network |
-| `run-windows.bat` | Double-click launcher for Windows |
+| `run-windows.bat` | Double-click launcher for Windows. A stub that never changes: pulls, then hands over |
+| `scripts/run-windows-main.bat` | The real Windows run, safe to update because it is never executing during the pull |
 | `find-associations.bat` | One-off scan for residents' association feeds |
-| `run-mac.command` | Double-click launcher for macOS |
+| `run-mac.command` | Double-click launcher for macOS, same stub arrangement |
 
 ## Rules this project follows
 

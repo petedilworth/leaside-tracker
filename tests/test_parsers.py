@@ -1152,3 +1152,156 @@ def test_digest_uses_the_only_sender_the_free_tier_allows():
     from leaside import digest
 
     assert "onboarding@resend.dev" in digest.SENDER
+
+
+# ---------------------------------------------------------------- the bug sweep
+
+def test_paging_stops_on_the_servers_signal_not_on_the_requested_page_size():
+    """ArcGIS caps a page at its own maxRecordCount, often 1000, whatever we asked.
+
+    Judging "last page" by our requested 2000 would have stopped after page one on
+    every such server, silently returning half the data.
+    """
+    from leaside.fetchers import arcgis
+
+    calls = []
+
+    class Resp:
+        status_code = 200
+
+        def __init__(self, payload):
+            self.text = json.dumps(payload)
+
+        def raise_for_status(self):
+            pass
+
+    class Http:
+        def get(self, url, params=None, **kw):
+            calls.append(params["resultOffset"])
+            feature = {"attributes": {"EVENT_UNIQUE_ID": f"GO-{len(calls)}",
+                                      "OCC_DATE": 1781928000000,
+                                      "NEIGHBOURHOOD_158": "Leaside-Bennington (56)"},
+                       "geometry": {"x": -79.365, "y": 43.705}}
+            # A server that returns 1000 a page and says whether more remain.
+            if len(calls) < 3:
+                return Resp({"features": [feature] * 1000, "exceededTransferLimit": True})
+            return Resp({"features": [feature] * 37, "exceededTransferLimit": False})
+
+    src = CFG.by_id("tps_traffic_collisions")
+    items, _ = arcgis.fetch_features(src, Http(), AREAS, layer_url="https://x/FeatureServer/0",
+                                     label="Collision")
+    assert calls == [0, 1000, 2000], "offsets must advance by what was received"
+    assert len(items) == 2037
+
+
+def test_paging_falls_back_to_table_order_when_the_layer_has_no_date_field():
+    from leaside.fetchers import arcgis
+
+    seen = []
+
+    class Resp:
+        status_code = 200
+
+        def __init__(self, payload):
+            self.text = json.dumps(payload)
+
+        def raise_for_status(self):
+            pass
+
+    class Http:
+        def get(self, url, params=None, **kw):
+            seen.append(params.get("orderByFields"))
+            if params.get("orderByFields"):
+                return Resp({"error": {"code": 400, "message": "Invalid field: OCC_DATE"}})
+            return Resp({"features": [], "exceededTransferLimit": False})
+
+    src = CFG.by_id("tps_traffic_collisions")
+    arcgis.fetch_features(src, Http(), AREAS, layer_url="https://x/FeatureServer/0")
+    assert seen == [arcgis.DATE_ORDER, None], "one rejected sort, then unsorted"
+
+
+def test_digest_dates_do_not_use_flags_windows_rejects():
+    """strftime("%-d") is a glibc extension; on Windows it raises ValueError."""
+    from leaside import digest
+
+    assert digest._day("2026-09-05T14:04:00+00:00") == "Sat 5 Sep"
+    assert digest._day("2026-12-25") == "Fri 25 Dec"
+    assert digest._day(None) == ""
+    import ast
+    import inspect
+    # Look at real strftime calls in the code, not at comments or strings elsewhere.
+    tree = ast.parse(inspect.getsource(digest))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and getattr(node.func, "attr", "") == "strftime":
+            for arg in node.args:
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    assert "%-" not in arg.value, f"glibc-only flag in {arg.value!r}"
+
+
+def test_probe_does_not_call_an_empty_reply_json():
+    from leaside import probe
+
+    class Resp:
+        status_code = 200
+        text = ""
+        content = b""
+        headers = {"content-type": "application/json"}
+
+    assert probe._classify(Resp())[0] == "empty"
+
+    class Real(Resp):
+        text = '[{"a": 1}]'
+        content = text.encode()
+
+    assert probe._classify(Real())[0] == "json"
+
+
+def test_health_report_does_not_dump_keys_for_sources_that_never_have_links(tmp_path):
+    """Crime and collision rows have no article by design. Dumping their raw keys on
+    every weekly report was noise that buried the section's real purpose."""
+    from leaside import db, doctor, geo, sources
+
+    conn = db.connect(tmp_path / "t.db")
+    for i in range(3):
+        db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime",
+                                   title=f"Assault {i}", url=None, area="leaside",
+                                   published_at="2026-09-01",
+                                   raw={"OFFENCE": "Assault", "OCC_DATE": 1}))
+    conn.commit()
+    out = doctor.render(doctor.gather(conn, geo.Areas.load(), sources.load()))
+    assert "What the raw records look like" not in out
+
+    # ...but a source that SHOULD have links and does not still gets its keys shown.
+    db.upsert_item(conn, _item(source_id="city_public_notices", category="city_notice",
+                               title="n", url=None, published_at="2026-09-01",
+                               raw={"noticeId": 1, "title": "n"}))
+    conn.commit()
+    out = doctor.render(doctor.gather(conn, geo.Areas.load(), sources.load()))
+    assert "What the raw records look like" in out and "`noticeId`" in out
+
+
+def test_undated_sample_is_a_date_that_failed_not_a_date_that_was_missing():
+    import inspect
+
+    from leaside import ingest
+
+    src = inspect.getsource(ingest)
+    assert 'if it.get("published_at")\n                              and dates.to_iso' in src
+
+
+def test_launcher_stubs_never_need_to_change():
+    """cmd and bash read a script while it runs. If the update step rewrote the file
+    being executed, the rest of the run would be garbage. So the double-click file
+    only pulls and hands over; the real work lives where an update can replace it."""
+    root = pathlib.Path(__file__).resolve().parents[1]
+    win = (root / "run-windows.bat").read_text(encoding="utf-8")
+    inner = (root / "scripts" / "run-windows-main.bat").read_text(encoding="utf-8")
+    assert "git pull" in win and "call" in win and "run-windows-main.bat" in win
+    assert "Step 1 of 4" not in win and "Step 1 of 4" in inner
+    assert "leaside.cli ingest" not in win and "leaside.cli ingest" in inner
+    assert "MUST NEVER CHANGE" in win
+
+    mac = (root / "run-mac.command").read_text(encoding="utf-8")
+    mac_inner = (root / "scripts" / "run-mac-main.sh").read_text(encoding="utf-8")
+    assert "git pull" in mac and "run-mac-main.sh" in mac
+    assert "leaside.cli ingest" not in mac and "leaside.cli ingest" in mac_inner

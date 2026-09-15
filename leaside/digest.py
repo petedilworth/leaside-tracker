@@ -90,7 +90,10 @@ def _day(value: str | None) -> str:
     if not value:
         return ""
     try:
-        return datetime.fromisoformat(value).strftime("%a %-d %b")
+        d = datetime.fromisoformat(value)
+        # The day is formatted by hand. The usual no-padding strftime flag is a glibc
+        # extension and raises ValueError on Windows.
+        return f"{d:%a} {d.day} {d:%b}"
     except (ValueError, TypeError):
         return str(value)[:10]
 
@@ -105,7 +108,8 @@ def render_text(data: dict) -> str:
                                           _day(it["published_at"])) if x)
             lines.append(f"    {meta}")
             if it["summary"]:
-                lines.append(f"    {it['summary'][:300]}")
+                text = it["summary"]
+                lines.append(f"    {text[:300]}{'…' if len(text) > 300 else ''}")
             if it["link"]:
                 lines.append(f"    {it['link']}")
             lines.append("")
@@ -149,8 +153,9 @@ def render_html(data: dict) -> str:
             out.append(f'<div style="font-size:12.5px;color:#6f6a63;'
                        f'margin-top:2px">{meta}</div>')
             if it["summary"]:
+                text = it["summary"]
                 out.append(f'<div style="font-size:14px;color:#4a4641;margin-top:5px">'
-                           f'{e(it["summary"][:400])}</div>')
+                           f'{e(text[:400])}{"…" if len(text) > 400 else ""}</div>')
             out.append('</div>')
     if data["overflow"]:
         out.append(f'<p style="font-size:13px;color:#6f6a63">And {data["overflow"]} more, '

@@ -361,9 +361,16 @@ def fetch_features(source, http, areas, layer_url: str | None = None,
             )
         page = payload.get("features", [])
         items += parse_features(resp.text, source, areas, label=label, stats=stats)
-        if len(page) < PAGE_SIZE:
+        # Servers cap a page at their own maxRecordCount, often 1000, regardless of
+        # what was asked for. Judging "last page" by our requested size would stop
+        # after the first page on any such server. The response says whether more
+        # exist; trust that, and fall back to the size test only if it is absent.
+        more = payload.get("exceededTransferLimit")
+        if more is None:
+            more = len(page) >= PAGE_SIZE
+        if not more or not page:
             break
-        offset += PAGE_SIZE
+        offset += len(page)
 
     fetched = stats.get("features", 0)
     if fetched:

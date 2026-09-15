@@ -56,8 +56,11 @@ def gather(conn, areas, cfg) -> dict:
     # For sources that mostly lack a date or a link, show what the raw record holds,
     # so the parser can be corrected from evidence rather than from another guess.
     shapes = []
+    linkless_by_design = {s.id for s in cfg.sources if s.category in ("crime", "collision")}
     for r in per_source:
-        if r["rows"] and (r["undated"] > r["rows"] / 2 or r["no_link"] > r["rows"] / 2):
+        missing_links = (r["no_link"] > r["rows"] / 2
+                         and r["source_id"] not in linkless_by_design)
+        if r["rows"] and (r["undated"] > r["rows"] / 2 or missing_links):
             raw = q("SELECT raw FROM items WHERE source_id = ? AND raw IS NOT NULL LIMIT 1",
                     (r["source_id"],)).fetchone()
             if raw:

@@ -246,11 +246,16 @@ Page generated {{ generated_at[:16] }} UTC by code {{ code_version }}.</p>
       });
     }
   } catch (e) {}
+  function saveView() {
+    try {
+      localStorage.setItem(VIEW, JSON.stringify({ areas: areas, since: picked.since }));
+    } catch (e) {}
+  }
   function paintAreas() {
     areaChips.forEach(function (c) {
       c.setAttribute('aria-pressed', String(!!areas[c.dataset.area]));
     });
-    try { localStorage.setItem(VIEW, JSON.stringify({ areas: areas })); } catch (e) {}
+    saveView();
   }
 
   // ---- persistence: which ids have been read, and when this browser last looked
@@ -396,9 +401,7 @@ Page generated {{ generated_at[:16] }} UTC by code {{ code_version }}.</p>
         picked[group] = group === 'since'
           ? parseInt(chip.dataset.filter, 10)
           : chip.dataset.filter;
-        try {
-          localStorage.setItem(VIEW, JSON.stringify({ areas: areas, since: picked.since }));
-        } catch (e) {}
+        saveView();
         apply();
       });
     });

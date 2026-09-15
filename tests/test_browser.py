@@ -169,3 +169,21 @@ def test_since_control_reaches_late_arriving_records(demo_url):
         assert visible() == default_view
         assert not errors, errors
         b.close()
+
+
+def test_since_choice_survives_touching_an_area(demo_url):
+    """Toggling an area used to save the view without the Since setting, so
+    choosing Everything and then hiding a neighbourhood forgot Everything."""
+    with playwright.sync_playwright() as p:
+        b = p.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
+        pg = b.new_context().new_page()
+        pg.goto(demo_url)
+        pg.locator('.row[data-group="since"] .chip[data-filter="0"]').click()
+        widened = shown_count(pg)
+        pg.locator('.chip[data-area="leaside"]').click()
+        pg.locator('.chip[data-area="leaside"]').click()
+        pg.reload()
+        assert shown_count(pg) == widened, "Since must survive an area toggle"
+        assert pg.locator('.row[data-group="since"] .chip[data-filter="0"]') \
+            .get_attribute("aria-pressed") == "true"
+        b.close()
