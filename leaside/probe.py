@@ -58,8 +58,15 @@ def probe_one(source, fetcher) -> dict:
     return result
 
 
-def is_fresh(report: Path = REPORT, max_age_days: int = MAX_AGE_DAYS) -> float | None:
-    """Age in days of the last report if it is recent enough to reuse, else None."""
+def is_fresh(report: Path | None = None, max_age_days: int = MAX_AGE_DAYS) -> float | None:
+    """Age in days of the last report if it is recent enough to reuse, else None.
+
+    The path is resolved when this is called, not when it is defined. As a default
+    argument it was bound once at import, so nothing could redirect it - and the
+    test that thought it was checking a temporary file was silently checking the
+    real report, then hitting the network for two minutes when that file went away.
+    """
+    report = report or REPORT
     if not report.exists():
         return None
     age = (time.time() - report.stat().st_mtime) / 86400

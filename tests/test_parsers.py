@@ -1,5 +1,6 @@
 """Parser tests run entirely offline against fixtures. No network, ever."""
 import json
+import os
 import pathlib
 import sys
 
@@ -520,15 +521,27 @@ def test_page_carries_what_the_browser_needs(tmp_path):
 
 
 def test_probe_is_skipped_when_checked_this_week(tmp_path, monkeypatch, capsys):
-    from leaside import probe
+    """Must never reach the network. It once did, for two minutes, and still passed."""
+    from leaside import http, probe
+
+    def no_network(*a, **k):
+        raise AssertionError("the probe should not have run")
+
+    monkeypatch.setattr(http.Fetcher, "get", no_network)
 
     report = tmp_path / "probe-report.md"
     report.write_text("recent", encoding="utf-8")
     monkeypatch.setattr(probe, "REPORT", report)
+
     assert probe.run() == []
     assert "Skipping" in capsys.readouterr().out
-    assert probe.is_fresh(report) is not None
+    assert probe.is_fresh() is not None, "must read the patched path, not a bound default"
     assert probe.is_fresh(tmp_path / "missing.md") is None
+
+    old = tmp_path / "old-report.md"
+    old.write_text("stale", encoding="utf-8")
+    os.utime(old, (0, 0))
+    assert probe.is_fresh(old) is None, "a report from 1970 is not fresh"
 
 
 # ---------------------------------------------------------------- field matching
