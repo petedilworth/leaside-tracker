@@ -74,6 +74,10 @@ jobs:
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             python -m leaside.cli digest --dry-run
+          elif [ -z "$RESEND_API_KEY" ] || [ -z "$DIGEST_TO" ]; then
+            echo "::error title=Email not configured::RESEND_API_KEY and DIGEST_TO are not set. Add them under Settings > Secrets and variables > Actions. Steps in docs/EMAIL-DIGEST.md. The collection still ran and was saved."
+            python -m leaside.cli digest --dry-run
+            exit 1
           else
             python -m leaside.cli digest
           fi
@@ -81,14 +85,16 @@ jobs:
       - name: Save the database for next week
         if: always() && inputs.dry_run != true
         run: |
-          git config user.name "leaside-tracker"
-          git config user.email "noreply@github.com"
           rm -rf /tmp/state && mkdir -p /tmp/state
           cp data/leaside.db /tmp/state/leaside.db
           cp config/health-report.md /tmp/state/health-report.md 2>/dev/null || true
           cp site/index.html /tmp/state/index.html 2>/dev/null || true
           cd /tmp/state
           git init -q -b state
+          # Identity belongs to THIS repository. Setting it in the checkout above
+          # did nothing here, and both scheduled runs died with "empty ident name".
+          git config user.name "leaside-tracker"
+          git config user.email "noreply@github.com"
           git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
           git add -A
           git commit -q -m "State after $(date -u +%Y-%m-%dT%H:%MZ)"

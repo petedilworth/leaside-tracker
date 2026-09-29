@@ -22,6 +22,7 @@ from . import db, geo, sources, version
 API = "https://api.resend.com/emails"
 SENDER = "Leaside Tracker <onboarding@resend.dev>"
 MAX_ITEMS = 60
+FIRST_EMAIL_DAYS = 14
 # Order the sections so the things that need a response come before the record-keeping.
 SECTION_ORDER = ["city_notice", "planning", "ra_news", "media", "business",
                  "community", "councillor", "transit", "crime", "collision"]
@@ -56,12 +57,24 @@ def gather(conn, areas, cfg, since: str | None = None, limit: int = MAX_ITEMS) -
             datetime.now(timezone.utc) - timedelta(days=7)
         ).isoformat(timespec="seconds")
         inclusive = True
+        first_ever = True
+    else:
+        first_ever = False
 
+    sql = ("SELECT * FROM items WHERE category != 'registry'"
+           f" AND first_seen_at {'>=' if inclusive else '>'} ?")
+    params: list = [since]
+    if first_ever:
+        # On a fresh database every stored row is "first seen now", including
+        # years of collision history. The first real run reported 9,910 new items.
+        # Confine the first email to things actually published recently; undated
+        # items are kept because their age is unknown, not because it is old.
+        recent = (datetime.now(timezone.utc) - timedelta(days=FIRST_EMAIL_DAYS)
+                  ).isoformat(timespec="seconds")
+        sql += " AND (published_at IS NULL OR published_at >= ?)"
+        params.append(recent)
     rows = conn.execute(
-        "SELECT * FROM items WHERE category != 'registry'"
-        f" AND first_seen_at {'>=' if inclusive else '>'} ?"
-        " ORDER BY COALESCE(published_at, first_seen_at) DESC",
-        (since,),
+        sql + " ORDER BY COALESCE(published_at, first_seen_at) DESC", params
     ).fetchall()
     names = {s.id: s.name for s in cfg.sources}
     homes = {s.id: s.home for s in cfg.sources}

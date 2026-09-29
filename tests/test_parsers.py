@@ -1058,7 +1058,7 @@ def _digest_db(tmp_path):
                                published_at=now.isoformat()))
     db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime",
                                title="Break and Enter", url=None, area="leaside",
-                               published_at=(now - timedelta(days=90)).isoformat()))
+                               published_at=(now - timedelta(days=5)).isoformat()))
     db.finish_run(conn, run, {"new": 2, "seen": 2, "failed": 0})
     conn.commit()
     return conn
@@ -1097,10 +1097,13 @@ def test_digest_caps_a_huge_first_email_but_says_so(tmp_path):
     from leaside import digest, geo, sources
 
     conn = _digest_db(tmp_path)
+    from datetime import datetime, timezone
+
+    today = datetime.now(timezone.utc).isoformat(timespec="seconds")
     for i in range(digest.MAX_ITEMS + 15):
         db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime",
                                    title=f"Assault {i}", url=None, area="leaside",
-                                   published_at="2026-09-01T00:00:00+00:00"))
+                                   published_at=today))
     conn.commit()
     data = digest.gather(conn, geo.Areas.load(), sources.load())
     assert data["shown"] == digest.MAX_ITEMS
@@ -1305,3 +1308,50 @@ def test_launcher_stubs_never_need_to_change():
     mac_inner = (root / "scripts" / "run-mac-main.sh").read_text(encoding="utf-8")
     assert "git pull" in mac and "run-mac-main.sh" in mac
     assert "leaside.cli ingest" not in mac and "leaside.cli ingest" in mac_inner
+
+
+def test_first_ever_digest_is_the_recent_fortnight_not_the_archive(tmp_path):
+    """On a fresh database everything is "first seen now". The first real GitHub
+    run counted 9,910 new items, most of them collisions from years ago."""
+    from datetime import datetime, timedelta, timezone
+
+    from leaside import db, digest, geo, sources
+
+    conn = db.connect(tmp_path / "t.db")
+    now = datetime.now(timezone.utc)
+    run = db.start_run(conn)
+    db.upsert_item(conn, _item(title="this week", url="https://x/1",
+                               published_at=now.isoformat()))
+    db.upsert_item(conn, _item(title="2014 collision", url="https://x/2",
+                               category="collision", source_id="tps_traffic_collisions",
+                               published_at=(now - timedelta(days=4000)).isoformat()))
+    db.upsert_item(conn, _item(title="undated", url="https://x/3", published_at=None))
+    db.finish_run(conn, run, {"new": 3, "seen": 3, "failed": 0})
+    conn.commit()
+
+    first = digest.gather(conn, geo.Areas.load(), sources.load())
+    titles = {it["title"] for _, items in first["sections"] for it in items}
+    assert titles == {"this week", "undated"}, "the archive stays out of the first email"
+
+    # After a digest has gone out, the boundary is the digest, not the calendar.
+    db.record_digest(conn, first["total"], True, "sent")
+    import time; time.sleep(1.1)
+    db.upsert_item(conn, _item(title="old but newly published", url="https://x/4",
+                               published_at=(now - timedelta(days=400)).isoformat()))
+    conn.commit()
+    later = digest.gather(conn, geo.Areas.load(), sources.load())
+    assert {it["title"] for _, items in later["sections"] for it in items} \
+        == {"old but newly published"}
+
+
+def test_workflow_sets_git_identity_where_it_commits():
+    """Both scheduled runs failed with 'empty ident name': the identity was set
+    in the checkout, then the commit happened in a freshly initialised repo."""
+    root = pathlib.Path(__file__).resolve().parents[1]
+    wf = (root / ".github/workflows/weekly-digest.yml").read_text(encoding="utf-8")
+    save = wf[wf.index("Save the database for next week"):]
+    init_at = save.index("git init")
+    ident_at = save.index('git config user.name')
+    commit_at = save.index("git commit")
+    assert init_at < ident_at < commit_at, "identity must be set after init, before commit"
+    assert "::error" in wf and "RESEND_API_KEY" in wf, "missing secrets must be an annotation"
