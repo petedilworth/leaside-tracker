@@ -1355,3 +1355,123 @@ def test_workflow_sets_git_identity_where_it_commits():
     commit_at = save.index("git commit")
     assert init_at < ident_at < commit_at, "identity must be set after init, before commit"
     assert "::error" in wf and "RESEND_API_KEY" in wf, "missing secrets must be an annotation"
+
+
+# ---------------------------------------------------------------- trends
+
+def _trend_db(tmp_path, now):
+    """Break and Enter: 3 a month last year, 5 a month this year, data to June."""
+    from datetime import timedelta
+
+    from leaside import db
+
+    conn = db.connect(tmp_path / "t.db")
+    n = 0
+    for year, per_month, months in ((now.year - 1, 3, range(1, 13)),
+                                    (now.year, 5, range(1, 7))):
+        for m in months:
+            for k in range(per_month):
+                n += 1
+                db.upsert_item(conn, _item(
+                    source_id="tps_reported_crime", category="crime",
+                    title="Break and Enter at SOMEWHERE", url=None, area="leaside",
+                    published_at=f"{year:04d}-{m:02d}-15T12:00:00+00:00",
+                    raw={"CSI_CATEGORY": "Break and Enter"}, external_id=f"be{n}"))
+    conn.commit()
+    return conn
+
+
+def test_trends_compare_the_same_months_in_both_years():
+    """Data reaches June. Comparing Jan-Jun this year with all of last year would
+    make every offence look like it fell. The window is cut at the newest month."""
+    from datetime import datetime, timezone
+
+    from leaside import trends
+
+    now = datetime(2026, 9, 29, tzinfo=timezone.utc)
+    months = {}
+    for m in range(1, 13):
+        months[f"2025-{m:02d}"] = 3
+    for m in range(1, 7):
+        months[f"2026-{m:02d}"] = 5
+    s = trends.summarise(months, now)
+    assert s["upto"] == 6 and s["window_label"] == "Jan to Jun"
+    assert s["ytd"] == 30 and s["ytd_prior"] == 18 and s["delta"] == 12
+    assert s["lag_months"] == 3
+    assert s["this_year"][:6] == [5] * 6 and s["this_year"][6:] == [None] * 6, \
+        "months after the newest data are unknown, not zero"
+    assert s["last_year"] == [3] * 12
+
+
+def test_trends_withhold_a_delta_when_last_year_is_incomplete():
+    """The crime source keeps the newest 4000 per offence. If that reaches only
+    part-way into last year, a fall is an artefact of the cap."""
+    from datetime import datetime, timezone
+
+    from leaside import trends
+
+    now = datetime(2026, 9, 29, tzinfo=timezone.utc)
+    months = {f"2025-{m:02d}": 3 for m in range(8, 13)}      # data starts Aug 2025
+    months.update({f"2026-{m:02d}": 5 for m in range(1, 7)})
+    s = trends.summarise(months, now)
+    assert s["complete"] is False
+    assert s["ytd"] == 30 and s["ytd_prior"] is None and s["delta"] is None
+
+
+def test_trends_say_no_data_when_the_newest_record_is_from_a_past_year():
+    """The City's serious-injury dataset lagged to April 2024 in September 2026."""
+    from datetime import datetime, timezone
+
+    from leaside import trends
+
+    now = datetime(2026, 9, 29, tzinfo=timezone.utc)
+    s = trends.summarise({"2024-03": 2, "2024-04": 1}, now)
+    assert s["upto"] == 0 and s["ytd"] is None and s["delta"] is None
+    assert s["window_label"] == "no data yet this year"
+    assert s["newest_label"] == "Apr 2024"
+    assert all(v is None for v in s["this_year"])
+
+
+def test_trends_build_reads_the_offence_from_the_record(tmp_path):
+    from datetime import datetime, timezone
+
+    from leaside import geo, trends
+
+    now = datetime(2026, 9, 29, tzinfo=timezone.utc)
+    conn = _trend_db(tmp_path, now)
+    data = trends.build(conn, geo.Areas.load(), now)
+    names = [f["name"] for f in data["crime"]["facets"]]
+    assert names == ["Break and Enter"]
+    f = data["crime"]["facets"][0]
+    assert f["ytd"] == 30 and f["ytd_prior"] == 18
+    assert data["crime"]["total"]["ytd"] == 30
+    assert data["crime"]["by_area"][0]["area"] == "Leaside"
+    assert data["collisions"]["facets"] == []
+
+
+def test_offence_names_are_tidied_and_ordered():
+    from leaside import trends
+
+    assert trends._offence("Robbery - Mugging at X", None) == "Robbery"
+    assert trends._offence("Theft From Motor Vehicle Under at X", None) == "Theft From Motor Vehicle"
+    assert trends._offence("anything", json.dumps({"CSI_CATEGORY": "Auto Theft"})) == "Auto Theft"
+    assert trends._order(["Assault", "Zebra", "Break and Enter"]) == \
+        ["Break and Enter", "Assault", "Zebra"]
+
+
+def test_facet_geometry_leaves_a_gap_for_unknown_months():
+    from leaside import trends
+
+    facet = {"this_year": [5] * 6 + [None] * 6, "last_year": [3] * 12, "upto": 6}
+    d = trends.decorate(facet)
+    assert d["ymax"] == 6, "5 rounds up to an even 6 so the midpoint tick is whole"
+    assert d["path_this"].count("M") == 1 and d["path_this"].count("L") == 5
+    assert d["path_last"].count("L") == 11
+    assert d["unknown_x"] is not None, "the still-arriving band starts at the newest month"
+    assert d["end_label"] == 5 and d["end_idx"] == 5
+    assert trends.nice_max([0, None]) == 1 and trends.nice_max([37]) == 40
+    assert trends.nice_max([15]) == 16, "even, so the midpoint tick is a whole number"
+    assert trends.nice_max([5]) == 6 and trends.nice_max([3]) == 4
+    assert d["svg_w"] > d["w"], "tick labels need a gutter or they clip"
+    top = trends.decorate({"this_year": [10] * 6 + [None] * 6, "last_year": [1] * 12, "upto": 6})
+    assert top["end_y"] >= 9, "an end label at the maximum must not leave the box"

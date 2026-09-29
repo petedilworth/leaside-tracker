@@ -11,7 +11,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from . import db, geo, sources, version
+from . import db, geo, sources, trends, version
 
 OUT = Path("site")
 
@@ -98,4 +98,17 @@ def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml",
     OUT.mkdir(exist_ok=True)
     target = OUT / out_name
     target.write_text(env.get_template("index.html").render(**data), encoding="utf-8")
+    render_trends(conn, areas, env, out_name)
+    return target
+
+
+def render_trends(conn, areas, env, out_name: str = "index.html") -> Path:
+    """The companion page: monthly counts, this year against last."""
+    data = trends.build(conn, areas)
+    for group in (data["crime"], data["collisions"]):
+        for f in group["facets"]:
+            trends.decorate(f)
+    name = "trends.html" if out_name == "index.html" else out_name.replace(".html", "-trends.html")
+    target = OUT / name
+    target.write_text(env.get_template("trends.html").render(data=data), encoding="utf-8")
     return target

@@ -187,3 +187,53 @@ def test_since_choice_survives_touching_an_area(demo_url):
         assert pg.locator('.row[data-group="since"] .chip[data-filter="0"]') \
             .get_attribute("aria-pressed") == "true"
         b.close()
+
+
+def test_trends_page_hover_layer_works_with_pointer_and_keyboard(demo_url):
+    """The crosshair finds the month, the tooltip lists both years, and arrow keys
+    do the same for keyboard users. Values are also in the table twin."""
+    trends_url = demo_url.replace("demo.html", "demo-trends.html")
+    with playwright.sync_playwright() as p:
+        b = p.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
+        pg = b.new_context().new_page()
+        errors = []
+        pg.on("pageerror", lambda e: errors.append(str(e)))
+        pg.goto(trends_url)
+
+        svg = pg.locator("svg[data-facet]").first
+        assert svg.count() == 1, "the demo has a crime record, so one facet must render"
+        box = svg.bounding_box()
+        tip = pg.locator("#tip")
+        assert tip.is_hidden()
+
+        # pointer: hover the middle of the plot, tooltip appears with both series rows
+        pg.mouse.move(box["x"] + box["width"] * 0.5, box["y"] + box["height"] * 0.5)
+        assert tip.is_visible()
+        assert tip.locator(".row").count() == 2, "one tooltip, every series"
+        month = tip.locator("div").first.inner_text()
+        assert month in ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+        # A 1px vertical <line> has a zero-width box, so Playwright's visibility
+        # heuristic calls it hidden even while painted. Check the attribute instead.
+        assert svg.locator(".xh").first.get_attribute("hidden") is None, "crosshair shows"
+
+        pg.mouse.move(0, 0)
+        assert tip.is_hidden(), "leaving the plot hides it"
+
+        # keyboard: focus and step with arrows
+        svg.focus()
+        pg.keyboard.press("ArrowRight")
+        assert tip.is_visible()
+        first = tip.locator("div").first.inner_text()
+        pg.keyboard.press("ArrowRight")
+        assert tip.locator("div").first.inner_text() != first, "arrow moved the month"
+
+        # the table twin carries the same values without hovering
+        pg.locator("details.tbl summary").first.click()
+        first_table = pg.locator("details.tbl").first.locator("table tr")
+        assert first_table.count() == 13, "header + 12 months, in this facet's table only"
+
+        # the news page links here and this page links back
+        assert pg.locator('a[href="index.html"]').count() == 1
+        assert not errors, errors
+        b.close()

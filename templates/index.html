@@ -99,7 +99,8 @@
 <header>
   <h1>Leaside Tracker</h1>
   <p class="stamp">Last collected <time data-ts="{{ latest_run or generated_at }}">{{ (latest_run or generated_at)[:16] }}</time>
-     &middot; <span id="scope">{{ total_stored }} items held</span>{% if truncated %} (capped){% endif %}</p>
+     &middot; <span id="scope">{{ total_stored }} items held</span>{% if truncated %} (capped){% endif %}
+     &middot; <a href="trends.html" style="color:var(--accent)">Is it up this year? &rarr;</a></p>
 </header>
 
 {% if items %}

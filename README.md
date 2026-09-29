@@ -52,6 +52,7 @@ To see the site render without any network:
 | `docs/EMAIL-DIGEST.md` | Setting up the weekly email, once |
 | `.github/workflows/weekly-digest.yml` | Runs weekly on GitHub and emails the digest |
 | `config/health-report.md` | Written every run: what came in, duplicates, failures |
+| `site/trends.html` | Built every run: is crime or collisions up this year, honestly |
 | `tests/` | Parser tests against fixtures, no network |
 | `run-windows.bat` | Double-click launcher for Windows. A stub that never changes: pulls, then hands over |
 | `scripts/run-windows-main.bat` | The real Windows run, safe to update because it is never executing during the pull |

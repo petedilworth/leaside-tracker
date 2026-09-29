@@ -192,6 +192,10 @@ coordinates.
 
 Long summaries are trimmed to four lines with a **Show more** button underneath.
 
+At the top of the page, **Is it up this year?** opens a second page of charts:
+this year against last, month by month, for every offence and for collisions.
+Hover a chart for the numbers, or click **Table** under it.
+
 The **Since** row decides how far back the page looks. It opens on the last 120
 days, which is right for news. Police collision and crime records arrive months,
 sometimes years, after the event, so they will not appear in that window. Click

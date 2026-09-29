@@ -339,3 +339,32 @@ Also: the City uses two 158-neighbourhood names over the Davisville area, and th
 report showed a record labelled "South Eglinton-Davisville", which the mapping did
 not have. Both names are now recognised, and City collision records are gated on
 the publisher's neighbourhood exactly as police records are.
+
+## The trends page, 29 September 2026
+
+`site/trends.html` answers "is it up this year?" from the records already collected.
+It is built alongside the news page on every run and linked from its header.
+
+What it shows: a headline count of all reported crime this year to date with a
+signed delta against the same months last year; one stat tile per offence with the
+same comparison and a sparkline; one small chart per offence with this year in the
+accent hue over last year in gray; a per-neighbourhood table; and the same for
+collisions. Every chart has a table twin, a crosshair tooltip that lists both years
+at the hovered month, and arrow-key navigation.
+
+Three honesty rules are built in, because a naive count here would mislead:
+
+| Problem | What the page does |
+| --- | --- |
+| Police records arrive about three months late, so recent months always look low | The newest month with data is found per series; months after it are blank, not zero, and shaded "still arriving". The year-on-year comparison uses the same months in both years, cut at that point. |
+| The crime source keeps the newest 4,000 records per offence, so last year may be only partly present | If an offence's oldest kept record is younger than the start of last year, the delta is withheld and the tile says "incomplete" rather than showing a fall the cap created. |
+| The City's collision dataset lags by well over a year | A series whose newest record is from an earlier year says "no data yet this year" and names the newest month, instead of a chart of zeros. |
+
+Colour: one accent hue for this year, one gray for last year - the emphasis form.
+The palette validator passes both on the site's own light and dark surfaces for
+lightness, colour-vision separation, normal-vision separation and contrast. It
+flags the gray on the chroma floor, which is expected: that check exists to stop a
+gray posing as a series identity, and here the gray is deliberately the context.
+
+Counts are incidents inside the collected area. They are not official rates per
+population; Toronto Police publish those separately as Neighbourhood Crime Rates.
