@@ -23,6 +23,14 @@ API = "https://api.resend.com/emails"
 SENDER = "Leaside Tracker <onboarding@resend.dev>"
 MAX_ITEMS = 60
 FIRST_EMAIL_DAYS = 14
+
+
+def site_url() -> str:
+    """The published page, when there is one. The workflow sets SITE_URL once
+    GitHub Pages is on; until then the email carries no link, so it never
+    carries a dead one. Always ends in a slash so trends.html can be appended."""
+    url = os.environ.get("SITE_URL", "").strip()
+    return url.rstrip("/") + "/" if url else ""
 # Order the sections so the things that need a response come before the record-keeping.
 SECTION_ORDER = ["city_notice", "planning", "ra_news", "media", "business",
                  "community", "councillor", "transit", "crime", "collision"]
@@ -112,7 +120,10 @@ def _day(value: str | None) -> str:
 
 
 def render_text(data: dict) -> str:
-    lines = [f"Leaside Tracker - {data['total']} new since {_day(data['since'])}", ""]
+    lines = [f"Leaside Tracker - {data['total']} new since {_day(data['since'])}"]
+    if site_url():
+        lines.append(f"The full page, with trends: {site_url()}")
+    lines.append("")
     for name, items in data["sections"]:
         lines.append(f"{name.upper()} ({len(items)})")
         for it in items:
@@ -144,6 +155,11 @@ def render_html(data: dict) -> str:
         f'{data["total"]} new item{"s" if data["total"] != 1 else ""} '
         f'since {e(_day(data["since"]))}</p>',
     ]
+    if site_url():
+        out.append(f'<p style="font-size:13px;margin:-14px 0 22px">'
+                   f'<a href="{e(site_url())}" style="color:#8a3b2a">Open the full page</a>'
+                   f' &middot; <a href="{e(site_url())}trends.html" style="color:#8a3b2a">'
+                   f'Is it up this year?</a></p>')
     if not data["sections"]:
         out.append('<p style="color:#6f6a63">Nothing new this week. '
                    'The sources were checked and had no new items.</p>')

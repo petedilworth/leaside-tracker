@@ -6,6 +6,10 @@ week is missed, the next email covers both weeks rather than losing one.
 
 Setting it up takes about ten minutes and you do it once.
 
+If the page is published on the web (see `docs/PUBLISH.md`), the email links
+to it at the top. Nothing to configure: the workflow checks whether GitHub
+Pages is on and adds the link only when it is.
+
 ---
 
 ## Step 1. Get a Resend account and key

@@ -96,6 +96,10 @@ def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml",
     data["generated_at"] = db.utcnow()
     data["code_version"] = version.label()
     OUT.mkdir(exist_ok=True)
+    # GitHub Pages runs Jekyll over the folder unless told not to. Jekyll drops
+    # files whose names start with an underscore and rewrites others; the page
+    # wants neither. An empty .nojekyll file switches it off.
+    (OUT / ".nojekyll").write_text("", encoding="utf-8")
     target = OUT / out_name
     target.write_text(env.get_template("index.html").render(**data), encoding="utf-8")
     render_trends(conn, areas, env, out_name)

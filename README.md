@@ -50,6 +50,7 @@ To see the site render without any network:
 | `docs/ROADMAP.md` | Phased plan and five more things worth tracking |
 | `docs/MAILING-LISTS.md` | Which newsletters to join, and why a separate address |
 | `docs/EMAIL-DIGEST.md` | Setting up the weekly email, once |
+| `docs/PUBLISH.md` | Putting the page on the web, public but not searchable |
 | `.github/workflows/weekly-digest.yml` | Runs weekly on GitHub and emails the digest |
 | `config/health-report.md` | Written every run: what came in, duplicates, failures |
 | `site/trends.html` | Built every run: is crime or collisions up this year, honestly |

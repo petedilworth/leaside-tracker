@@ -1,0 +1,87 @@
+name: Publish the site
+
+# Collect the news every morning and publish the page to GitHub Pages, so the
+# site is live at https://<owner>.github.io/<repo>/ without any PC being on.
+# Also runs on every push to main, so a code change shows up within minutes.
+#
+# Needs Pages switched on once, under Settings > Pages > Source: GitHub Actions.
+# Steps in docs/PUBLISH.md. Until then the "Deploy" step fails and says so.
+
+on:
+  schedule:
+    # 10:17 UTC is 06:17 in Toronto during daylight saving, 05:17 in winter.
+    # Off the hour because GitHub delays everything scheduled on the hour.
+    - cron: "17 10 * * *"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Shared with the weekly email, which saves the same database to the same
+# branch. Sharing the group makes the two runs take turns instead of colliding.
+concurrency:
+  group: leaside-digest
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # the state branch
+  pages: write      # the Pages deployment
+  id-token: write   # Pages verifies the deployment came from this workflow
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install --quiet -r requirements.txt
+
+      - name: Restore the database from the last run
+        run: scripts/state.sh restore
+
+      - name: Collect
+        run: python -m leaside.cli ingest
+
+      - name: Build the page and the health report
+        run: |
+          python -m leaside.cli build
+          python -m leaside.cli doctor
+          ls -la site
+
+      - name: Save the database for the next run
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: scripts/state.sh save
+
+      - name: Check that GitHub Pages is switched on
+        uses: actions/configure-pages@v5
+
+      - name: Package the page
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: Keep the health report as a download
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-report
+          path: config/health-report.md
+          retention-days: 30
+          if-no-files-found: warn

@@ -1349,7 +1349,9 @@ def test_workflow_sets_git_identity_where_it_commits():
     in the checkout, then the commit happened in a freshly initialised repo."""
     root = pathlib.Path(__file__).resolve().parents[1]
     wf = (root / ".github/workflows/weekly-digest.yml").read_text(encoding="utf-8")
-    save = wf[wf.index("Save the database for next week"):]
+    # The save step now lives in scripts/state.sh, shared with the daily publish.
+    save = (root / "scripts/state.sh").read_text(encoding="utf-8")
+    save = save[save.index("save)"):]
     init_at = save.index("git init")
     ident_at = save.index('git config user.name')
     commit_at = save.index("git commit")
@@ -1475,3 +1477,55 @@ def test_facet_geometry_leaves_a_gap_for_unknown_months():
     assert d["svg_w"] > d["w"], "tick labels need a gutter or they clip"
     top = trends.decorate({"this_year": [10] * 6 + [None] * 6, "last_year": [1] * 12, "upto": 6})
     assert top["end_y"] >= 9, "an end label at the maximum must not leave the box"
+
+
+# --- Publishing to GitHub Pages ---------------------------------------------
+
+def test_every_published_page_tells_search_engines_not_to_list_it(tmp_path, monkeypatch):
+    """Public but not searchable: the page is on the open web, and the owner does
+    not want it in search results. The noindex tag is the mechanism that works.
+    A robots.txt Disallow would not: a crawler that is told not to fetch the page
+    never sees the noindex and can still list the bare address."""
+    from leaside import demo, render
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    demo.run(db_path=tmp_path / "demo.db")
+    render.run(db_path=tmp_path / "demo.db", out_name="index.html")
+    for name in ("index.html", "trends.html"):
+        page = (tmp_path / name).read_text(encoding="utf-8")
+        assert '<meta name="robots" content="noindex, nofollow">' in page, name
+    # GitHub Pages must serve the folder as-is, not run Jekyll over it.
+    assert (tmp_path / ".nojekyll").exists()
+
+
+def test_digest_links_to_the_live_page_only_when_there_is_one(monkeypatch):
+    from leaside import digest
+    data = {"total": 1, "since": "2026-09-01T00:00:00Z", "overflow": 0,
+            "sections": [("Local news", [{"title": "A", "link": "https://x/a",
+                                         "area_name": "Leaside", "source_name": "S",
+                                         "published_at": "2026-09-02T00:00:00Z",
+                                         "summary": ""}])]}
+    monkeypatch.delenv("SITE_URL", raising=False)
+    assert "github.io" not in digest.render_html(data)
+    assert "full page" not in digest.render_text(data)
+    monkeypatch.setenv("SITE_URL", "https://someone.github.io/leaside-tracker")
+    html_out = digest.render_html(data)
+    assert 'href="https://someone.github.io/leaside-tracker/"' in html_out
+    assert 'href="https://someone.github.io/leaside-tracker/trends.html"' in html_out
+    assert "https://someone.github.io/leaside-tracker/" in digest.render_text(data)
+
+
+def test_both_workflows_share_the_state_script_and_one_concurrency_group():
+    """Two workflows save the same database to the same branch. If they ever ran
+    at once, one would overwrite the other's week of collection."""
+    import yaml
+    root = Path(__file__).resolve().parents[1]
+    wf = {n: yaml.safe_load((root / ".github" / "workflows" / n).read_text(encoding="utf-8"))
+          for n in ("weekly-digest.yml", "publish-site.yml")}
+    groups = {w["concurrency"]["group"] for w in wf.values()}
+    assert len(groups) == 1
+    for name, w in wf.items():
+        text = (root / ".github" / "workflows" / name).read_text(encoding="utf-8")
+        assert "scripts/state.sh restore" in text and "scripts/state.sh save" in text, name
+    pub = wf["publish-site.yml"]
+    assert pub["permissions"] == {"contents": "write", "pages": "write", "id-token": "write"}
+    assert "17 10 * * *" in str(pub[True]["schedule"])  # YAML reads the key `on` as True
