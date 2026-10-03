@@ -1529,3 +1529,225 @@ def test_both_workflows_share_the_state_script_and_one_concurrency_group():
     pub = wf["publish-site.yml"]
     assert pub["permissions"] == {"contents": "write", "pages": "write", "id-token": "write"}
     assert "17 10 * * *" in str(pub[True]["schedule"])  # YAML reads the key `on` as True
+
+
+# ---------------------------------------------------------------- live and daily sources
+
+def _src(**over):
+    base = dict(id="s", name="S", kind="rss", status="guess", category="x", area=None,
+                url=None, timeout=None, retries=None, snapshot=False, candidates=[], extra={})
+    base.update(over)
+    return sources.Source(**base)
+
+
+def test_postal_codes_map_to_areas_as_a_fallback():
+    assert AREAS.match_postal("M4G 1A1") == "leaside"
+    assert AREAS.match_postal("m4t2k9") == "moore_park"
+    assert AREAS.match_postal("M5V 1J1") is None
+    assert AREAS.match_postal("") is None and AREAS.match_postal(None) is None
+
+
+def test_police_calls_parse_from_web_mercator_and_keep_only_our_areas():
+    """The live layer answers in metres unless told otherwise, and one call in the
+    fixture has no geometry at all. Both must still land in the right area."""
+    from leaside.fetchers import c4s
+    text = (FIX / "c4s_calls.json").read_text(encoding="utf-8")
+    stats = {}
+    items = c4s.parse_calls(text, _src(id="tps_calls_for_service", category="police_call"),
+                            AREAS, stats=stats)
+    assert stats == {"features": 3, "no_geometry": 1, "outside_areas": 1, "kept": 2}
+    by_title = {it["title"]: it for it in items}
+    assert "Check Address near BAYVIEW AVE & MILLWOOD RD" in by_title
+    first = by_title["Check Address near BAYVIEW AVE & MILLWOOD RD"]
+    assert first["area"] == "leaside"
+    assert abs(first["lat"] - 43.708) < 0.01 and abs(first["lon"] - (-79.364)) < 0.01
+    assert first["published_at"].startswith("2025-10-03T11:15")
+    assert "Police attended at 07:15" in first["summary"]
+    assert "D53 Division" in first["summary"]
+    assert first["external_id"] == "event:P26-1001"
+    # No geometry: matched by the intersection text, keyed by a composite.
+    second = by_title["Collision near EGLINTON AVE E & LAIRD DR"]
+    assert second["area"] == "leaside" and second["lat"] is None
+    assert second["external_id"].startswith("composite:2025-10-03")
+
+
+def test_police_call_layer_discovery_tries_candidates_then_walks_the_directory():
+    from leaside.fetchers import c4s
+
+    class R:
+        def __init__(self, body): self._b = body
+        def json(self): return self._b
+
+    calls = []
+
+    class H:
+        def get(self, url, **kw):
+            calls.append(url)
+            if url.startswith("https://bad.example/"):
+                raise ConnectionError("nope")
+            if url == "https://dir.example/arcgis/rest/services?f=json":
+                return R({"folders": ["CADPublic"], "services": []})
+            if url == "https://dir.example/arcgis/rest/services/CADPublic?f=json":
+                return R({"services": [{"name": "CADPublic/Boundaries", "type": "MapServer"},
+                                       {"name": "CADPublic/C4S_Public", "type": "FeatureServer"}]})
+            if url.endswith("C4S_Public/FeatureServer/0?f=json"):
+                return R({"fields": [{"name": "OBJECTID"}]})
+            return R({"error": {"message": "Invalid URL"}})
+
+    src = _src(id="t", kind="tps_calls", candidates=["https://bad.example/x/FeatureServer/0",
+                                                   "https://dir.example/arcgis/rest/services/Nope/MapServer/0"])
+    orig = c4s.DIRECTORIES
+    c4s.DIRECTORIES = ("https://dir.example/arcgis/rest/services",)
+    try:
+        assert c4s.find_layer(src, H()) == \
+            "https://dir.example/arcgis/rest/services/CADPublic/C4S_Public/FeatureServer/0"
+    finally:
+        c4s.DIRECTORIES = orig
+    assert calls[0].startswith("https://bad.example/")
+
+
+def test_building_permits_become_one_item_per_permit_matched_by_street_or_postal():
+    from leaside.fetchers import ckan
+    rows = json.loads((FIX / "permits_rows.json").read_text(encoding="utf-8"))
+    stats = {}
+    items = ckan.permit_rows_to_items(rows, _src(id="city_building_permits", category="permit"),
+                                      AREAS, stats=stats)
+    assert stats == {"rows": 4, "outside_areas": 1, "kept": 2}
+    house, furnace = items
+    assert house["title"] == "New Building: 123 Rumsey Rd"
+    assert house["area"] == "leaside"                      # Rumsey is a Leaside keyword
+    assert house["published_at"] == "2026-09-28"               # issued beats applied
+    assert "Estimated $1.9M" in house["summary"]
+    assert "1 new unit, 1 lost" in house["summary"]
+    assert "Status: Permit Issued" in house["summary"]
+    assert "Applied 2 Sep 2026" in house["summary"] and "Issued 28 Sep 2026" in house["summary"]
+    assert house["external_id"] == "permit:26 123456 BLD"
+    assert furnace["title"] == "Mechanical: 9 Heath St E"
+    assert furnace["area"] == "moore_park"                 # heath street keyword; M4T agrees
+    assert furnace["published_at"] == "2026-09-30"
+
+
+def test_permit_columns_are_resolved_from_the_datastore_field_list():
+    from leaside.fetchers import ckan
+    names = ["_id", "PERMIT_NUM", "REVISION_NUM", "PERMIT_TYPE", "STREET_NUM", "STREET_NAME",
+             "STREET_TYPE", "POSTAL", "APPLICATION_DATE", "ISSUED_DATE", "STATUS",
+             "DESCRIPTION", "EST_CONST_COST", "WORK"]
+    cols = {role: ckan.column(names, **spec) for role, spec in ckan.PERMIT_ROLES.items()}
+    assert cols == {"postal": "POSTAL", "num": "STREET_NUM", "street": "STREET_NAME",
+                    "stype": "STREET_TYPE", "desc": "DESCRIPTION", "work": "WORK",
+                    "status": "STATUS", "cost": "EST_CONST_COST",
+                    "applied": "APPLICATION_DATE", "issued": "ISSUED_DATE",
+                    "permit": "PERMIT_NUM"}
+
+
+def test_dinesafe_groups_infractions_per_inspection_and_drops_clean_passes():
+    from leaside.fetchers import ckan
+    rows = json.loads((FIX / "dinesafe_rows.json").read_text(encoding="utf-8"))
+    stats = {}
+    items = ckan.inspection_rows_to_items(rows, _src(id="city_dinesafe", category="inspection"),
+                                          AREAS, stats=stats)
+    assert stats == {"rows": 4, "inspections": 3, "outside_areas": 1, "routine": 1, "kept": 1}
+    (pizza,) = items
+    assert pizza["title"] == "Conditional Pass: BAYVIEW PIZZA"
+    assert pizza["area"] == "leaside" and pizza["lat"] == 43.7075
+    assert "Infractions: 1 significant, 1 minor" in pizza["summary"]
+    assert "1600 BAYVIEW AVE" in pizza["summary"]
+    assert "free of pests" in pizza["summary"]
+    assert "Action:" not in pizza["summary"]              # a notice to comply is routine
+    assert pizza["external_id"] == "inspection:105000881"
+    assert pizza["published_at"] == "2026-09-29"
+
+
+def test_dinesafe_pass_with_infractions_is_kept_and_says_so():
+    from leaside.fetchers import ckan
+    rows = json.loads((FIX / "dinesafe_rows.json").read_text(encoding="utf-8"))
+    rows[0]["Establishment Status"] = rows[1]["Establishment Status"] = "Pass"
+    title, summary, notable = ckan.describe_inspection(rows[:2])
+    assert notable and title == "Pass with 2 infractions: BAYVIEW PIZZA"
+    _, _, clean = ckan.describe_inspection([rows[2]])
+    assert not clean
+
+
+def test_digest_counts_police_calls_instead_of_listing_them(tmp_path):
+    from leaside import db, digest
+    conn = db.connect(tmp_path / "t.db")
+    for i in range(30):
+        db.upsert_item(conn, _item(source_id="tps_calls_for_service", category="police_call",
+                                   title=f"{'Check Address' if i % 3 else 'Theft'} near X & Y",
+                                   url=None, area="leaside" if i % 2 else "davisville",
+                                   external_id=f"event:{i}", published_at="2026-10-02"))
+    db.upsert_item(conn, _item(title="A real story", external_id="story",
+                               published_at="2026-10-02"))
+    conn.commit()
+    data = digest.gather(conn, geo.Areas.load(), sources.load())
+    assert data["total"] == 1                              # calls do not count as items
+    assert [n for n, _ in data["sections"]] == ["Residents' associations"]
+    assert data["calls"]["total"] == 30
+    assert data["calls"]["kinds"][0] == ("Check Address", 20)
+    assert dict(data["calls"]["areas"]) == {"Leaside": 15, "Davisville": 15}
+    html_out = digest.render_html(data)
+    assert "Police attended 30 calls" in html_out and "Check Address (20)" in html_out
+    assert "POLICE CALLS: 30 attended" in digest.render_text(data)
+    assert "Leaside 15" in digest.render_text(data)
+
+
+def test_digest_subject_when_only_police_calls_are_new():
+    from leaside import digest
+    data = {"total": 0, "sections": [], "overflow": 0, "since": "2026-09-25T00:00:00+00:00",
+            "calls": {"total": 12, "kinds": [("Theft", 5)], "areas": [("Leaside", 12)]}}
+    assert digest.subject(data) == "Leaside: police attended 12 calls, nothing else new"
+    assert "Nothing new this week" not in digest.render_html(data)
+
+
+def test_page_shows_a_police_calls_strip_for_the_last_week(tmp_path, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from leaside import db, render
+    conn = db.connect(tmp_path / "t.db")
+    now = datetime.now(timezone.utc)
+    for i, days in enumerate((0, 1, 3, 20)):
+        db.upsert_item(conn, _item(source_id="tps_calls_for_service", category="police_call",
+                                   title="Check Address near BAYVIEW AVE & MILLWOOD RD",
+                                   url=None, area="leaside", external_id=f"event:{i}",
+                                   lat=43.708, lon=-79.364,
+                                   published_at=(now - timedelta(days=days)).isoformat()))
+    conn.commit()
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    html_out = render.run(db_path=tmp_path / "t.db", out_name="t.html").read_text(encoding="utf-8")
+    assert "Police calls, last 7 days" in html_out
+    assert "3 attended" in html_out                        # the 20-day-old one is not live
+    assert "Check Address 3" in html_out
+    assert "Nearest intersection on a map" in html_out
+
+
+def test_probe_reports_which_candidate_answered():
+    from leaside import probe
+
+    class Resp:
+        def __init__(self, status, body, ctype="application/json"):
+            self.status_code, self.text, self.content = status, body, body.encode()
+            self.headers = {"content-type": ctype}
+
+    class H:
+        def get(self, url, **kw):
+            if "good" in url:
+                return Resp(200, '{"fields": []}')
+            return Resp(404, "not found", "text/html")
+
+    src = _src(id="t", kind="tps_calls",
+               candidates=["https://a.example/bad/0", "https://a.example/good/0"])
+    r = probe.probe_one(src, H())
+    assert r["ok"] and r["url"] == "https://a.example/good/0"
+    assert "tried 2" in r["detail"]
+
+
+def test_new_sources_are_configured_and_runnable():
+    cfg = sources.load()
+    ids = {s.id: s for s in cfg.sources}
+    for sid, kind in (("tps_calls_for_service", "tps_calls"),
+                      ("city_building_permits", "ckan_permits"),
+                      ("city_dinesafe", "ckan_dinesafe"),
+                      ("news_police_coverage", "rss"),
+                      ("news_leaside_coverage", "rss")):
+        assert ids[sid].kind == kind and ids[sid].runnable, sid
+    assert ids["tps_news_releases"].runnable is False      # 403: never scraped
+    assert len(ids["tps_calls_for_service"].candidates) >= 3

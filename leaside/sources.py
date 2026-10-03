@@ -9,7 +9,8 @@ import yaml
 DEFAULT_CONFIG = Path("config/sources.yaml")
 
 RUNNABLE_KINDS = {"rss", "json_api", "arcgis_dcat", "arcgis_feature",
-                  "arcgis_multi", "ckan_dataset", "html_list"}
+                  "arcgis_multi", "ckan_dataset", "ckan_permits", "ckan_dinesafe",
+                  "html_list", "tps_calls"}
 
 
 @dataclass
@@ -28,6 +29,9 @@ class Source:
     selector: str | None = None
     discover_from: str | None = None
     discover_match: str | None = None
+    # Alternative addresses for one endpoint, tried in order until one answers.
+    # For publishers whose exact URL is unconfirmed but whose host is known.
+    candidates: list = field(default_factory=list)
     timeout: int | None = None
     retries: int | None = None
     max_age_days: int | None = None
@@ -41,7 +45,7 @@ class Source:
         if self.status in {"manual", "blocked"}:
             return False
         return self.kind in RUNNABLE_KINDS and bool(
-            self.url or self.dataset or self.discover_from
+            self.url or self.dataset or self.discover_from or self.candidates
         )
 
     @property
@@ -64,7 +68,7 @@ class Source:
     @property
     def probeable(self) -> bool:
         """True when there is a URL worth checking, even if we expect it to fail."""
-        return bool(self.url or self.fallback_html or self.alt_url)
+        return bool(self.url or self.fallback_html or self.alt_url or self.candidates)
 
 
 @dataclass

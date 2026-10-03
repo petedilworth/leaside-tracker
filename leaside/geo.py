@@ -56,6 +56,24 @@ class Areas:
                 return f["properties"]["key"]
         return None
 
+    def match_postal(self, postal: str | None) -> str | None:
+        """Map a postal code to an area by its first three characters (the FSA).
+
+        The City's permit records carry a postal code but no coordinates, and a
+        street name alone is ambiguous across the city. M4G is Leaside almost
+        exactly; the others are looser, so coordinates and street keywords are
+        tried first and this is the fallback.
+        """
+        if not postal:
+            return None
+        fsa = re.sub(r"[^A-Z0-9]", "", str(postal).upper())[:3]
+        if len(fsa) != 3:
+            return None
+        for f in self.features:
+            if fsa in [x.upper() for x in f["properties"].get("fsa", [])]:
+                return f["properties"]["key"]
+        return None
+
     def match_text(self, *texts: str | None) -> str | None:
         """Return the area whose keyword appears earliest in the joined text."""
         blob = " ".join(t for t in texts if t).lower()

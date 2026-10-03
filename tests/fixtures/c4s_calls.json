@@ -1,0 +1,27 @@
+{
+  "objectIdFieldName": "OBJECTID",
+  "spatialReference": {"wkid": 102100, "latestWkid": 3857},
+  "fields": [
+    {"name": "OBJECTID", "type": "esriFieldTypeOID"},
+    {"name": "EVENT_ID", "type": "esriFieldTypeString"},
+    {"name": "CALL_TYPE", "type": "esriFieldTypeString"},
+    {"name": "DIVISION", "type": "esriFieldTypeString"},
+    {"name": "INTERSECTION", "type": "esriFieldTypeString"},
+    {"name": "DISPATCH_TIME", "type": "esriFieldTypeDate"},
+    {"name": "last_edited_date", "type": "esriFieldTypeDate"}
+  ],
+  "features": [
+    {"attributes": {"OBJECTID": 1, "EVENT_ID": "P26-1001", "CALL_TYPE": "CHECK ADDRESS",
+                    "DIVISION": "D53", "INTERSECTION": "BAYVIEW AVE & MILLWOOD RD",
+                    "DISPATCH_TIME": 1759490100000, "last_edited_date": 1759493700000},
+     "geometry": {"x": -8834180.0, "y": 5420365.1}},
+    {"attributes": {"OBJECTID": 2, "EVENT_ID": "P26-1002", "CALL_TYPE": "Theft",
+                    "DIVISION": "D14", "INTERSECTION": "QUEEN ST W & BATHURST ST",
+                    "DISPATCH_TIME": 1759490400000, "last_edited_date": 1759493700000},
+     "geometry": {"x": -8839000.0, "y": 5410000.0}},
+    {"attributes": {"OBJECTID": 3, "EVENT_ID": null, "CALL_TYPE": "Collision",
+                    "DIVISION": "D53", "INTERSECTION": "EGLINTON AVE E & LAIRD DR",
+                    "DISPATCH_TIME": 1759491000000, "last_edited_date": 1759493700000},
+     "geometry": null}
+  ]
+}

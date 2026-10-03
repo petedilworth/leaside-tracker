@@ -368,3 +368,62 @@ gray posing as a series identity, and here the gray is deliberately the context.
 
 Counts are incidents inside the collected area. They are not official rates per
 population; Toronto Police publish those separately as Neighbourhood Crime Rates.
+
+## The live lane, 3 October 2026
+
+The owner asked for data that is up to date, "this is a tracker". Four sources
+were chosen from the recency brainstorm. What was built, and the one that could not be:
+
+| Source | Freshness | How it is matched to an area | Status |
+| --- | --- | --- | --- |
+| `tps_calls_for_service` | Police map refreshes every 20 min; polled every 30 | Point in a rectangle, else the intersection text | guess: layer address unconfirmed |
+| `city_building_permits` | Daily | Street keyword, then postal code (M4G Leaside, M4T Moore Park, M4S Davisville, M4W Rosedale, M4N Lawrence Park) | guess: column names unconfirmed |
+| `city_dinesafe` | Daily | Establishment coordinates, else address text | guess: column names unconfirmed |
+| `news_police_coverage` | As outlets publish | Keywords in the headline and teaser | guess |
+| `news_leaside_coverage` | As outlets publish | Fixed to Leaside | guess |
+
+**Police news releases could not be added.** The probe returned HTTP 403 from
+tps.ca in September. This project does not disguise its crawler to get past a
+refusal. Two substitutes: `news_police_coverage` reads every outlet's coverage of
+police matters that name one of our areas, through Google News; and TPS runs an
+email subscription for releases, which the project mailbox can read later.
+
+### What "guess" means here, and how it resolves
+
+None of these endpoints can be reached from the machine that wrote the code. Each
+fetcher therefore prints the columns it resolved and the address it used, and the
+health report now dumps one raw record for every source still marked `guess`.
+Run the launcher, paste `config\health-report.md`, and the guesses become facts
+or get corrected from evidence, the same loop that fixed the notices and the
+collisions.
+
+For the police map in particular, the fetcher tries five candidate addresses, then
+walks two ArcGIS directories for any service named like calls-for-service, and
+writes everything it saw to `config/tps-calls-catalogue.md`. If it still fails,
+send that file.
+
+### Design decisions
+
+- **Police calls are counted in the email, listed on the page.** Dozens a week
+  would crowd out everything else in an email capped at 60 items. The email says
+  "police attended 41 calls: Check Address 18, Theft 9..." and the page carries
+  the list, with a seven-day strip at the top.
+- **Clean DineSafe passes are dropped.** A pass is the normal outcome. Only a
+  conditional pass, a closure, or an inspection with at least one infraction is
+  kept, and the title says which.
+- **One item per permit, not per revision.** The application date is the item's
+  date until the permit is issued, when the issued date takes over and the item
+  climbs the page again. The email does not repeat it, since it keys on first sight.
+- **Server-side filtering with a full-scan fallback.** The permits and DineSafe
+  tables are city-wide. The filter is sent as SQL to the City's datastore; if the
+  datastore refuses SQL, the whole table is paged through and filtered locally.
+- **Every call is kept after it leaves the police map.** The police show each for
+  four hours. Keeping them is this project's choice, not theirs. They are at the
+  nearest intersection, never an address, and the page says so on every one.
+
+### The half-hourly workflow
+
+`.github/workflows/live-poll.yml` fetches only the police map, rebuilds the page
+and republishes it if Pages is on. It shares the database and the concurrency
+group with the daily publish and the weekly email. About 48 runs a day, free on
+a public repository; switch it to hourly if the repository is made private.

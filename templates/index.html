@@ -92,6 +92,18 @@
            color:var(--muted); font-size:14px; }
   code { font-size:12.5px; background:var(--card); padding:1px 5px; border-radius:4px; }
   .foot { margin-top:40px; font-size:12.5px; color:var(--faint); }
+
+  .live { background:var(--card); border:1px solid var(--line); border-radius:10px;
+          padding:12px 14px; margin:0 0 18px; }
+  .live h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+             margin:0 0 6px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .live h2 span { font-weight:400; text-transform:none; letter-spacing:0; }
+  .live ol { list-style:none; margin:0; padding:0; font-size:13.5px; columns:2; column-gap:22px; }
+  @media (max-width:560px) { .live ol { columns:1; } }
+  .live li { break-inside:avoid; padding:3px 0; border-bottom:1px dotted var(--line); }
+  .live li time { color:var(--faint); font-size:12px; margin-right:6px; white-space:nowrap; }
+  .live li .w { color:var(--muted); }
+  .live .note { font-size:12px; color:var(--faint); margin:8px 0 0; }
 </style>
 </head>
 <body>
@@ -110,6 +122,23 @@
   <div class="stat"><b>{{ new_this_run }}</b><span>new in the last collection</span></div>
   <div class="stat"><b id="view-count">{{ in_window }}</b><span>items in view</span></div>
 </div>
+
+{% if live_total %}
+<section class="live" aria-label="Police calls this week">
+  <h2>Police calls, last {{ live_days }} days
+    <span>{{ live_total }} attended{% if live_kinds %} &middot; {% for k, n in live_kinds %}{{ k }} {{ n }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</span></h2>
+  <ol>
+  {% for it in live %}
+    <li><time data-ts="{{ it.when }}">{{ it.when[5:16] }}</time>{{ it.title.split(' near ')[0] }}
+      {% if ' near ' in it.title %}<span class="w">near {{ it.title.split(' near ', 1)[1] }}</span>{% endif %}
+      <span class="w">&middot; {{ it.area_name }}</span></li>
+  {% endfor %}
+  </ol>
+  <p class="note">From the police's live map, checked every half hour. Placed at the nearest
+    intersection by the police. Medical, sexual assault, suicide and domestic calls are never shown.
+    {% if live_total > live|length %}Showing the newest {{ live|length }}; the rest are in the list below.{% endif %}</p>
+</section>
+{% endif %}
 
 <div class="bar">
   <div class="row" data-group="read">
@@ -165,7 +194,7 @@
         {% elif it.source_home %}<a href="{{ it.source_home }}" target="_blank" rel="noopener">Where this came from &rarr;</a>{% endif %}
         {% if it.lat and it.lon %}<a href="https://www.openstreetmap.org/?mlat={{ it.lat }}&amp;mlon={{ it.lon }}#map=17/{{ it.lat }}/{{ it.lon }}"
            target="_blank" rel="noopener"
-           {% if it.category in ('crime', 'collision') %}title="Approximate. Police move these to the nearest intersection on purpose, so this is the junction, not the address."{% endif %}>{{ 'Nearest intersection on a map' if it.category in ('crime', 'collision') else 'See it on a map' }} &rarr;</a>{% endif %}
+           {% if it.category in ('crime', 'collision', 'police_call') %}title="Approximate. Police move these to the nearest intersection on purpose, so this is the junction, not the address."{% endif %}>{{ 'Nearest intersection on a map' if it.category in ('crime', 'collision', 'police_call') else 'See it on a map' }} &rarr;</a>{% endif %}
         {% if it.url and it.source_home %}<a href="{{ it.source_home }}" target="_blank" rel="noopener">{{ it.source_name }}</a>{% endif %}
       </div>
     </div>

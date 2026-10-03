@@ -37,7 +37,20 @@ def _classify(resp) -> tuple[str, str]:
 
 
 def probe_one(source, fetcher) -> dict:
-    url = source.url or source.fallback_html or source.alt_url
+    """Check one source. With candidate URLs, the first that answers usefully wins,
+    and the report names it, so the config can be pinned to a confirmed address."""
+    urls = [source.url or source.fallback_html or source.alt_url] if not source.candidates \
+        else list(source.candidates)
+    results = [_probe_url(source, fetcher, u) for u in urls]
+    best = next((r for r in results if r["ok"]), results[0])
+    if len(results) > 1:
+        tried = "; ".join(f"{r['verdict']} {r['url'].split('/')[2]}…{r['url'][-30:]}"
+                          for r in results)
+        best["detail"] = f"{best['detail']} (tried {len(results)}: {tried})"[:400]
+    return best
+
+
+def _probe_url(source, fetcher, url) -> dict:
     result = {"source_id": source.id, "url": url}
     try:
         resp = fetcher.get(url, timeout=source.timeout, retries=source.retries)

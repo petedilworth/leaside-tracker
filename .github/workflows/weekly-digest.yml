@@ -49,15 +49,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          url=$(curl -sf -H "Authorization: Bearer $GITHUB_TOKEN" \
-                "https://api.github.com/repos/${{ github.repository }}/pages" \
-                | python -c "import json,sys; print(json.load(sys.stdin).get('html_url',''))" \
-                || true)
+          scripts/pages-enabled.sh > /tmp/pages.txt || true
+          cat /tmp/pages.txt
+          url=$(sed -n 's/^Pages is on: //p' /tmp/pages.txt)
           if [ -n "$url" ]; then
             echo "SITE_URL=$url" >> "$GITHUB_ENV"
-            echo "The email will link to $url"
-          else
-            echo "No Pages site yet, so the email will not link to one."
           fi
 
       - name: Collect

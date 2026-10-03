@@ -367,19 +367,110 @@ sources:
 
   - id: tps_news_releases
     name: Toronto Police Service news releases
-    category: crime
+    category: police_news
     area: null
     kind: manual
     url: https://www.tps.ca/media-centre/news-releases/
     status: manual
-    notes: >
-      Probe returned HTTP 403. The site rejects automated requests. We are not going to
-      disguise the crawler to get around that - a 403 is the publisher saying no.
-      Legitimate alternative: TPS runs an email subscription for news releases from
-      tps.ca/media-centre. Subscribe the project mailbox to it and ingest over IMAP,
-      the same path as the councillor newsletter.
+    notes: |
+      Probe returned HTTP 403. The site rejects automated requests. We are not going
+      to disguise the crawler to get around that - a 403 is the publisher saying no.
+      Two sanctioned substitutes: news_police_coverage below reads press coverage of
+      police matters in your areas through Google News, and TPS runs an email
+      subscription for releases from tps.ca/media-centre, which the project mailbox
+      can ingest over IMAP later, the same path as the councillor newsletter.
 
-  # ---------------------------------------------------------------- transit / construction
+  - id: news_police_coverage
+    name: Police news about your areas (press coverage via Google News)
+    category: police_news
+    area: null
+    kind: rss
+    url: "https://news.google.com/rss/search?q=%22Toronto+police%22+(Leaside+OR+Laird+OR+Millwood+OR+%22Bayview+Avenue%22+OR+Davisville+OR+%22Moore+Park%22+OR+Rosedale+OR+%22Lawrence+Park%22+OR+Bennington)&hl=en-CA&gl=CA&ceid=CA:en"
+    home_url: https://news.google.com/search?q=%22Toronto%20police%22%20Leaside
+    status: guess
+    notes: |
+      Stands in for the police news releases, which refuse crawlers. Every outlet
+      that covers a Toronto Police release - CP24, CTV, the Star, blogTO - gets
+      picked up here when the story names one of your areas or streets. Links go
+      through Google's redirect and then to the outlet. Expect some noise from
+      "Rosedale" and "Bayview Avenue" matching other places; the area chips sort it.
+
+  - id: news_leaside_coverage
+    name: Leaside in the news (Google News)
+    category: media
+    area: leaside
+    kind: rss
+    url: "https://news.google.com/rss/search?q=Leaside+Toronto&hl=en-CA&gl=CA&ceid=CA:en"
+    home_url: https://news.google.com/search?q=Leaside%20Toronto
+    status: guess
+    notes: |
+      Everything any outlet writes with "Leaside" in it. Catches the Globe, the
+      Star and television, which the local papers' feeds do not.
+
+  # ---------------------------------------------------------------- live and daily feeds
+  - id: tps_calls_for_service
+    name: Toronto Police calls for service (live map)
+    category: police_call
+    area: null
+    kind: tps_calls
+    candidates:
+      - https://services.arcgis.com/S9th0jAJ7bqgIRjw/arcgis/rest/services/C4S_Public/FeatureServer/0
+      - https://services.arcgis.com/S9th0jAJ7bqgIRjw/arcgis/rest/services/C4S/FeatureServer/0
+      - https://services.arcgis.com/S9th0jAJ7bqgIRjw/arcgis/rest/services/Calls_For_Service/FeatureServer/0
+      - https://c4s.torontopolice.on.ca/arcgis/rest/services/CADPublic/C4S/MapServer/0
+      - https://c4s.torontopolice.on.ca/arcgis/rest/services/CADPublic/C4S/FeatureServer/0
+    home_url: https://c4s.torontopolice.on.ca/
+    timeout: 60
+    retries: 2
+    status: guess
+    notes: |
+      The public map at c4s.torontopolice.on.ca shows calls officers are attending,
+      refreshed every 20 minutes, each visible for about four hours. Medical, sexual
+      assault, suicide and domestic calls are withheld by the police. The layer
+      address behind the map is unconfirmed, so the fetcher tries the candidates
+      above and then walks the publisher's ArcGIS directory for anything named like
+      calls-for-service, printing whatever answers. Polled every 30 minutes by
+      .github/workflows/live-poll.yml so the four-hour window becomes a lasting log.
+      Points are the nearest intersection, never the address. Not a snapshot: calls
+      are kept after they leave the map.
+
+  - id: city_building_permits
+    name: Building permits (active)
+    category: permit
+    area: null
+    kind: ckan_permits
+    dataset: building-permits-active-permits
+    home_url: https://open.toronto.ca/dataset/building-permits-active-permits/
+    timeout: 180
+    retries: 2
+    status: guess
+    notes: |
+      Every open building permit in the city, updated daily, with address,
+      description, estimated cost and status. No coordinates, so the match is by
+      street keyword first and then by postal code: M4G is Leaside, M4T Moore Park,
+      M4S Davisville, M4W Rosedale, M4N Lawrence Park (config/areas.geojson). The
+      filter runs on the City's side as SQL; if the datastore refuses SQL, the whole
+      table is paged through instead. An application appears when filed and climbs
+      again when issued. Everything from a new house to a furnace is here; say the
+      word if the small permits are noise.
+
+  - id: city_dinesafe
+    name: DineSafe restaurant inspections
+    category: inspection
+    area: null
+    kind: ckan_dinesafe
+    dataset: dinesafe
+    home_url: https://www.toronto.ca/dinesafe
+    timeout: 180
+    retries: 2
+    status: guess
+    notes: |
+      Toronto Public Health's inspection results, refreshed daily, one row per
+      infraction with the establishment's coordinates. Only inspections with a
+      conditional pass, a closure or at least one infraction are kept; a clean pass
+      is the normal outcome and would bury everything else. Filtered on the City's
+      side by bounding box, with a full-table fallback.
+
   - id: metrolinx_notices
     name: Metrolinx community notices (Eglinton Crosstown)
     category: transit

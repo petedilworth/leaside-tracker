@@ -21,6 +21,7 @@ OUT = Path("site")
 WINDOW_DAYS = 120
 WINDOW_CHOICES = [(120, "Last 120 days"), (365, "Last year"), (0, "Everything")]
 MAX_ROWS = 3000
+LIVE_DAYS = 7
 
 
 def collect(conn, areas, cfg, window_days: int = WINDOW_DAYS) -> dict:
@@ -65,8 +66,22 @@ def collect(conn, areas, cfg, window_days: int = WINDOW_DAYS) -> dict:
     for f in fetches:
         f["source_name"] = names.get(f["source_id"], f["source_id"])
 
+    # The live lane: police calls from the last week, newest first. They are in
+    # the main list too; this is the glance at the top.
+    live_cutoff = (datetime.now(timezone.utc) - timedelta(days=LIVE_DAYS)).isoformat(
+        timespec="seconds")
+    live = [it for it in items if it["category"] == "police_call" and it["when"] >= live_cutoff]
+    live_kinds: dict[str, int] = {}
+    for it in live:
+        k = it["title"].split(" near ")[0]
+        live_kinds[k] = live_kinds.get(k, 0) + 1
+
     return {
         "items": items,
+        "live": live[:40],
+        "live_total": len(live),
+        "live_days": LIVE_DAYS,
+        "live_kinds": sorted(live_kinds.items(), key=lambda x: (-x[1], x[0]))[:5],
         "counts": counts,
         "area_counts": area_counts,
         "area_names": area_names,

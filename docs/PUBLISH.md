@@ -55,7 +55,8 @@ That is the whole setting. There is no save button; it applies at once.
    Refresh the page: a green tick means it worked.
 5. Open **https://petedilworth.github.io/leaside-tracker/**
 
-Bookmark that address. It updates every morning around 6am Toronto time.
+Bookmark that address. The full collection runs every morning around 6am
+Toronto time, and the police-calls strip at the top refreshes every half hour.
 The trends page is at **https://petedilworth.github.io/leaside-tracker/trends.html**
 and is linked from the top of the main page.
 
@@ -67,8 +68,8 @@ From the next weekly email onward, the email links to the live page too.
 
 Click the failed run, then click the red step to see its message.
 
-- **"Get Pages site failed" or "Not Found"** in the step *Check that GitHub Pages
-  is switched on*: Step 2 was missed. Do it and run the workflow again.
+- **A yellow "Page not published" notice** and no Deploy step: Step 2 was missed.
+  The run still collected and saved. Do Step 2 and run the workflow again.
 - **"Resource not accessible by integration"** in *Deploy*: Pages is set to
   "Deploy from a branch". Change it to GitHub Actions (Step 2).
 - **A red step called *Collect***: a source was down. The page still publishes
@@ -79,9 +80,8 @@ Click the failed run, then click the red step to see its message.
 ## Taking it down
 
 Go to the Pages settings page from Step 2 and click **Unpublish site**. The
-address stops working within minutes. The daily workflow will then fail at the
-Deploy step until you either switch Pages back on or delete
-`.github/workflows/publish-site.yml`.
+address stops working within minutes. The workflows keep collecting and simply
+skip publishing, with a notice, until Pages is switched back on.
 
 ---
 

@@ -1,0 +1,81 @@
+name: Live poll
+
+# The police map shows each call for about four hours. Checking it every half
+# hour turns that window into a lasting log of what police attended in the
+# neighbourhood. Nothing else is fetched here; the daily publish does the rest.
+#
+# Cost: about 48 short runs a day. Free on a public repository; on a private one
+# it would use most of the free monthly minutes, so change the schedule to
+# "17 * * * *" (hourly) if the repository is ever made private again.
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+# Same group as the daily publish and the weekly email: all three save the one
+# database to the one branch, so they take turns.
+concurrency:
+  group: leaside-digest
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install --quiet -r requirements.txt
+
+      - name: Restore the database
+        run: scripts/state.sh restore
+
+      - name: Read the police map
+        run: python -m leaside.cli ingest --only tps_calls_for_service
+
+      - name: Build the page
+        run: python -m leaside.cli build
+
+      - name: Save the database
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: scripts/state.sh save
+
+      - name: Is GitHub Pages switched on?
+        id: pages
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: scripts/pages-enabled.sh
+
+      - name: Prepare Pages
+        if: steps.pages.outputs.enabled == 'true'
+        uses: actions/configure-pages@v5
+
+      - name: Package the page
+        if: steps.pages.outputs.enabled == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy
+        if: steps.pages.outputs.enabled == 'true'
+        id: deploy
+        uses: actions/deploy-pages@v4

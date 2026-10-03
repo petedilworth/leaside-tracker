@@ -1,0 +1,22 @@
+[
+  {"_id": 1, "Establishment ID": 10500001, "Inspection ID": 105000881, "Establishment Name": "BAYVIEW PIZZA",
+   "Establishment Type": "Restaurant", "Establishment Address": "1600 BAYVIEW AVE", "Establishment Status": "Conditional Pass",
+   "Min. Inspections Per Year": "3", "Infraction Details": "Operator fail to maintain food handling room free of pests",
+   "Inspection Date": "2026-09-29", "Severity": "S - Significant", "Action": "Notice to Comply", "Outcome": null,
+   "Amount Fined": null, "Latitude": 43.7075, "Longitude": -79.3764},
+  {"_id": 2, "Establishment ID": 10500001, "Inspection ID": 105000881, "Establishment Name": "BAYVIEW PIZZA",
+   "Establishment Type": "Restaurant", "Establishment Address": "1600 BAYVIEW AVE", "Establishment Status": "Conditional Pass",
+   "Min. Inspections Per Year": "3", "Infraction Details": "Operator fail to provide soap at handwash station",
+   "Inspection Date": "2026-09-29", "Severity": "M - Minor", "Action": "Notice to Comply", "Outcome": null,
+   "Amount Fined": null, "Latitude": 43.7075, "Longitude": -79.3764},
+  {"_id": 3, "Establishment ID": 10500002, "Inspection ID": 105000882, "Establishment Name": "LAIRD CAFE",
+   "Establishment Type": "Food Take Out", "Establishment Address": "20 LAIRD DR", "Establishment Status": "Pass",
+   "Min. Inspections Per Year": "2", "Infraction Details": null,
+   "Inspection Date": "2026-09-30", "Severity": null, "Action": null, "Outcome": null,
+   "Amount Fined": null, "Latitude": 43.7085, "Longitude": -79.3650},
+  {"_id": 4, "Establishment ID": 10500003, "Inspection ID": 105000883, "Establishment Name": "QUEEN WEST DINER",
+   "Establishment Type": "Restaurant", "Establishment Address": "700 QUEEN ST W", "Establishment Status": "Closed",
+   "Min. Inspections Per Year": "3", "Infraction Details": "Operator fail to ensure food is not contaminated",
+   "Inspection Date": "2026-09-30", "Severity": "C - Crucial", "Action": "Closure Order", "Outcome": null,
+   "Amount Fined": null, "Latitude": 43.6460, "Longitude": -79.4080}
+]

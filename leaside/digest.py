@@ -32,8 +32,12 @@ def site_url() -> str:
     url = os.environ.get("SITE_URL", "").strip()
     return url.rstrip("/") + "/" if url else ""
 # Order the sections so the things that need a response come before the record-keeping.
-SECTION_ORDER = ["city_notice", "planning", "ra_news", "media", "business",
-                 "community", "councillor", "transit", "crime", "collision"]
+SECTION_ORDER = ["city_notice", "planning", "permit", "ra_news", "media", "police_news",
+                 "inspection", "business", "community", "councillor", "transit", "crime",
+                 "collision"]
+# Police calls arrive by the dozen and would crowd out everything else, so the
+# email carries a count and the top call types, not the list. The page has the list.
+COUNTED_ONLY = {"police_call"}
 SECTION_NAMES = {
     "city_notice": "City notices",
     "planning": "Planning",
@@ -45,6 +49,10 @@ SECTION_NAMES = {
     "transit": "Transit and construction",
     "crime": "Reported crime",
     "collision": "Collisions",
+    "permit": "Building permits",
+    "inspection": "Restaurant inspections",
+    "police_news": "Police news",
+    "police_call": "Police calls",
 }
 
 
@@ -95,6 +103,8 @@ def gather(conn, areas, cfg, since: str | None = None, limit: int = MAX_ITEMS) -
         it["link"] = it["url"] or homes.get(it["source_id"])
         items.append(it)
 
+    counted = [it for it in items if it["category"] in COUNTED_ONLY]
+    items = [it for it in items if it["category"] not in COUNTED_ONLY]
     shown, overflow = items[:limit], max(0, len(items) - limit)
     sections: dict[str, list] = {}
     for it in shown:
@@ -104,7 +114,25 @@ def gather(conn, areas, cfg, since: str | None = None, limit: int = MAX_ITEMS) -
     ordered += [(SECTION_NAMES.get(k, k.replace("_", " ").title()), v)
                 for k, v in sections.items() if k not in SECTION_ORDER]
     return {"since": since, "total": len(items), "shown": len(shown),
-            "overflow": overflow, "sections": ordered}
+            "overflow": overflow, "sections": ordered,
+            "calls": summarise_calls(counted, areas)}
+
+
+def summarise_calls(calls: list[dict], areas) -> dict | None:
+    """How many police calls, where, and of what kind, for the email's one-liner."""
+    if not calls:
+        return None
+    kinds: dict[str, int] = {}
+    where: dict[str, int] = {}
+    for it in calls:
+        kind = it["title"].split(" near ")[0]
+        kinds[kind] = kinds.get(kind, 0) + 1
+        name = it.get("area_name") or areas.name(it.get("area"))
+        where[name] = where.get(name, 0) + 1
+    top = sorted(kinds.items(), key=lambda x: (-x[1], x[0]))[:4]
+    return {"total": len(calls),
+            "kinds": top,
+            "areas": sorted(where.items(), key=lambda x: (-x[1], x[0]))}
 
 
 def _day(value: str | None) -> str:
@@ -124,6 +152,13 @@ def render_text(data: dict) -> str:
     if site_url():
         lines.append(f"The full page, with trends: {site_url()}")
     lines.append("")
+    if data.get("calls"):
+        c = data["calls"]
+        kinds = ", ".join(f"{k} ({n})" for k, n in c["kinds"])
+        lines.append(f"POLICE CALLS: {c['total']} attended in your areas"
+                     + (f" - {kinds}" if kinds else ""))
+        lines.append("    " + ", ".join(f"{a} {n}" for a, n in c["areas"]))
+        lines.append("")
     for name, items in data["sections"]:
         lines.append(f"{name.upper()} ({len(items)})")
         for it in items:
@@ -160,7 +195,19 @@ def render_html(data: dict) -> str:
                    f'<a href="{e(site_url())}" style="color:#8a3b2a">Open the full page</a>'
                    f' &middot; <a href="{e(site_url())}trends.html" style="color:#8a3b2a">'
                    f'Is it up this year?</a></p>')
-    if not data["sections"]:
+    if data.get("calls"):
+        c = data["calls"]
+        kinds = ", ".join(f"{e(k)} ({n})" for k, n in c["kinds"])
+        where = ", ".join(f"{e(a)} {n}" for a, n in c["areas"])
+        out.append(
+            f'<p style="font-size:14px;background:#f6f1ea;border-radius:8px;padding:10px 12px;'
+            f'margin:0 0 20px"><strong>Police attended {c["total"]} call'
+            f'{"s" if c["total"] != 1 else ""}</strong> in your areas'
+            + (f': {kinds}.' if kinds else '.')
+            + (f'<br><span style="color:#6f6a63">{where}</span>' if where else '')
+            + ' Each is placed at the nearest intersection by the police. '
+            + 'The page lists them.</p>')
+    if not data["sections"] and not data.get("calls"):
         out.append('<p style="color:#6f6a63">Nothing new this week. '
                    'The sources were checked and had no new items.</p>')
     for name, items in data["sections"]:
@@ -201,6 +248,8 @@ def render_html(data: dict) -> str:
 
 
 def subject(data: dict) -> str:
+    if not data["total"] and data.get("calls"):
+        return f"Leaside: police attended {data['calls']['total']} calls, nothing else new"
     if not data["total"]:
         return "Leaside Tracker: nothing new this week"
     headline = data["sections"][0][1][0]["title"] if data["sections"] else ""

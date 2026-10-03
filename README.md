@@ -52,6 +52,9 @@ To see the site render without any network:
 | `docs/EMAIL-DIGEST.md` | Setting up the weekly email, once |
 | `docs/PUBLISH.md` | Putting the page on the web, public but not searchable |
 | `.github/workflows/weekly-digest.yml` | Runs weekly on GitHub and emails the digest |
+| `.github/workflows/publish-site.yml` | Collects daily on GitHub and publishes the page to GitHub Pages |
+| `.github/workflows/live-poll.yml` | Reads the police calls map every half hour and republishes |
+| `scripts/state.sh` | Carries the database between GitHub runs on the `state` branch |
 | `config/health-report.md` | Written every run: what came in, duplicates, failures |
 | `site/trends.html` | Built every run: is crime or collisions up this year, honestly |
 | `tests/` | Parser tests against fixtures, no network |
