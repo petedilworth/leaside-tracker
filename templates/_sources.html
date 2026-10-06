@@ -1,0 +1,24 @@
+{# Where this page's data came from. Expects `attrib` from attribution.for_sources. #}
+<section class="sources" id="sources" aria-labelledby="sources-h">
+  <h2 id="sources-h">Where this data comes from</h2>
+  {% if attrib.sources %}
+  <table>
+    <tr><th>Source</th><th>Provides</th><th>Terms</th><th class="num">Records</th><th>Newest</th></tr>
+    {% for s in attrib.sources %}
+    <tr>
+      <td>{% if s.home %}<a href="{{ s.home }}" target="_blank" rel="noopener">{{ s.name }}</a>{% else %}{{ s.name }}{% endif %}
+        {% if s.publisher != s.name %}<br><span class="pub">{{ s.publisher }}</span>{% endif %}</td>
+      <td>{{ s.what }}</td>
+      <td>{% if s.licence %}{% if s.licence.url %}<a href="{{ s.licence.url }}" target="_blank" rel="noopener">{{ s.licence.name }}</a>{% else %}{{ s.licence.name }}{% endif %}{% else %}Not stated{% endif %}</td>
+      <td class="num">{{ "{:,}".format(s.n) }}</td>
+      <td>{{ (s.newest or '')[:10] }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% for l in attrib.licences %}
+  <p class="lic">{{ l.statement }}{% if l.url %} <a href="{{ l.url }}" target="_blank" rel="noopener">The licence</a>.{% endif %}</p>
+  {% endfor %}
+  {% else %}
+  <p class="lic">Nothing has been collected yet, so no sources are cited.</p>
+  {% endif %}
+</section>

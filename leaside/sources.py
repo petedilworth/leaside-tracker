@@ -13,6 +13,26 @@ RUNNABLE_KINDS = {"rss", "json_api", "arcgis_dcat", "arcgis_feature",
                   "html_list", "tps_calls"}
 
 
+# What each category is, in words a reader uses. Shared by the page, the
+# downloads and the source lists.
+CATEGORY_NAMES = {
+    "city_notice": "City notices", "planning": "Planning", "permit": "Building permits",
+    "ra_news": "Residents' association news", "media": "Local news",
+    "police_news": "Police news", "police_call": "Police calls",
+    "inspection": "Restaurant inspections", "business": "Business news",
+    "community": "Community news", "councillor": "Councillor", "transit": "Transit",
+    "crime": "Reported crime", "collision": "Collisions", "registry": "Dataset catalogue",
+}
+
+
+@dataclass
+class Licence:
+    key: str
+    name: str
+    statement: str
+    url: str | None = None
+
+
 @dataclass
 class Source:
     id: str
@@ -32,6 +52,9 @@ class Source:
     # Alternative addresses for one endpoint, tried in order until one answers.
     # For publishers whose exact URL is unconfirmed but whose host is known.
     candidates: list = field(default_factory=list)
+    # Who publishes it, and the terms it is used under. Every page names both.
+    publisher: str | None = None
+    licence: str | None = None
     timeout: int | None = None
     retries: int | None = None
     # How old an item may be and still go in the email. Older items are stored
@@ -67,6 +90,11 @@ class Source:
         return self.url
 
     @property
+    def credit(self) -> str:
+        """The publisher's name, or the source's own name when they are the same."""
+        return self.publisher or self.name
+
+    @property
     def probeable(self) -> bool:
         """True when there is a URL worth checking, even if we expect it to fail."""
         return bool(self.url or self.fallback_html or self.alt_url or self.candidates)
@@ -79,9 +107,15 @@ class Config:
     delay: float
     sources: list[Source]
     directories: list[str] = field(default_factory=list)
+    licences: dict = field(default_factory=dict)
 
     def by_id(self, sid: str) -> Source | None:
         return next((s for s in self.sources if s.id == sid), None)
+
+    def licence_of(self, source: Source) -> Licence | None:
+        """A source's licence. A feed with none named belongs to its publisher."""
+        key = source.licence or ("publisher_owned" if source.kind == "rss" else None)
+        return self.licences.get(key) if key else None
 
 
 def load(path: Path | str = DEFAULT_CONFIG) -> Config:
@@ -99,4 +133,5 @@ def load(path: Path | str = DEFAULT_CONFIG) -> Config:
         delay=float(d.get("request_delay_seconds", 2)),
         sources=sources,
         directories=list(raw.get("directories") or []),
+        licences={k: Licence(key=k, **v) for k, v in (raw.get("licences") or {}).items()},
     )

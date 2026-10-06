@@ -117,6 +117,22 @@
   th:first-child, td:first-child { text-align:left; }
   .empty { border:1px dashed var(--line); border-radius:10px; padding:20px; color:var(--muted); font-size:14px; }
   .foot { margin-top:40px; font-size:12.5px; color:var(--faint); }
+
+  .sources { margin-top:36px; }
+  .sources h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+                margin:0 0 6px; }
+  .sources table { width:100%; border-collapse:collapse; font-size:13px; }
+  .sources th, .sources td { text-align:left; padding:6px 8px 6px 0; border-bottom:1px solid var(--line);
+                             vertical-align:top; }
+  .sources th { font-weight:600; color:var(--muted); font-size:12px; }
+  .sources .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .sources td:nth-child(5) { white-space:nowrap; }
+  .sources .pub { color:var(--muted); font-size:12px; }
+  .sources a { color:var(--accent); }
+  .sources .lic { font-size:12.5px; color:var(--muted); margin:8px 0 0; }
+  @media (max-width:560px) { .sources th:nth-child(5), .sources td:nth-child(5) { display:none; } }
+  .srcline { font-size:12.5px; color:var(--muted); margin:-4px 0 12px; }
+  .srcline a { color:var(--accent); }
 </style>
 </head>
 <body>
@@ -141,6 +157,7 @@
 <div class="empty">No crime records collected yet. Run the tracker, then come back.</div>
 {% else %}
 <h2>Reported crime, all offences</h2>
+{% if srcline.crime %}<p class="srcline">Source: {{ srcline.crime|safe }}</p>{% endif %}
 <div class="hero">
   <b>{{ T.ytd if T.ytd is not none else '–' }}</b>
   <span class="d {{ 'none' if T.delta is none else ('up' if T.delta > 0 else 'down' if T.delta < 0 else 'none') }}">
@@ -193,6 +210,7 @@
 
 {% if data.collisions.facets %}
 <h2>Collisions</h2>
+{% if srcline.collision %}<p class="srcline">Source: {{ srcline.collision|safe }}</p>{% endif %}
 <div class="facets">
 {% for f in data.collisions.facets %}
   {{ facet(f, 100 + loop.index) }}
@@ -200,9 +218,10 @@
 </div>
 {% endif %}
 
+{% include "_sources.html" %}
+
 <p class="foot">
-  Sources: Toronto Police open data (offence layers, all collisions) and the City of Toronto
-  killed-or-seriously-injured dataset. Crime points are placed at the nearest intersection.
+  Crime points are placed at the nearest intersection by the police.
   Counts are incidents inside the collected area, not official rates per population.
 </p>
 </div>

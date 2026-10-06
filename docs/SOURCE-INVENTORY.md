@@ -494,3 +494,37 @@ been overwriting. The remaining noise came from Google News, which spells each
 outlet two ways ("globalnews.ca", "Global News") from one fetch to the next. Its
 headlines now name the outlet by web address, which does not vary, and its
 description, which only repeats the headline, is no longer stored.
+
+## Every page names its sources, 6 October 2026
+
+The owner asked for every page to note the source of its data. Each source in
+`config/sources.yaml` now has a `publisher` and a `licence`, and the wording of
+each licence is held once, in the `licences:` block at the top of that file.
+
+| Where | What it shows |
+| --- | --- |
+| News page, each item | The source name, linked to the source |
+| News page, police-calls strip | "Source: Toronto Police Service, calls for service map", linked |
+| Trends page, under each heading | Who published the data, which dataset, and its newest record |
+| Both pages, at the bottom | "Where this data comes from": every source on that page, its publisher, what it provides, its terms, record count, newest record, then each licence's required wording with a link |
+| `everything.csv` | A source page and terms column on every row |
+| `sources.csv` (new) | One row per source, with the exact wording its licence asks for |
+| Weekly email | "Each item names its source", then the licence wording for the sources in that email |
+
+Only sources with records on a page are cited on that page.
+
+**Licence wording, and what is unconfirmed:**
+
+- City of Toronto data (notices, permits, DineSafe, the KSI collisions): the
+  Open Government Licence – Toronto asks for "Contains information licensed under
+  the Open Government Licence – Toronto." and a link to the licence when several
+  City sources are combined. That is what the pages show.
+- Toronto Police data portal (crime, all collisions): the police licence page,
+  tps.ca/data-maps/resources/licence/, could not be opened from the machine that
+  wrote this. The pages credit the portal, name the licence and link it, but the
+  exact wording the police ask for is unconfirmed. Open that page and, if it
+  specifies a statement, put it in the `tps_open_data` entry.
+- Police calls map: credited under the police terms of use, with their own
+  caution that it is preliminary information that may not have been verified.
+- Feeds: headlines and excerpts belong to their publishers; every item links to
+  the original. Google News headlines are credited to the outlet named after each.

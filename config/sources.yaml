@@ -23,6 +23,33 @@ directories:
   - https://fontra.com/other-organizations/
   - https://leasideresidents.ca/resources/
 
+# Every page names where its data came from and the terms it is used under.
+# A source points at one of these with `licence:`. A feed with none named is
+# treated as `publisher_owned`.
+licences:
+  ogl_toronto:
+    name: Open Government Licence – Toronto
+    url: https://www.toronto.ca/city-government/data-research-maps/open-data/open-data-licence/
+    # The exact wording the licence asks for when several City sources are combined.
+    statement: Contains information licensed under the Open Government Licence – Toronto.
+  tps_open_data:
+    name: Toronto Police Service open data licence
+    url: https://www.tps.ca/data-maps/resources/licence/
+    # The licence page could not be opened from the machine that wrote this, so
+    # its required wording is unconfirmed. Check it and replace this if it differs.
+    statement: Contains information from the Toronto Police Service Public Safety Data Portal, used under its open data licence.
+  tps_terms:
+    name: Toronto Police Service terms of use
+    url: https://www.tps.ca/data-maps/resources/terms-use/
+    statement: Police calls come from the Toronto Police Service's public map. The police describe this as preliminary information that may not have been verified, and call types may change after investigation.
+  publisher_owned:
+    name: Copyright of each publisher
+    statement: Headlines and short excerpts belong to their publishers. Each item links to the original.
+  google_news:
+    name: Found through Google News
+    url: https://news.google.com/
+    statement: Headlines found through Google News belong to the outlet named in brackets after each one.
+
 sources:
 
   # ---------------------------------------------------------------- residents' associations
@@ -203,6 +230,8 @@ sources:
 
   - id: city_public_notices
     name: City of Toronto public notices (City Clerk)
+    publisher: City of Toronto, City Clerk's Office
+    licence: ogl_toronto
     category: city_notice
     area: null
     kind: json_api
@@ -270,6 +299,8 @@ sources:
   # ---------------------------------------------------------------- police / crime
   - id: tps_hub_dcat
     name: Toronto Police Public Safety Data Portal (ArcGIS Hub catalogue)
+    publisher: Toronto Police Service
+    licence: tps_open_data
     category: registry
     area: null
     kind: arcgis_dcat
@@ -283,6 +314,8 @@ sources:
 
   - id: tps_reported_crime
     name: Toronto Police reported crime
+    publisher: Toronto Police Service, Public Safety Data Portal
+    licence: tps_open_data
     category: crime
     area: null
     kind: arcgis_multi
@@ -321,6 +354,8 @@ sources:
 
   - id: tps_traffic_collisions
     name: TPS Traffic Collisions (ASR-T-TBL-001)
+    publisher: Toronto Police Service, Public Safety Data Portal
+    licence: tps_open_data
     category: collision
     area: null
     kind: arcgis_feature
@@ -342,6 +377,8 @@ sources:
 
   - id: city_ksi_collisions
     name: Motor vehicle collisions involving killed or seriously injured persons (KSI)
+    publisher: Toronto Police Service, published on City of Toronto Open Data
+    licence: ogl_toronto
     category: collision
     area: null
     kind: ckan_dataset
@@ -378,6 +415,8 @@ sources:
 
   - id: news_police_coverage
     name: Police news about your areas (press coverage via Google News)
+    publisher: Google News (stories from each outlet named)
+    licence: google_news
     category: police_news
     area: null
     kind: rss
@@ -393,6 +432,8 @@ sources:
 
   - id: news_leaside_coverage
     name: Leaside in the news (Google News)
+    publisher: Google News (stories from each outlet named)
+    licence: google_news
     category: media
     area: leaside
     kind: rss
@@ -406,6 +447,8 @@ sources:
   # ---------------------------------------------------------------- live and daily feeds
   - id: tps_calls_for_service
     name: Toronto Police calls for service (live map)
+    publisher: Toronto Police Service, calls for service map
+    licence: tps_terms
     category: police_call
     area: null
     kind: tps_calls
@@ -432,6 +475,8 @@ sources:
 
   - id: city_building_permits
     name: Building permits (active)
+    publisher: City of Toronto, Toronto Building
+    licence: ogl_toronto
     category: permit
     area: null
     kind: ckan_permits
@@ -453,6 +498,8 @@ sources:
 
   - id: city_dinesafe
     name: DineSafe restaurant inspections
+    publisher: City of Toronto, Toronto Public Health
+    licence: ogl_toronto
     category: inspection
     area: null
     kind: ckan_dinesafe

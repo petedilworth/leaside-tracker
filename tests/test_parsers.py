@@ -2070,3 +2070,106 @@ def test_google_news_headlines_do_not_flip_between_outlet_spellings(tmp_path):
     # Other feeds are untouched.
     (plain,) = rss_feed.parse(feed("Global News"), CFG.by_id("ra_leaside"))
     assert plain["title"] == "Boy facing charges after officer hit - Global News"
+
+
+# ---------------------------------------------------------------- every page names its sources
+
+OGL = "Contains information licensed under the Open Government Licence – Toronto."
+
+
+def test_every_collected_source_has_a_publisher_page_and_terms():
+    for s in CFG.sources:
+        if not s.runnable or s.category == "registry":
+            continue
+        lic = CFG.licence_of(s)
+        assert lic and lic.statement, f"{s.id} has no terms of use"
+        assert s.home and s.home.startswith("http"), f"{s.id} has no page to cite"
+        assert s.credit, s.id
+    # The City's data carries the City's exact wording.
+    for sid in ("city_public_notices", "city_building_permits", "city_dinesafe",
+                "city_ksi_collisions"):
+        assert CFG.licence_of(CFG.by_id(sid)).statement == OGL
+
+
+def _sourced_db(tmp_path):
+    from leaside import db
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, _item(source_id="city_building_permits", category="permit", url=None,
+                               title="New Building: 1 Rumsey Rd", external_id="p1",
+                               area="leaside", published_at="2026-10-01"))
+    db.upsert_item(conn, _item(source_id="ra_leaside", title="Meeting", external_id="m1",
+                               area="leaside", published_at="2026-10-02"))
+    db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime", url=None,
+                               title="Assault at X", external_id="c1", area="leaside",
+                               published_at="2026-05-01", raw={"CSI_CATEGORY": "Assault"}))
+    db.upsert_item(conn, _item(source_id="tps_calls_for_service", category="police_call",
+                               url=None, title="Theft near A & B", external_id="k1",
+                               area="leaside", published_at=__import__("datetime").datetime.now(
+                                   __import__("datetime").timezone.utc).isoformat()))
+    conn.commit()
+    return conn
+
+
+def test_the_news_page_cites_every_source_it_shows(tmp_path, monkeypatch):
+    from leaside import render
+    _sourced_db(tmp_path)
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    page = render.run(db_path=tmp_path / "t.db", out_name="index.html").read_text(encoding="utf-8")
+    section = page[page.index('id="sources"'):]
+    for sid in ("city_building_permits", "ra_leaside", "tps_reported_crime", "tps_calls_for_service"):
+        s = CFG.by_id(sid)
+        assert s.name in section and f'href="{s.home}"' in section, sid
+    assert "Building permits" in section and "Open Government Licence – Toronto" in section
+    assert OGL in section
+    assert "Headlines and short excerpts belong to their publishers" in section
+    # Sources with nothing on the page are not cited.
+    assert CFG.by_id("city_dinesafe").name not in section
+    # Each item's source name links to the source.
+    assert f'class="src" href="{CFG.by_id("ra_leaside").home}"' in page
+    # The police-calls strip names its source.
+    strip = page[page.index('class="live"'):page.index("</section>", page.index('class="live"'))]
+    assert "Source:" in strip and CFG.by_id("tps_calls_for_service").home in strip
+
+
+def test_the_trends_page_cites_its_sources_under_each_heading(tmp_path, monkeypatch):
+    from leaside import render
+    _sourced_db(tmp_path)
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    render.run(db_path=tmp_path / "t.db", out_name="index.html")
+    page = (tmp_path / "trends.html").read_text(encoding="utf-8")
+    crime_h = page.index("Reported crime, all offences")
+    line = page[crime_h:page.index("</p>", crime_h)]
+    assert 'class="srcline">Source:' in line
+    assert "Toronto Police Service, Public Safety Data Portal" in line
+    assert "newest record 2026-05-01" in line
+    section = page[page.index('id="sources"'):]
+    assert "Toronto Police Service open data licence" in section
+    assert CFG.by_id("ra_leaside").name not in section          # not on this page
+
+
+def test_downloads_carry_the_source_and_terms_of_every_row(tmp_path, monkeypatch):
+    import csv
+    from leaside import render
+    _sourced_db(tmp_path)
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    render.run(db_path=tmp_path / "t.db", out_name="index.html")
+    rows = list(csv.DictReader((tmp_path / "log" / "everything.csv").open(encoding="utf-8-sig")))
+    assert all(r["Source page"].startswith("http") and r["Terms of use"] for r in rows)
+    permit = next(r for r in rows if r["Type"] == "Building permit")
+    assert permit["Terms of use"] == "Open Government Licence – Toronto"
+    listed = list(csv.DictReader((tmp_path / "log" / "sources.csv").open(encoding="utf-8-sig")))
+    assert {r["Source"] for r in listed} == {CFG.by_id(s).name for s in
+        ("city_building_permits", "ra_leaside", "tps_reported_crime", "tps_calls_for_service")}
+    assert any(r["Required wording"] == OGL for r in listed)
+    page = (tmp_path / "index.html").read_text(encoding="utf-8")
+    assert 'href="log/sources.csv"' in page
+
+
+def test_the_email_credits_the_sources_it_carries(tmp_path):
+    from leaside import digest
+    conn = _sourced_db(tmp_path)
+    data = digest.gather(conn, geo.Areas.load(), sources.load(), since="2000-01-01T00:00:00+00:00")
+    html_out, text_out = digest.render_html(data), digest.render_text(data)
+    assert "Each item names its source." in html_out and "Each item names its source." in text_out
+    assert OGL in html_out and OGL in text_out
+    assert "Police calls come from the Toronto Police Service" in html_out    # counted, still credited

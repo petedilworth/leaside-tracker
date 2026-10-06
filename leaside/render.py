@@ -11,7 +11,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from . import db, export, geo, sources, trends, version
+from . import attribution, db, export, geo, sources, trends, version
 
 OUT = Path("site")
 
@@ -32,12 +32,14 @@ def collect(conn, areas, cfg, window_days: int = WINDOW_DAYS) -> dict:
     ).fetchall()
     names = {s.id: s.name for s in cfg.sources}
     homes = {s.id: s.home for s in cfg.sources}
+    credits = {s.id: s.credit for s in cfg.sources}
     items = []
     for r in rows:
         it = dict(r)
         it["area_name"] = areas.name(it["area"])
         it["source_name"] = names.get(it["source_id"], it["source_id"])
         it["source_home"] = homes.get(it["source_id"])
+        it["source_credit"] = credits.get(it["source_id"], it["source_name"])
         it["when"] = it["published_at"] or it["first_seen_at"]
         items.append(it)
 
@@ -83,8 +85,14 @@ def collect(conn, areas, cfg, window_days: int = WINDOW_DAYS) -> dict:
            FROM items WHERE category != 'registry'""").fetchone()
     changes = conn.execute("SELECT COUNT(*) FROM item_log WHERE event = 'changed'").fetchone()[0]
 
+    calls_src = cfg.by_id("tps_calls_for_service")
     return {
         "items": items,
+        # Only the sources whose records are actually on this page are cited.
+        "attrib": attribution.for_sources(conn, cfg, [it["source_id"] for it in items],
+                                          where=f"AND {db.SHOWN}"),
+        "live_source": {"home": calls_src.home if calls_src else None,
+                        "credit": calls_src.credit if calls_src else "Toronto Police Service"},
         "log_total": log["total"],
         "log_routine": log["routine"],
         "log_hidden": log["hidden"],
@@ -142,5 +150,29 @@ def render_trends(conn, areas, env, out_name: str = "index.html") -> Path:
             trends.decorate(f)
     name = "trends.html" if out_name == "index.html" else out_name.replace(".html", "-trends.html")
     target = OUT / name
-    target.write_text(env.get_template("trends.html").render(data=data), encoding="utf-8")
+    cfg = sources.load()
+    used = [r[0] for r in conn.execute(
+        "SELECT DISTINCT source_id FROM items WHERE category IN ('crime', 'collision')"
+        " AND hidden_at IS NULL ORDER BY source_id")]
+    attrib = attribution.for_sources(conn, cfg, used, where="AND hidden_at IS NULL")
+    target.write_text(env.get_template("trends.html").render(
+        data=data, attrib=attrib, srcline=source_lines(attrib, cfg)), encoding="utf-8")
     return target
+
+
+def source_lines(attrib: dict, cfg) -> dict:
+    """"Source: ..." under each heading of the trends page, as linked HTML."""
+    from markupsafe import escape
+    out = {}
+    for cat in ("crime", "collision"):
+        parts = []
+        for s in attrib["sources"]:
+            if cfg.by_id(s["id"]).category != cat:
+                continue
+            name = escape(s["publisher"])
+            link = f'<a href="{escape(s["home"])}" target="_blank" rel="noopener">{name}</a>' \
+                if s["home"] else str(name)
+            newest = f", newest record {escape(s['newest'][:10])}" if s["newest"] else ""
+            parts.append(f"{link} ({escape(s['name'])}{newest})")
+        out[cat] = "; ".join(parts)
+    return out

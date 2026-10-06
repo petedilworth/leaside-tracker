@@ -237,3 +237,32 @@ def test_trends_page_hover_layer_works_with_pointer_and_keyboard(demo_url):
         assert pg.locator('a[href="index.html"]').count() == 1
         assert not errors, errors
         b.close()
+
+
+def test_pages_fit_a_phone_and_show_their_sources(tmp_path, monkeypatch):
+    """A long run-together permit description pushed the whole page sideways on
+    a phone. And both pages must end with where their data came from."""
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+    from leaside import db, render
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, {"source_id": "city_building_permits", "category": "permit",
+                          "title": "Multiple Projects: 147 Rosedale Heights Dr",
+                          "summary": "Revision01:" + "REVISE-PERMIT-" * 30, "url": None,
+                          "external_id": "p1", "area": "leaside", "published_at": "2026-10-01"})
+    db.upsert_item(conn, {"source_id": "tps_reported_crime", "category": "crime",
+                          "title": "Assault at X", "url": None, "external_id": "c1",
+                          "area": "leaside", "published_at": "2026-05-01",
+                          "raw": {"CSI_CATEGORY": "Assault"}})
+    conn.commit()
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    render.run(db_path=tmp_path / "t.db", out_name="index.html")
+    with playwright.sync_playwright() as p:
+        b = p.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
+        for page in ("index.html", "trends.html"):
+            pg = b.new_page(viewport={"width": 390, "height": 800})
+            pg.goto((tmp_path / page).as_uri())
+            assert pg.evaluate("document.documentElement.scrollWidth") <= 390, page
+            sources = pg.locator("#sources")
+            assert sources.is_visible(), page
+            assert "where this data comes from" in sources.inner_text().lower()
+        b.close()

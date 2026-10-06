@@ -121,9 +121,14 @@ def gather(conn, areas, cfg, since: str | None = None, limit: int = MAX_ITEMS) -
                for k in SECTION_ORDER if k in sections]
     ordered += [(SECTION_NAMES.get(k, k.replace("_", " ").title()), v)
                 for k, v in sections.items() if k not in SECTION_ORDER]
+    cited = {s.id: s for s in cfg.sources}
+    used = list(dict.fromkeys(it["source_id"] for it in shown + counted))
+    licences = list({cfg.licence_of(cited[sid]).key: cfg.licence_of(cited[sid])
+                     for sid in used if sid in cited and cfg.licence_of(cited[sid])}.values())
     return {"since": since, "total": len(items), "shown": len(shown),
             "overflow": overflow, "sections": ordered,
-            "calls": summarise_calls(counted, areas)}
+            "calls": summarise_calls(counted, areas),
+            "licences": [(l.statement, l.url) for l in licences]}
 
 
 def summarise_calls(calls: list[dict], areas) -> dict | None:
@@ -183,6 +188,9 @@ def render_text(data: dict) -> str:
         lines.append("")
     if data["overflow"]:
         lines.append(f"And {data['overflow']} more, not listed. Open the page for all of it.")
+    if data.get("licences"):
+        lines += ["", "Each item names its source."]
+        lines += [f"{st}{' ' + url if url else ''}" for st, url in data["licences"]]
     return "\n".join(lines)
 
 
@@ -247,12 +255,23 @@ def render_html(data: dict) -> str:
     out.append(
         '<p style="font-size:12px;color:#a39d94;border-top:1px solid #e4e0d8;'
         'margin-top:30px;padding-top:12px">'
-        'Police crime and collision records sit at the nearest intersection, not the '
+        + _credits_html(data.get("licences", []))
+        + 'Police crime and collision records sit at the nearest intersection, not the '
         'address, and arrive months after the event.<br>'
         f'Collected by code {e(version.label())}.</p>'
     )
     out.append('</div>')
     return "\n".join(out)
+
+
+def _credits_html(licences) -> str:
+    """"Each item names its source." and the licence wording, each with its link."""
+    e = html.escape
+    parts = ["Each item names its source."]
+    for statement, url in licences:
+        link = (f' <a href="{e(url)}" style="color:#a39d94">The licence</a>.' if url else "")
+        parts.append(f"{e(statement)}{link}")
+    return " ".join(parts) + "<br>"
 
 
 def subject(data: dict) -> str:
