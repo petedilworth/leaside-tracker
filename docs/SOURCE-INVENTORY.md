@@ -519,11 +519,14 @@ Only sources with records on a page are cited on that page.
   Open Government Licence – Toronto asks for "Contains information licensed under
   the Open Government Licence – Toronto." and a link to the licence when several
   City sources are combined. That is what the pages show.
-- Toronto Police data portal (crime, all collisions): the police licence page,
-  tps.ca/data-maps/resources/licence/, could not be opened from the machine that
-  wrote this. The pages credit the portal, name the licence and link it, but the
-  exact wording the police ask for is unconfirmed. Open that page and, if it
-  specifies a statement, put it in the `tps_open_data` entry.
+- Toronto Police data portal (crime, all collisions): confirmed by the owner on
+  6 October from the police licence page. It is the Open Government Licence –
+  Ontario, version 1.0. The police give no wording of their own, so the licence's
+  default applies: "Contains information licensed under the Open Government
+  Licence – Ontario." with a link to the licence. That is what the pages show.
+- Both open government licences forbid suggesting official status or endorsement
+  (clause 7) and do not cover logos or crests (clause 6d). Every sources section
+  and the email say the site is independent, and no publisher's logo is used.
 - Police calls map: credited under the police terms of use, with their own
   caution that it is preliminary information that may not have been verified.
 - Feeds: headlines and excerpts belong to their publishers; every item links to

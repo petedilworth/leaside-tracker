@@ -191,6 +191,7 @@ def render_text(data: dict) -> str:
     if data.get("licences"):
         lines += ["", "Each item names its source."]
         lines += [f"{st}{' ' + url if url else ''}" for st, url in data["licences"]]
+        lines.append(INDEPENDENT)
     return "\n".join(lines)
 
 
@@ -264,6 +265,12 @@ def render_html(data: dict) -> str:
     return "\n".join(out)
 
 
+# Both open government licences (clause 7) forbid suggesting official status or
+# endorsement, so every place that credits them says so.
+INDEPENDENT = ("This is an independent project, not affiliated with or endorsed by "
+               "any publisher it cites.")
+
+
 def _credits_html(licences) -> str:
     """"Each item names its source." and the licence wording, each with its link."""
     e = html.escape
@@ -271,6 +278,7 @@ def _credits_html(licences) -> str:
     for statement, url in licences:
         link = (f' <a href="{e(url)}" style="color:#a39d94">The licence</a>.' if url else "")
         parts.append(f"{e(statement)}{link}")
+    parts.append(e(INDEPENDENT))
     return " ".join(parts) + "<br>"
 
 

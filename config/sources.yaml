@@ -33,11 +33,12 @@ licences:
     # The exact wording the licence asks for when several City sources are combined.
     statement: Contains information licensed under the Open Government Licence – Toronto.
   tps_open_data:
-    name: Toronto Police Service open data licence
+    # Confirmed 6 October 2026: the police data portal's licence page carries the
+    # Open Government Licence – Ontario, version 1.0. The police specify no
+    # wording of their own, so clause 4's default applies, with a link.
+    name: Open Government Licence – Ontario
     url: https://www.tps.ca/data-maps/resources/licence/
-    # The licence page could not be opened from the machine that wrote this, so
-    # its required wording is unconfirmed. Check it and replace this if it differs.
-    statement: Contains information from the Toronto Police Service Public Safety Data Portal, used under its open data licence.
+    statement: Contains information licensed under the Open Government Licence – Ontario.
   tps_terms:
     name: Toronto Police Service terms of use
     url: https://www.tps.ca/data-maps/resources/terms-use/

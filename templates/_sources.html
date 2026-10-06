@@ -18,6 +18,7 @@
   {% for l in attrib.licences %}
   <p class="lic">{{ l.statement }}{% if l.url %} <a href="{{ l.url }}" target="_blank" rel="noopener">The licence</a>.{% endif %}</p>
   {% endfor %}
+  <p class="lic">This site is independent. It is not affiliated with, or endorsed by, the City of Toronto, the Toronto Police Service or any other publisher listed here.</p>
   {% else %}
   <p class="lic">Nothing has been collected yet, so no sources are cited.</p>
   {% endif %}

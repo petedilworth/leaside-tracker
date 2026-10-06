@@ -2143,7 +2143,9 @@ def test_the_trends_page_cites_its_sources_under_each_heading(tmp_path, monkeypa
     assert "Toronto Police Service, Public Safety Data Portal" in line
     assert "newest record 2026-05-01" in line
     section = page[page.index('id="sources"'):]
-    assert "Toronto Police Service open data licence" in section
+    assert "Open Government Licence – Ontario" in section
+    assert "Contains information licensed under the Open Government Licence – Ontario." in section
+    assert "not affiliated with, or endorsed by" in section
     assert CFG.by_id("ra_leaside").name not in section          # not on this page
 
 
@@ -2173,3 +2175,4 @@ def test_the_email_credits_the_sources_it_carries(tmp_path):
     assert "Each item names its source." in html_out and "Each item names its source." in text_out
     assert OGL in html_out and OGL in text_out
     assert "Police calls come from the Toronto Police Service" in html_out    # counted, still credited
+    assert "not affiliated with or endorsed by" in html_out and "not affiliated" in text_out
