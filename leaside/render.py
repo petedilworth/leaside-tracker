@@ -11,7 +11,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from . import db, geo, sources, trends, version
+from . import db, export, geo, sources, trends, version
 
 OUT = Path("site")
 
@@ -26,7 +26,7 @@ LIVE_DAYS = 7
 
 def collect(conn, areas, cfg, window_days: int = WINDOW_DAYS) -> dict:
     rows = conn.execute(
-        "SELECT * FROM items WHERE category != 'registry'"
+        f"SELECT * FROM items WHERE category != 'registry' AND {db.SHOWN}"
         " ORDER BY COALESCE(published_at, first_seen_at) DESC LIMIT ?",
         (MAX_ROWS,),
     ).fetchall()
@@ -76,8 +76,19 @@ def collect(conn, areas, cfg, window_days: int = WINDOW_DAYS) -> dict:
         k = it["title"].split(" near ")[0]
         live_kinds[k] = live_kinds.get(k, 0) + 1
 
+    log = conn.execute(
+        """SELECT COUNT(*) total,
+                  COALESCE(SUM(routine = 1 AND hidden_at IS NULL), 0) routine,
+                  COALESCE(SUM(hidden_at IS NOT NULL), 0) hidden
+           FROM items WHERE category != 'registry'""").fetchone()
+    changes = conn.execute("SELECT COUNT(*) FROM item_log WHERE event = 'changed'").fetchone()[0]
+
     return {
         "items": items,
+        "log_total": log["total"],
+        "log_routine": log["routine"],
+        "log_hidden": log["hidden"],
+        "log_changes": changes,
         "live": live[:40],
         "live_total": len(live),
         "live_days": LIVE_DAYS,
@@ -118,6 +129,8 @@ def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml",
     target = OUT / out_name
     target.write_text(env.get_template("index.html").render(**data), encoding="utf-8")
     render_trends(conn, areas, env, out_name)
+    if out_name == "index.html":          # never let the demo overwrite the real log
+        export.write(conn, areas, cfg, OUT / "log")
     return target
 
 

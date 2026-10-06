@@ -34,8 +34,9 @@ class Source:
     candidates: list = field(default_factory=list)
     timeout: int | None = None
     retries: int | None = None
+    # How old an item may be and still go in the email. Older items are stored
+    # and shown under "Since"; this never discards anything.
     max_age_days: int | None = None
-    snapshot: bool = False
     notes: str = ""
     extra: dict = field(default_factory=dict)
 

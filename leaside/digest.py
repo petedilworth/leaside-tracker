@@ -77,7 +77,7 @@ def gather(conn, areas, cfg, since: str | None = None, limit: int = MAX_ITEMS) -
     else:
         first_ever = False
 
-    sql = ("SELECT * FROM items WHERE category != 'registry'"
+    sql = (f"SELECT * FROM items WHERE category != 'registry' AND {db.SHOWN}"
            f" AND first_seen_at {'>=' if inclusive else '>'} ?")
     params: list = [since]
     if first_ever:
@@ -94,9 +94,17 @@ def gather(conn, areas, cfg, since: str | None = None, limit: int = MAX_ITEMS) -
     ).fetchall()
     names = {s.id: s.name for s in cfg.sources}
     homes = {s.id: s.home for s in cfg.sources}
+    # A source's email window. Everything is stored; an item published long before
+    # it was first seen - a backfill, not news - stays out of the email.
+    now = datetime.now(timezone.utc)
+    windows = {s.id: (now - timedelta(days=s.max_age_days)).isoformat(timespec="seconds")
+               for s in cfg.sources if s.max_age_days}
 
     items = []
     for r in rows:
+        if (r["source_id"] in windows and r["published_at"]
+                and r["published_at"] < windows[r["source_id"]]):
+            continue
         it = dict(r)
         it["area_name"] = areas.name(it["area"])
         it["source_name"] = names.get(it["source_id"], it["source_id"])

@@ -1,0 +1,47 @@
+name: Weekly backup
+
+# The state branch holds ONE copy of the log and every run replaces it. If a run
+# ever saved a damaged database, the good one would be gone. This keeps a dated
+# copy every week as a download under Releases > "Log backups".
+#
+# Each copy is about 5 MB compressed; a year of them is about 260 MB. The repository
+# is public, so these are too - the same data the state branch already exposes.
+
+on:
+  schedule:
+    # Monday 12:43 UTC: after the weekly email, off the hour.
+    - cron: "43 12 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Fetch the saved log
+        run: |
+          git fetch --depth 1 origin state
+          mkdir -p backup
+          stamp=$(date -u +%Y-%m-%d)
+          if git cat-file -e origin/state:leaside.db.gz 2>/dev/null; then
+            git show origin/state:leaside.db.gz > "backup/leaside-$stamp.db.gz"
+          else
+            git show origin/state:leaside.db | gzip -6 > "backup/leaside-$stamp.db.gz"
+          fi
+          ls -la backup
+
+      - name: Upload it to Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view log-backups >/dev/null 2>&1; then
+            gh release create log-backups --title "Log backups" \
+              --notes "A dated copy of the complete log, every Monday. Each file is a compressed SQLite database. To use one, ask Claude."
+          fi
+          gh release upload log-backups backup/*.db.gz --clobber

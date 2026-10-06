@@ -58,7 +58,8 @@ def counts_by_month(conn, category: str, key_fn) -> dict[str, dict[str, int]]:
     out: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for row in conn.execute(
         "SELECT title, raw, published_at, area, source_id FROM items"
-        " WHERE category = ? AND published_at IS NOT NULL", (category,)
+        " WHERE category = ? AND published_at IS NOT NULL AND hidden_at IS NULL",
+        (category,)
     ):
         m = _month(row["published_at"])
         if not m:

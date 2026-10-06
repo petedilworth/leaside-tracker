@@ -410,39 +410,35 @@ def test_stable_collision_key_survives_a_dataset_reload():
     assert _stable_id(bare) == _stable_id({**bare, "_id": 999})
 
 
-def test_snapshot_sources_drop_rows_that_left_the_dataset(tmp_path):
-    """A dataset is a photograph. What is not in the latest one is not on the page."""
+def test_a_record_that_leaves_its_dataset_stays_in_the_log(tmp_path):
+    """Datasets used to be treated as photographs: whatever was missing from the
+    latest fetch was deleted. That threw away every crime record older than the
+    newest 4,000 per offence, on every run. Now nothing is deleted."""
     import time
 
-    from leaside import db
+    from leaside import db, geo, ingest, sources
 
     conn = db.connect(tmp_path / "t.db")
-    db.upsert_item(conn, _item(source_id="city_ksi_collisions", title="old crash",
-                               url="https://x/old"))
-    db.upsert_item(conn, _item(source_id="ra_leaside", title="old post", url="https://x/post"))
+    db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime",
+                               title="old break-in", url=None, external_id="E1",
+                               area="leaside", published_at="2014-01-01"))
     conn.commit()
-
-    time.sleep(1.1)                       # timestamps are second-resolution
-    started = db.utcnow()
-    db.upsert_item(conn, _item(source_id="city_ksi_collisions", title="new crash",
-                               url="https://x/new"))
-    removed = db.drop_unseen(conn, "city_ksi_collisions", started)
-    conn.commit()
-
-    assert removed == 1
-    kept = sorted(r[0] for r in conn.execute("SELECT title FROM items"))
-    assert kept == ["new crash", "old post"], "a feed source must not be touched"
+    time.sleep(1.1)
+    db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime",
+                               title="new break-in", url=None, external_id="E2",
+                               area="leaside", published_at="2026-06-01"))
+    db.refresh_all(conn, geo.Areas.load(), sources.load())
+    titles = sorted(r[0] for r in conn.execute(f"SELECT title FROM items WHERE {db.SHOWN}"))
+    assert titles == ["new break-in", "old break-in"]
+    assert not hasattr(db, "drop_unseen")
+    assert "drop_unseen" not in Path(ingest.__file__).read_text(encoding="utf-8")
 
 
-def test_only_datasets_are_marked_as_snapshots():
-    """Feeds are streams. Marking one a snapshot would delete your reading history."""
-    snapshots = {s.id for s in CFG.sources if s.snapshot}
-    assert snapshots == {
-        "tps_hub_dcat", "tps_reported_crime",
-        "tps_traffic_collisions", "city_ksi_collisions",
-    }
-    assert not any(s.snapshot for s in CFG.sources if s.kind == "rss")
-
+def test_no_source_is_configured_to_discard_what_it_collects():
+    """`snapshot` meant "delete what is missing from the latest fetch". It is gone."""
+    raw = (Path(__file__).resolve().parents[1] / "config" / "sources.yaml").read_text(encoding="utf-8")
+    assert "snapshot: true" not in raw
+    assert not hasattr(CFG.sources[0], "snapshot")
 
 def test_doctor_reports_duplicates_it_is_given(tmp_path):
     from leaside import db, doctor, geo, sources
@@ -610,20 +606,17 @@ def test_column_report_names_what_it_could_not_find():
     assert resolved["date"] is None and resolved["lat"] is None
 
 
-def test_retired_dataset_rows_are_swept_but_feed_history_is_kept(tmp_path):
-    """What gets swept: a source no longer configured, and a retired dataset or listing.
-
-    What survives: anything a live source still collects, and the back catalogue of a
-    feed that has been retired, because a post that was true stays true.
-    """
+def test_rows_from_a_retired_source_are_hidden_not_deleted(tmp_path):
+    """A source taken out of the config used to have its rows deleted. Now they are
+    hidden from the page, kept in the log with the reason, and come back if the
+    source does."""
     from leaside import db, geo, sources
 
     conn = db.connect(tmp_path / "t.db")
     rows = [
-        ("fontra_directory", "a scraped link", "registry"),       # retired listing
         ("no_such_source", "ghost from an old config", "other"),  # not configured at all
-        ("tps_hub_dcat", "a police dataset", "registry"),         # listing, still live
-        ("ra_north_rosedale", "old newsletter", "ra_news"),       # retired feed
+        ("fontra_directory", "a scraped link", "registry"),       # configured, manual
+        ("ra_north_rosedale", "old newsletter", "ra_news"),       # configured, manual feed
     ]
     for i, (sid, title, cat) in enumerate(rows):
         db.upsert_item(conn, _item(source_id=sid, title=title, category=cat,
@@ -631,9 +624,21 @@ def test_retired_dataset_rows_are_swept_but_feed_history_is_kept(tmp_path):
     conn.commit()
 
     counts = db.refresh_all(conn, geo.Areas.load(), sources.load())
-    left = sorted(r[0] for r in conn.execute("SELECT title FROM items"))
-    assert left == ["a police dataset", "old newsletter"]
-    assert counts["orphans_removed"] == 2
+    assert conn.execute("SELECT COUNT(*) FROM items").fetchone()[0] == 3
+    shown = sorted(r[0] for r in conn.execute(f"SELECT title FROM items WHERE {db.SHOWN}"))
+    assert shown == ["a scraped link", "old newsletter"]
+    assert counts["retired_hidden"] == 1
+    reason = conn.execute("SELECT hidden_reason FROM items WHERE source_id='no_such_source'").fetchone()[0]
+    assert reason == "source no longer configured"
+    assert conn.execute("SELECT event, note FROM item_log WHERE event='hidden'").fetchone()[1] == reason
+    # Running it again does not hide it twice.
+    assert db.refresh_all(conn, geo.Areas.load(), sources.load())["retired_hidden"] == 0
+
+    # The source returns: the row is seen again and comes back.
+    db.upsert_item(conn, _item(source_id="no_such_source", title="ghost from an old config",
+                               category="other", url="https://x/0"))
+    assert conn.execute("SELECT hidden_at FROM items WHERE source_id='no_such_source'").fetchone()[0] is None
+    assert [r[0] for r in conn.execute("SELECT event FROM item_log ORDER BY id")][-1] == "back"
 
 
 def test_doctor_shows_raw_shape_when_dates_or_links_are_missing(tmp_path):
@@ -1535,7 +1540,7 @@ def test_both_workflows_share_the_state_script_and_one_concurrency_group():
 
 def _src(**over):
     base = dict(id="s", name="S", kind="rss", status="guess", category="x", area=None,
-                url=None, timeout=None, retries=None, snapshot=False, candidates=[], extra={})
+                url=None, timeout=None, retries=None, candidates=[], extra={})
     base.update(over)
     return sources.Source(**base)
 
@@ -1640,14 +1645,16 @@ def test_permit_columns_are_resolved_from_the_datastore_field_list():
                     "permit": "PERMIT_NUM"}
 
 
-def test_dinesafe_groups_infractions_per_inspection_and_drops_clean_passes():
+def test_dinesafe_groups_infractions_per_inspection_and_logs_clean_passes_as_routine():
     from leaside.fetchers import ckan
     rows = json.loads((FIX / "dinesafe_rows.json").read_text(encoding="utf-8"))
     stats = {}
     items = ckan.inspection_rows_to_items(rows, _src(id="city_dinesafe", category="inspection"),
                                           AREAS, stats=stats)
     assert stats == {"rows": 4, "inspections": 3, "outside_areas": 1, "routine": 1, "kept": 1}
-    (pizza,) = items
+    pizza, cafe = items
+    assert cafe["title"] == "Pass: LAIRD CAFE" and cafe["routine"] is True
+    assert pizza["routine"] is False
     assert pizza["title"] == "Conditional Pass: BAYVIEW PIZZA"
     assert pizza["area"] == "leaside" and pizza["lat"] == 43.7075
     assert "Infractions: 1 significant, 1 minor" in pizza["summary"]
@@ -1751,3 +1758,225 @@ def test_new_sources_are_configured_and_runnable():
         assert ids[sid].kind == kind and ids[sid].runnable, sid
     assert ids["tps_news_releases"].runnable is False      # 403: never scraped
     assert len(ids["tps_calls_for_service"].candidates) >= 3
+
+
+# ---------------------------------------------------------------- the complete log
+
+def test_dinesafe_live_columns_keep_restaurants_apart():
+    """The City's live dataset names its columns estId, estName, typeDesc. The parser
+    only knew "Establishment ID", so every inspection on one date shared the key
+    "None|<date>" and different restaurants merged into one item."""
+    from leaside.fetchers import ckan
+    def row(est, name, status, detail, sev, date="2026-09-01"):
+        return {"_id": 1, "unique_id": est + date + (detail or ""), "estId": est,
+                "oldEstId": "None", "estName": name, "address": "1600 Bayview Ave None M4G 3B7",
+                "inspectionStatus": status, "inspectionDate": date,
+                "typeDesc": detail, "deficiencyDesc": "05. MAINTENANCE" if detail else None,
+                "severity": sev, "OutcomeDesc": "None", "amountFined": None,
+                "latitude": "43.7075", "longitude": "-79.3764"}
+    rows = [row("A1", "BAYVIEW PIZZA", "Pass", "FAIL TO PROVIDE SOAP - SEC. 7", "M - Minor"),
+            row("A1", "BAYVIEW PIZZA", "Pass", "FAIL TO MAINTAIN THERMOMETER", "M - Minor"),
+            row("B2", "LAIRD CAFE", "Pass", None, None)]
+    stats = {}
+    items = ckan.inspection_rows_to_items(rows, _src(id="city_dinesafe", category="inspection"),
+                                          AREAS, stats=stats)
+    assert stats["inspections"] == 2
+    by_key = {it["external_id"]: it for it in items}
+    assert set(by_key) == {"inspection:A1|2026-09-01", "inspection:B2|2026-09-01"}
+    pizza = by_key["inspection:A1|2026-09-01"]
+    assert pizza["title"] == "Pass with 2 infractions: BAYVIEW PIZZA"
+    assert pizza["routine"] is False
+    assert "FAIL TO PROVIDE SOAP" in pizza["summary"]
+    assert "None" not in pizza["summary"].split(" · ")[0]           # "1600 Bayview Ave M4G 3B7"
+    assert by_key["inspection:B2|2026-09-01"]["routine"] is True
+    assert ckan.inspection_external_id(rows[0]) == "inspection:A1|2026-09-01"
+
+
+def test_rows_stored_under_a_broken_key_are_hidden_as_superseded(tmp_path):
+    from leaside import db
+    from leaside.fetchers import ckan
+    conn = db.connect(tmp_path / "t.db")
+    raw = {"estId": "A1", "estName": "BAYVIEW PIZZA", "inspectionDate": "2026-09-01"}
+    db.upsert_item(conn, _item(source_id="city_dinesafe", category="inspection", url=None,
+                               title="Conditional Pass: merged", external_id="inspection:None|2026-09-01",
+                               raw=raw))
+    db.upsert_item(conn, _item(source_id="city_dinesafe", category="inspection", url=None,
+                               title="Conditional Pass: BAYVIEW PIZZA",
+                               external_id="inspection:A1|2026-09-01", raw=raw))
+    assert db.hide_superseded(conn, "city_dinesafe", ckan.inspection_external_id) == 1
+    assert db.hide_superseded(conn, "city_dinesafe", ckan.inspection_external_id) == 0
+    shown = [r[0] for r in conn.execute(f"SELECT title FROM items WHERE {db.SHOWN}")]
+    assert shown == ["Conditional Pass: BAYVIEW PIZZA"]
+    assert conn.execute("SELECT COUNT(*) FROM items").fetchone()[0] == 2
+
+
+def test_a_change_keeps_the_version_it_replaced(tmp_path):
+    """A permit's status moves from applied to issued. The page shows the new one;
+    the log keeps the old one, so the history of each record is complete."""
+    from leaside import db
+    conn = db.connect(tmp_path / "t.db")
+    first = _item(source_id="city_building_permits", category="permit", url=None,
+                  title="New Building: 1 Rumsey Rd", summary="Status: Application Received",
+                  external_id="permit:26 1", raw={"_id": 1, "STATUS": "Application Received"})
+    assert db.upsert_item(conn, first) is True
+    # Same record, reloaded: the datastore row number moved. Not a change.
+    db.upsert_item(conn, {**first, "raw": {"_id": 907, "STATUS": "Application Received"}})
+    assert conn.execute("SELECT COUNT(*) FROM item_log WHERE event='changed'").fetchone()[0] == 0
+    # A real change.
+    db.upsert_item(conn, {**first, "summary": "Status: Permit Issued",
+                          "raw": {"_id": 908, "STATUS": "Permit Issued"}})
+    rows = conn.execute("SELECT event, note, summary, raw FROM item_log ORDER BY id").fetchall()
+    assert [r["event"] for r in rows] == ["new", "changed"]
+    assert rows[1]["note"] == "summary, record"
+    assert rows[1]["summary"] == "Status: Application Received"     # the old version
+    assert "Application Received" in rows[1]["raw"]
+    now = conn.execute("SELECT summary, raw FROM items").fetchone()
+    assert now["summary"] == "Status: Permit Issued" and "Permit Issued" in now["raw"]
+
+
+def test_rows_from_before_the_log_get_a_fingerprint_without_a_false_change(tmp_path):
+    """Databases from before this version have no fingerprints. The first sighting
+    after the upgrade records one; it must not be logged as a change."""
+    from leaside import db
+    conn = db.connect(tmp_path / "t.db")
+    it = _item(source_id="ra_leaside", title="A post", url="https://x/1", external_id="p1")
+    db.upsert_item(conn, it)
+    conn.execute("UPDATE items SET content_hash = NULL")
+    db.upsert_item(conn, it)
+    db.upsert_item(conn, it)
+    assert [r[0] for r in conn.execute("SELECT event FROM item_log")] == ["new"]
+
+
+def test_an_old_database_is_upgraded_in_place_without_losing_rows(tmp_path):
+    import sqlite3
+    from leaside import db
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.executescript(db.SCHEMA.split("-- The change log")[0])   # items etc., no log, no new columns
+    old.execute("INSERT INTO items (id, source_id, category, title, first_seen_at, last_seen_at)"
+                " VALUES ('x', 'ra_leaside', 'ra_news', 'kept', '2026-01-01', '2026-01-01')")
+    old.commit(); old.close()
+    conn = db.connect(path)
+    row = conn.execute("SELECT title, routine, hidden_at, content_hash FROM items").fetchone()
+    assert tuple(row) == ("kept", 0, None, None)
+    assert conn.execute("SELECT COUNT(*) FROM item_log").fetchone()[0] == 0
+
+
+def test_raw_records_drop_the_citys_search_index(tmp_path):
+    from leaside import db
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, _item(source_id="city_dinesafe", category="inspection",
+                               raw={"estId": "A1", "_full_text": "'a1':1 'pizza':2" * 50}))
+    assert "_full_text" not in conn.execute("SELECT raw FROM items").fetchone()[0]
+
+
+def test_routine_and_hidden_rows_stay_off_the_page_email_and_trends(tmp_path, monkeypatch):
+    from leaside import db, digest, render, trends
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, _item(source_id="city_dinesafe", category="inspection", url=None,
+                               title="Pass: LAIRD CAFE", routine=True, published_at="2026-10-01"))
+    db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime", url=None,
+                               title="Assault at X", external_id="hid", area="leaside",
+                               published_at="2026-10-01", raw={"CSI_CATEGORY": "Assault"}))
+    db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime", url=None,
+                               title="Robbery at Y", external_id="ok", area="leaside",
+                               published_at="2026-10-01", raw={"CSI_CATEGORY": "Robbery"}))
+    iid = db.item_id("tps_reported_crime", "hid")
+    db.hide(conn, iid, "tps_reported_crime", "superseded by a corrected record")
+    conn.commit()
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    page = render.run(db_path=tmp_path / "t.db", out_name="t.html").read_text(encoding="utf-8")
+    assert "Robbery at Y" in page
+    assert "Pass: LAIRD CAFE" not in page and "Assault at X" not in page
+    assert "3 records" in page and "1 routine" in page and "1 hidden" in page
+    data = digest.gather(conn, geo.Areas.load(), sources.load())
+    assert [it["title"] for _, items in data["sections"] for it in items] == ["Robbery at Y"]
+    counts = trends.counts_by_month(conn, "crime", lambda r: trends._offence(r["title"], r["raw"]))
+    assert "Assault" not in counts and "Robbery" in counts
+
+
+def test_backfilled_items_are_stored_but_not_emailed(tmp_path):
+    """A source's window used to throw older items away before storing them. Now
+    they are stored, and the window only keeps them out of the email."""
+    from datetime import datetime, timedelta, timezone
+    from leaside import db, digest
+    conn = db.connect(tmp_path / "t.db")
+    now = datetime.now(timezone.utc)
+    for title, days in (("fresh notice", 3), ("2019 notice", 2400)):
+        db.upsert_item(conn, _item(source_id="city_public_notices", category="city_notice",
+                                   title=title, external_id=title,
+                                   published_at=(now - timedelta(days=days)).isoformat()))
+    conn.commit()
+    data = digest.gather(conn, geo.Areas.load(), sources.load(),
+                         since=(now - timedelta(days=1)).isoformat(timespec="seconds"))
+    assert [it["title"] for _, items in data["sections"] for it in items] == ["fresh notice"]
+    assert conn.execute("SELECT COUNT(*) FROM items").fetchone()[0] == 2
+
+
+def test_the_log_downloads_open_cleanly_in_excel(tmp_path, monkeypatch):
+    import csv
+    from leaside import db, render
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, _item(title="Café on Bayview", url="https://x/c", external_id="c",
+                               area="leaside", published_at="2026-10-01T14:00:00+00:00"))
+    db.upsert_item(conn, _item(source_id="city_dinesafe", category="inspection", url=None,
+                               title="Pass: LAIRD CAFE", routine=True, external_id="r"))
+    db.upsert_item(conn, _item(title="Café on Bayview", url="https://x/c", external_id="c",
+                               area="leaside", summary="now with hours",
+                               published_at="2026-10-01T14:00:00+00:00"))
+    conn.commit()
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    render.run(db_path=tmp_path / "t.db", out_name="index.html")
+    body = (tmp_path / "log" / "everything.csv").read_bytes()
+    assert body.startswith(b"\xef\xbb\xbf")                     # Excel's UTF-8 marker
+    rows = list(csv.DictReader((tmp_path / "log" / "everything.csv").open(encoding="utf-8-sig")))
+    assert {r["Title"] for r in rows} == {"Café on Bayview", "Pass: LAIRD CAFE"}
+    cafe = next(r for r in rows if r["Title"] == "Café on Bayview")
+    assert cafe["Status"] == "Shown" and cafe["Times changed"] == "1" and cafe["Area"] == "Leaside"
+    assert next(r for r in rows if r["Title"] == "Pass: LAIRD CAFE")["Status"] == "Routine, not shown"
+    changes = list(csv.DictReader((tmp_path / "log" / "changes.csv").open(encoding="utf-8-sig")))
+    assert [c["What happened"] for c in changes] == ["Changed", "First seen", "First seen"]
+    assert changes[0]["What changed"] == "summary"
+    page = (tmp_path / "index.html").read_text(encoding="utf-8")
+    assert 'href="log/everything.csv"' in page and 'href="log/changes.csv"' in page
+
+
+def test_the_demo_never_overwrites_the_real_log(tmp_path, monkeypatch):
+    from leaside import demo, render
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    demo.run(db_path=tmp_path / "demo.db")
+    render.run(db_path=tmp_path / "demo.db", out_name="demo.html")
+    assert not (tmp_path / "log").exists()
+
+
+def test_health_report_states_the_log_size_against_githubs_limit(tmp_path):
+    from leaside import db, doctor
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, _item())
+    conn.commit()
+    d = doctor.gather(conn, geo.Areas.load(), sources.load())
+    d["size"] = doctor.file_size(tmp_path / "t.db")
+    out = doctor.render(d)
+    assert "## Size of the log" in out and "100 MB" in out
+    assert "nothing is ever deleted" in out
+    d["size"] = (400.0, 70.0)
+    assert "Act soon" in doctor.render(d)
+
+
+def test_weekly_backup_copies_the_saved_log_to_a_release():
+    import yaml
+    root = Path(__file__).resolve().parents[1]
+    text = (root / ".github" / "workflows" / "weekly-backup.yml").read_text(encoding="utf-8")
+    wf = yaml.safe_load(text)
+    assert wf["permissions"] == {"contents": "write"}
+    assert "origin/state:leaside.db.gz" in text and "gh release upload" in text
+    assert "1" == str(wf[True]["schedule"][0]["cron"]).split()[-1]       # Mondays
+
+
+def test_save_refuses_without_a_finished_restore_and_never_shrinks_the_log():
+    root = Path(__file__).resolve().parents[1]
+    script = (root / "scripts" / "state.sh").read_text(encoding="utf-8")
+    save = script[script.index("  save)"):]
+    assert save.index('[ ! -f "$COUNT_FILE" ]') < save.index("git push")
+    assert save.index('"$after" -lt "$before"') < save.index("git push")
+    assert "gzip" in save and "leaside.db.gz" in script[:script.index("  save)")]

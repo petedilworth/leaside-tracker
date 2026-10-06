@@ -4,7 +4,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from . import dates, db, geo, http, sources
-from .fetchers import REGISTRY, arcgis
+from .fetchers import REGISTRY, arcgis, ckan
+
+# Sources whose items can be re-keyed from their stored record. After a key fix,
+# rows stored under the old key are hidden (never deleted) as superseded.
+REKEY = {"ckan_dinesafe": ckan.inspection_external_id}
 
 
 def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> dict:
@@ -44,25 +48,29 @@ def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> 
                 )
 
             if src.max_age_days:
-                before = len(items)
-                items = [
-                    it for it in items
-                    if dates.within_days(it.get("published_at"), src.max_age_days)
-                ]
-                dropped = before - len(items)
-                if dropped:
-                    print(f"        dropped {dropped} items older than "
-                          f"{src.max_age_days} days")
+                # Kept, all of them. The window only decides what is new enough to
+                # email; it used to throw older items away before they were stored.
+                older = sum(1 for it in items
+                            if not dates.within_days(it.get("published_at"), src.max_age_days))
+                if older:
+                    print(f"        {older} older than {src.max_age_days} days: "
+                          f"kept in the log, left out of the email")
             undated = sum(
                 1 for it in items
                 if it.get("published_at") and dates.to_iso(it["published_at"]) is None
             )
+            before_log = conn.execute("SELECT COUNT(*) FROM item_log WHERE source_id = ?"
+                                      " AND event = 'changed'", (src.id,)).fetchone()[0]
             new = sum(db.upsert_item(conn, it) for it in items)
-            removed = db.drop_unseen(conn, src.id, started) if src.snapshot else 0
+            changed = conn.execute("SELECT COUNT(*) FROM item_log WHERE source_id = ?"
+                                   " AND event = 'changed'", (src.id,)).fetchone()[0] - before_log
+            superseded = (db.hide_superseded(conn, src.id, REKEY[src.kind])
+                          if src.kind in REKEY else 0)
             db.log_fetch(conn, src.id, True, status, len(items))
             totals["new"] += new
             totals["seen"] += len(items)
-            tail = f", {removed} stale removed" if removed else ""
+            tail = (f", {changed} changed" if changed else "") + (
+                f", {superseded} superseded rows hidden" if superseded else "")
             print(f"  ok    {src.id:<32} {len(items):>5} items, {new:>4} new{tail}")
             if undated:
                 sample = next(it["published_at"] for it in items
@@ -78,8 +86,9 @@ def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> 
     fixed = db.refresh_all(conn, areas, cfg)
     if fixed["demo_removed"]:
         print(f"\n  removed {fixed['demo_removed']} leftover demo items")
-    if fixed["orphans_removed"]:
-        print(f"  removed {fixed['orphans_removed']} rows left behind by retired sources")
+    if fixed["retired_hidden"]:
+        print(f"  hid {fixed['retired_hidden']} rows from sources no longer configured "
+              f"(kept in the log)")
     print(f"  refreshed {fixed['rows']} stored items, {fixed['changed']} corrected")
     db.finish_run(conn, run_id, totals)
     return totals

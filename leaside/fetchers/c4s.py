@@ -125,7 +125,11 @@ def parse_calls(text: str, source, areas, stats: dict | None = None) -> list[dic
         _, event_id = fields.pick(attrs, **ID)
         when = arcgis._epoch_to_iso(_number_or_text(when_raw))
         kind = _tidy(kind) or "Police call"
-        title = f"{kind} near {where.strip()}" if where else kind
+        # "KILGOUR RD -" when the second street is blank. Tidied for the title
+        # only: the key keeps the publisher's text, so a call already stored is
+        # not stored a second time under a new key.
+        shown_where = re.sub(r"[\s\-&/]+$", "", where or "").strip() or None
+        title = f"{kind} near {shown_where}" if shown_where else kind
         clock = _local_clock(when)
         detail = [f"Police attended at {clock}" if clock else "Police attended",
                   f"{division} Division" if division and "div" not in str(division).lower()

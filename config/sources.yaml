@@ -276,7 +276,6 @@ sources:
     url: https://data.tps.ca/api/feed/dcat-us/1.1.json
     alt_url: https://opendata-torontops.opendata.arcgis.com/api/feed/dcat-us/1.1.json
     timeout: 90
-    snapshot: true
     status: verified
     notes: >
       Probe returned a large valid JSON catalogue. Layer URLs are discovered from here
@@ -297,7 +296,6 @@ sources:
       - "Theft From Motor Vehicle Open Data"
       - "Bicycle Thefts Open Data"
     timeout: 120
-    snapshot: true
     home_url: https://data.tps.ca/
     status: documented
     notes: >
@@ -332,7 +330,6 @@ sources:
       - "traffic collisions"
       - "collisions"
     timeout: 120
-    snapshot: true
     home_url: https://data.tps.ca/
     status: documented
     notes: >
@@ -350,7 +347,6 @@ sources:
     kind: ckan_dataset
     dataset: motor-vehicle-collisions-involving-killed-or-seriously-injured-persons
     timeout: 120
-    snapshot: true
     home_url: https://open.toronto.ca/dataset/motor-vehicle-collisions-involving-killed-or-seriously-injured-persons/
     status: verified
     notes: >
@@ -431,8 +427,8 @@ sources:
       above and then walks the publisher's ArcGIS directory for anything named like
       calls-for-service, printing whatever answers. Polled every 30 minutes by
       .github/workflows/live-poll.yml so the four-hour window becomes a lasting log.
-      Points are the nearest intersection, never the address. Not a snapshot: calls
-      are kept after they leave the map.
+      Points are the nearest intersection, never the address. Calls are kept after
+      they leave the map, like everything else collected.
 
   - id: city_building_permits
     name: Building permits (active)
@@ -440,6 +436,7 @@ sources:
     area: null
     kind: ckan_permits
     dataset: building-permits-active-permits
+    max_age_days: 60
     home_url: https://open.toronto.ca/dataset/building-permits-active-permits/
     timeout: 180
     retries: 2
@@ -460,16 +457,20 @@ sources:
     area: null
     kind: ckan_dinesafe
     dataset: dinesafe
+    max_age_days: 30
     home_url: https://www.toronto.ca/dinesafe
     timeout: 180
     retries: 2
     status: guess
     notes: |
       Toronto Public Health's inspection results, refreshed daily, one row per
-      infraction with the establishment's coordinates. Only inspections with a
-      conditional pass, a closure or at least one infraction are kept; a clean pass
-      is the normal outcome and would bury everything else. Filtered on the City's
-      side by bounding box, with a full-table fallback.
+      infraction with the establishment's coordinates. Every inspection is stored.
+      Clean passes are marked routine: kept in the log and the download, left off
+      the page and out of the email, because a pass is the normal outcome and would
+      bury everything else. Filtered on the City's side by bounding box, with a
+      full-table fallback. In October 2026 the City's columns were found renamed
+      (estId, typeDesc); before the fix every inspection on one date merged into
+      a single item. Those rows are hidden as superseded, not deleted.
 
   - id: metrolinx_notices
     name: Metrolinx community notices (Eglinton Crosstown)

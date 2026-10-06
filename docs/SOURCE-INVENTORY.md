@@ -427,3 +427,39 @@ send that file.
 and republishes it if Pages is on. It shares the database and the concurrency
 group with the daily publish and the weekly email. About 48 runs a day, free on
 a public repository; switch it to hourly if the repository is made private.
+
+## The complete log, 6 October 2026
+
+The owner asked to keep a complete log of everything collected. Read from the
+live database on GitHub that day: 19,100 records, 32.5 MB, 4.5 MB compressed.
+
+**What was deleting or discarding data, and what replaced it:**
+
+| Where | Before | Now |
+| --- | --- | --- |
+| `db.drop_unseen` on four "snapshot" sources | Deleted every row missing from the latest fetch. For crime, that was every record older than the newest 4,000 per offence, on every run | Removed. Nothing is deleted |
+| `refresh_all`, sources removed from the config | Deleted their rows | Hidden, with the reason, and logged |
+| `max_age_days` (City notices, 120 days) | Discarded older items before storing | Stored; the window now only keeps them out of the email |
+| DineSafe clean passes | Discarded | Stored with `routine = 1`; off the page and out of the email |
+
+**New:** an `item_log` table. Each row is an event: `new`, `changed`, `hidden`,
+`back`. A `changed` row holds the version being *replaced*, so the current
+version is in `items` and every earlier one is in the log. A fingerprint of each
+record decides whether it changed. It leaves out keys that move without the record
+changing (`_id`, `OBJECTID`, edit stamps, the City's `_full_text` search index),
+or every dataset reload would log thousands of false changes.
+
+**DineSafe was merging restaurants.** The City's live columns are `estId`,
+`estName`, `typeDesc`. The parser looked for "Establishment ID" and
+"Infraction Details", found neither, and keyed every inspection as `None|<date>`.
+All 50 stored items were merges of every inspection on one day, titled after
+whichever restaurant came first. Fixed; the 50 are hidden as superseded and the
+correct items arrive on the next run. A pass with infractions was also being read
+as a clean pass. Fixed by the same column match.
+
+**Police calls: the log is complete, the collection is not.** GitHub ran the
+half-hourly poll 15 times between 3 and 6 October, about five a day instead of 48,
+with gaps of up to 9.5 hours. Calls stay on the police map for about four hours,
+so by time covered the polls saw roughly three calls in four. The rest were never
+collected. A reliable cadence needs something outside GitHub's scheduler to start
+the poll; see the recommendation to the owner of the same date.

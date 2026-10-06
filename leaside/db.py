@@ -1,4 +1,4 @@
-"""SQLite storage. One file, no server, safe to copy or delete."""
+"""SQLite storage. One file, no server. Nothing collected is ever deleted from it."""
 from __future__ import annotations
 
 import hashlib
@@ -63,6 +63,28 @@ CREATE TABLE IF NOT EXISTS digests (
     detail   TEXT
 );
 
+-- The change log. Nothing in `items` is ever deleted; this records what happened
+-- to each row over time. A 'changed' row holds the version that was REPLACED, so
+-- the current version is always in `items` and every earlier one is here.
+CREATE TABLE IF NOT EXISTS item_log (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id      TEXT NOT NULL,
+    source_id    TEXT NOT NULL,
+    at           TEXT NOT NULL,
+    event        TEXT NOT NULL,      -- new, changed, hidden, back
+    note         TEXT,               -- which fields changed, or why it was hidden
+    title        TEXT,
+    summary      TEXT,
+    url          TEXT,
+    published_at TEXT,
+    lat          REAL,
+    lon          REAL,
+    raw          TEXT
+);
+CREATE INDEX IF NOT EXISTS item_log_item ON item_log(item_id);
+CREATE INDEX IF NOT EXISTS item_log_at   ON item_log(at);
+CREATE INDEX IF NOT EXISTS item_log_src  ON item_log(source_id, event);
+
 CREATE TABLE IF NOT EXISTS probe_results (
     source_id    TEXT PRIMARY KEY,
     checked_at   TEXT NOT NULL,
@@ -85,7 +107,30 @@ def connect(path: Path | str = DEFAULT_DB) -> sqlite3.Connection:
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
+
+
+# Columns added after the first databases were created. Added in place, so a
+# database from any earlier version keeps every row it already holds.
+ADDED_COLUMNS = {
+    "content_hash": "TEXT",
+    "routine": "INTEGER NOT NULL DEFAULT 0",   # kept in the log, not shown or emailed
+    "hidden_at": "TEXT",                       # kept in the log, no longer shown
+    "hidden_reason": "TEXT",
+}
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    have = {r[1] for r in conn.execute("PRAGMA table_info(items)")}
+    for name, decl in ADDED_COLUMNS.items():
+        if name not in have:
+            conn.execute(f"ALTER TABLE items ADD COLUMN {name} {decl}")
+    conn.commit()
+
+
+# What the page and the email consider. Everything else is still in the file.
+SHOWN = "hidden_at IS NULL AND routine = 0"
 
 
 def item_id(source_id: str, key: str) -> str:
@@ -105,34 +150,96 @@ def normalise(item: dict) -> dict:
     return out
 
 
-def upsert_item(conn: sqlite3.Connection, item: dict) -> bool:
-    """Insert an item, or bring an existing one up to date.
+# Keys that change without the record changing: datastore row numbers that shift
+# on every reload, map-layer object ids that are reused, edit stamps, and the
+# City's full-text search column. Left in, every reload would log a false change.
+VOLATILE_EXACT = {"_id", "objectid", "fid", "_full_text", "_rank"}
+VOLATILE_PARTS = ("edited", "edit_date", "updated", "last_edit", "load_date")
+CONTENT_FIELDS = ("title", "summary", "url", "published_at", "lat", "lon")
+
+
+def _stable_raw(raw):
+    if not isinstance(raw, dict):
+        return raw
+    return {k: v for k, v in raw.items()
+            if k.lower() not in VOLATILE_EXACT
+            and not any(part in k.lower() for part in VOLATILE_PARTS)}
+
+
+def _storable_raw(raw):
+    """The record as published, minus the City's search index, which is large
+    and is not data."""
+    if isinstance(raw, dict) and "_full_text" in raw:
+        return {k: v for k, v in raw.items() if k != "_full_text"}
+    return raw
+
+
+def content_hash(item: dict) -> str:
+    """A fingerprint of what the source said. Area is left out on purpose: it is
+    this project's judgement, not the publisher's, and moving a boundary is not
+    a change to the record."""
+    body = {f: item.get(f) for f in CONTENT_FIELDS}
+    body["raw"] = _stable_raw(item.get("raw"))
+    return hashlib.sha1(json.dumps(body, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def _log(conn, item_id, source_id, at, event, note=None, row=None, raw=None):
+    row = row or {}
+    conn.execute(
+        """INSERT INTO item_log (item_id, source_id, at, event, note, title, summary, url,
+                                 published_at, lat, lon, raw)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (item_id, source_id, at, event, note, row.get("title"), row.get("summary"),
+         row.get("url"), row.get("published_at"), row.get("lat"), row.get("lon"), raw),
+    )
+
+
+def upsert_item(conn: sqlite3.Connection, item: dict, seen_at: str | None = None) -> bool:
+    """Insert an item, or bring an existing one up to date. Never removes anything.
 
     An existing row gets its derived fields refreshed - area, date, cleaned text -
     so an improvement to the matching or parsing logic reaches rows we already hold.
-    Only first_seen_at is fixed for life. Returns True when the item is new.
+    When what the source says has changed, the version being replaced is copied
+    into the change log first, so no earlier version is lost. A row that had been
+    hidden comes back. Only first_seen_at is fixed for life. Returns True when new.
     """
-    now = utcnow()
+    now = seen_at or utcnow()
     key = item.get("external_id") or item.get("url") or item["title"]
     iid = item_id(item["source_id"], key)
     item = normalise(item)
-    existing = conn.execute("SELECT id FROM items WHERE id = ?", (iid,)).fetchone()
+    raw = _storable_raw(item.get("raw"))
+    raw_text = json.dumps(raw, default=str) if raw else None
+    digest = content_hash({**item, "raw": raw})
+    routine = 1 if item.get("routine") else 0
+    existing = conn.execute("SELECT * FROM items WHERE id = ?", (iid,)).fetchone()
     if existing:
+        if existing["content_hash"] and existing["content_hash"] != digest:
+            changed = [f for f in CONTENT_FIELDS if existing[f] != item.get(f)]
+            if existing["raw"] != raw_text:
+                changed.append("record")
+            _log(conn, iid, item["source_id"], now, "changed",
+                 ", ".join(changed) or "record", dict(existing), existing["raw"])
+        if existing["hidden_at"]:
+            _log(conn, iid, item["source_id"], now, "back",
+                 f"seen again after being hidden: {existing['hidden_reason']}",
+                 {"title": item["title"]})
         conn.execute(
-            """UPDATE items SET last_seen_at = ?, title = ?, summary = ?,
-                   published_at = ?, area = ?, lat = ?, lon = ?, url = ?
+            """UPDATE items SET last_seen_at = MAX(last_seen_at, ?), title = ?, summary = ?,
+                   published_at = ?, area = ?, lat = ?, lon = ?, url = ?, raw = ?,
+                   content_hash = ?, routine = ?, hidden_at = NULL, hidden_reason = NULL
                WHERE id = ?""",
             (
                 now, item["title"], item.get("summary"), item.get("published_at"),
-                item.get("area"), item.get("lat"), item.get("lon"), item.get("url"), iid,
+                item.get("area"), item.get("lat"), item.get("lon"), item.get("url"),
+                raw_text, digest, routine, iid,
             ),
         )
         return False
     conn.execute(
         """INSERT INTO items
            (id, source_id, category, title, url, summary, published_at,
-            first_seen_at, last_seen_at, area, lat, lon, raw)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            first_seen_at, last_seen_at, area, lat, lon, raw, content_hash, routine)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             iid,
             item["source_id"],
@@ -146,10 +253,48 @@ def upsert_item(conn: sqlite3.Connection, item: dict) -> bool:
             item.get("area"),
             item.get("lat"),
             item.get("lon"),
-            json.dumps(item.get("raw"), default=str) if item.get("raw") else None,
+            raw_text,
+            digest,
+            routine,
         ),
     )
+    _log(conn, iid, item["source_id"], now, "new", None,
+         {"title": item["title"], "url": item.get("url"),
+          "published_at": item.get("published_at")})
     return True
+
+
+def hide(conn: sqlite3.Connection, iid: str, source_id: str, reason: str) -> None:
+    """Take a row off the page and out of the email. It stays in the file and
+    in the downloadable log, marked with the reason."""
+    now = utcnow()
+    conn.execute("UPDATE items SET hidden_at = ?, hidden_reason = ? WHERE id = ?",
+                 (now, reason, iid))
+    title = conn.execute("SELECT title FROM items WHERE id = ?", (iid,)).fetchone()
+    _log(conn, iid, source_id, now, "hidden", reason, {"title": title[0] if title else None})
+
+
+def hide_superseded(conn: sqlite3.Connection, source_id: str, key_for_raw) -> int:
+    """Hide rows stored under a key the parser no longer produces.
+
+    When a fix changes how records are keyed - DineSafe's renamed columns merged
+    every inspection on one date into a single item - the corrected items arrive
+    as new rows and the faulty ones would sit beside them forever. Nothing is
+    deleted: the faulty rows are hidden, with the reason, and stay in the log.
+    """
+    n = 0
+    for row in conn.execute(
+        "SELECT id, raw FROM items WHERE source_id = ? AND hidden_at IS NULL AND raw IS NOT NULL",
+        (source_id,),
+    ).fetchall():
+        try:
+            key = key_for_raw(json.loads(row["raw"]))
+        except (ValueError, TypeError, KeyError):
+            continue
+        if key and item_id(source_id, key) != row["id"]:
+            hide(conn, row["id"], source_id, "superseded by a corrected record")
+            n += 1
+    return n
 
 
 def refresh_all(conn: sqlite3.Connection, areas, cfg) -> dict:
@@ -158,21 +303,20 @@ def refresh_all(conn: sqlite3.Connection, areas, cfg) -> dict:
     Runs at the end of each ingest. It is what carries a logic fix to rows that
     have already dropped out of their feed and will never be fetched again.
     """
-    counts = {"rows": 0, "changed": 0, "demo_removed": 0, "orphans_removed": 0}
+    counts = {"rows": 0, "changed": 0, "demo_removed": 0, "retired_hidden": 0}
+    # Demo rows were never collected from anywhere; they are the one thing removed.
     cur = conn.execute("DELETE FROM items WHERE title LIKE '[demo] %'")
     counts["demo_removed"] = cur.rowcount
 
-    # Rows whose source has been retired. Feeds keep their history because a post
-    # that was true stays true; a dataset or a directory listing does not.
-    known = {s.id: s for s in cfg.sources}
-    for sid in [r[0] for r in conn.execute("SELECT DISTINCT source_id FROM items")]:
-        src = known.get(sid)
-        retire = src is None or (
-            not src.runnable and (src.snapshot or src.category == "registry")
-        )
-        if retire:
-            cur = conn.execute("DELETE FROM items WHERE source_id = ?", (sid,))
-            counts["orphans_removed"] += cur.rowcount
+    # Rows whose source is no longer configured come off the page, but they are
+    # kept: what was collected stays collected. They come back if the source does.
+    known = {s.id for s in cfg.sources}
+    for row in conn.execute(
+        "SELECT id, source_id FROM items WHERE hidden_at IS NULL"
+    ).fetchall():
+        if row["source_id"] not in known:
+            hide(conn, row["id"], row["source_id"], "source no longer configured")
+            counts["retired_hidden"] += 1
     for row in conn.execute(
         "SELECT id, source_id, title, summary, published_at, area, lat, lon FROM items"
     ).fetchall():
@@ -231,19 +375,6 @@ def record_digest(conn: sqlite3.Connection, items: int, ok: bool, detail: str = 
         (utcnow(), items, 1 if ok else 0, detail[:500]),
     )
     conn.commit()
-
-
-def drop_unseen(conn: sqlite3.Connection, source_id: str, since: str) -> int:
-    """Remove rows from a snapshot source that were not in the latest snapshot.
-
-    Feeds are a stream and old entries are worth keeping. A dataset is a photograph:
-    if a row is no longer in it, it should not be on the page either. Without this,
-    every run of a dataset whose internal row numbers shift leaves a full duplicate set.
-    """
-    cur = conn.execute(
-        "DELETE FROM items WHERE source_id = ? AND last_seen_at < ?", (source_id, since)
-    )
-    return cur.rowcount
 
 
 def log_fetch(conn, source_id, ok, http_status=None, item_count=0, error=None):

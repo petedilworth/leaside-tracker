@@ -420,8 +420,12 @@ def fetch_permits(source, http, areas) -> tuple[list[dict], int]:
 
 # ---------------------------------------------------------------- DineSafe
 
-D_EST_ID = dict(exact=("Establishment ID", "ESTABLISHMENT_ID", "establishment_id"),
-                contains=("establishment id", "establishment_id", "establishmentid"), exclude=())
+# The live dataset uses camelCase names (estId, estName, typeDesc). The first
+# version looked only for "Establishment ID", found nothing, and keyed every
+# inspection as "None|<date>", so all inspections on one day became one item.
+D_EST_ID = dict(exact=("estId", "Establishment ID", "ESTABLISHMENT_ID", "establishment_id"),
+                contains=("establishment id", "establishment_id", "establishmentid", "estid"),
+                exclude=("old",))
 D_INSP_ID = dict(exact=("Inspection ID", "INSPECTION_ID", "inspection_id"),
                  contains=("inspection id", "inspection_id", "inspectionid"), exclude=())
 D_NAME = dict(exact=("Establishment Name", "ESTABLISHMENT_NAME"),
@@ -432,8 +436,11 @@ D_ADDR = dict(exact=("Establishment Address", "ESTABLISHMENT_ADDRESS"),
               contains=("address",), exclude=())
 D_STATUS = dict(exact=("Establishment Status", "ESTABLISHMENT_STATUS"),
                 contains=("status",), exclude=())
-D_DETAIL = dict(exact=("Infraction Details", "INFRACTION_DETAILS"),
-                contains=("infraction", "details"), exclude=())
+# typeDesc is the specific infraction ("FAIL TO PROVIDE SOAP - SEC. 7"); the
+# live dataset has no "Infraction Details" column, so a pass with infractions was
+# read as a clean pass.
+D_DETAIL = dict(exact=("typeDesc", "Infraction Details", "INFRACTION_DETAILS"),
+                contains=("infraction", "details", "typedesc", "deficiency"), exclude=())
 D_DATE = dict(exact=("Inspection Date", "INSPECTION_DATE"),
               contains=("inspection date", "inspection_date", "date"), exclude=())
 D_SEV = dict(exact=("Severity", "SEVERITY"), contains=("severity",), exclude=())
@@ -459,16 +466,38 @@ def _dine_coords(row):
         return None, None
 
 
+def inspection_key(row: dict) -> str | None:
+    """Which inspection a row belongs to: its inspection id, else establishment
+    and date. None when neither is present, so such rows are never merged."""
+    _, iid = fields.pick(row, **D_INSP_ID)
+    if iid:
+        return str(iid)
+    _, est = fields.pick(row, **D_EST_ID)
+    _, when = fields.pick(row, **D_DATE)
+    if not est or not when:
+        return None
+    return f"{est}|{when}"
+
+
+def inspection_external_id(row: dict) -> str | None:
+    key = inspection_key(row)
+    return f"inspection:{key}" if key else None
+
+
+def _row_key(row: dict) -> str:
+    """For the rare row with neither an inspection id nor establishment and date:
+    a key from its own content, stable across reloads, never shared."""
+    import hashlib
+    body = {k: v for k, v in row.items() if k not in ("_id", "_full_text")}
+    return "row:" + hashlib.sha1(json.dumps(body, sort_keys=True, default=str).encode()).hexdigest()
+
+
 def group_inspections(rows: list[dict]) -> dict[str, list[dict]]:
     """One row per infraction; one item per inspection."""
     groups: dict[str, list[dict]] = {}
-    for row in rows:
-        _, iid = fields.pick(row, **D_INSP_ID)
-        if not iid:
-            _, est = fields.pick(row, **D_EST_ID)
-            _, when = fields.pick(row, **D_DATE)
-            iid = f"{est}|{when}"
-        groups.setdefault(str(iid), []).append(row)
+    for n, row in enumerate(rows):
+        key = inspection_key(row) or f"unkeyed-row-{n}"
+        groups.setdefault(key, []).append(row)
     return groups
 
 
@@ -477,13 +506,13 @@ def describe_inspection(rows: list[dict]) -> tuple[str, str | None, bool]:
 
     A clean pass is the normal outcome and would bury everything else, so only an
     inspection with a conditional pass, a closure, or at least one infraction is
-    kept. The rest stay in the City's dataset, where anyone can look them up.
+    shown. The rest are stored as routine: in the log, off the page.
     """
     first = rows[0]
     name = _clean(fields.pick(first, **D_NAME)[1]) or "Unnamed establishment"
     status = _clean(fields.pick(first, **D_STATUS)[1]) or "Inspected"
     kind = _clean(fields.pick(first, **D_TYPE)[1])
-    addr = _clean(fields.pick(first, **D_ADDR)[1])
+    addr = _clean(re.sub(r"\s+None\b", "", fields.pick(first, **D_ADDR)[1] or ""))
     infractions = [r for r in rows if _clean(fields.pick(r, **D_DETAIL)[1])]
     by_sev: dict[str, int] = {}
     for r in infractions:
@@ -526,16 +555,17 @@ def inspection_rows_to_items(rows: list[dict], source, areas, stats: dict | None
             tally["outside_areas"] += 1
             continue
         title, summary, notable = describe_inspection(group)
-        if not notable:
+        if notable:
+            tally["kept"] += 1
+        else:
             tally["routine"] += 1
-            continue
-        tally["kept"] += 1
         _, when = fields.pick(first, **D_DATE)
         items.append({
             "source_id": source.id, "category": source.category, "title": title,
             "url": None, "summary": summary, "published_at": when,
-            "external_id": f"inspection:{iid}", "area": area, "lat": lat, "lon": lon,
-            "raw": first,
+            "external_id": inspection_external_id(first) or _row_key(first),
+            "area": area, "lat": lat, "lon": lon,
+            "raw": first, "routine": not notable,
         })
     return items
 
@@ -564,5 +594,5 @@ def fetch_dinesafe(source, http, areas) -> tuple[list[dict], int]:
     stats: dict = {}
     items = inspection_rows_to_items(rows, source, areas, stats=stats)
     print(f"        {stats['rows']} rows, {stats['inspections']} inspections in your areas, "
-          f"{stats['routine']} clean passes left out, {stats['kept']} kept")
+          f"{stats['kept']} worth showing, {stats['routine']} clean passes logged as routine")
     return items, 200

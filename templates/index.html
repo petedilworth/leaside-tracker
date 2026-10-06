@@ -104,6 +104,9 @@
   .live li time { color:var(--faint); font-size:12px; margin-right:6px; white-space:nowrap; }
   .live li .w { color:var(--muted); }
   .live .note { font-size:12px; color:var(--faint); margin:8px 0 0; }
+  .logbox { margin-top:36px; font-size:13.5px; color:var(--muted); background:var(--card);
+            border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .logbox a { color:var(--accent); }
 </style>
 </head>
 <body>
@@ -112,7 +115,7 @@
 <header>
   <h1>Leaside Tracker</h1>
   <p class="stamp">Last collected <time data-ts="{{ latest_run or generated_at }}">{{ (latest_run or generated_at)[:16] }}</time>
-     &middot; <span id="scope">{{ total_stored }} items held</span>{% if truncated %} (capped){% endif %}
+     &middot; <span id="scope">{{ "{:,}".format(total_stored) }} items on this page</span>{% if truncated %} (the newest; <a href="log/everything.csv" style="color:var(--accent)">the full log</a> has all {{ "{:,}".format(log_total) }}){% endif %}
      &middot; <a href="trends.html" style="color:var(--accent)">Is it up this year? &rarr;</a></p>
 </header>
 
@@ -236,6 +239,15 @@
     {% endfor %}
   </table>
 </details>
+
+<div class="logbox">
+  <strong>The complete log.</strong> Everything ever collected is kept: {{ "{:,}".format(log_total) }} records{% if log_routine %},
+  including {{ "{:,}".format(log_routine) }} routine ones not shown here (clean restaurant inspections){% endif %}{% if log_hidden %},
+  and {{ "{:,}".format(log_hidden) }} hidden because their source was retired or the record was corrected{% endif %}.
+  Nothing is ever deleted, and {{ "{:,}".format(log_changes) }} changes to records have been recorded.
+  <br><a href="log/everything.csv" download>Download everything</a> (opens in Excel)
+  &middot; <a href="log/changes.csv" download>Download every change</a>
+</div>
 
 <p class="foot">
 Police crime and collision records are placed at the nearest road intersection, not

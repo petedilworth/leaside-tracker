@@ -5,9 +5,9 @@ is stored, where did it come from, is any of it duplicated, and is the text clea
 """
 from __future__ import annotations
 
-from pathlib import Path
-
+import gzip
 import json
+from pathlib import Path
 
 from . import db, fields, geo, sources, version
 
@@ -17,7 +17,14 @@ REPORT = Path("config/health-report.md")
 def gather(conn, areas, cfg) -> dict:
     q = conn.execute
     total = q("SELECT COUNT(*) FROM items").fetchone()[0]
-    on_page = q("SELECT COUNT(*) FROM items WHERE category != 'registry'").fetchone()[0]
+    on_page = q("SELECT COUNT(*) FROM items WHERE category != 'registry'"
+                f" AND {db.SHOWN}").fetchone()[0]
+    log = dict(q("""SELECT COALESCE(SUM(routine = 1 AND hidden_at IS NULL), 0) routine,
+                           COALESCE(SUM(hidden_at IS NOT NULL), 0) hidden
+                    FROM items""").fetchone())
+    events = {r[0]: r[1] for r in q("SELECT event, COUNT(*) FROM item_log GROUP BY event")}
+    hidden_why = [dict(r) for r in q("""SELECT hidden_reason reason, COUNT(*) n FROM items
+        WHERE hidden_at IS NOT NULL GROUP BY hidden_reason ORDER BY n DESC""").fetchall()]
 
     per_source = [dict(r) for r in q("""
         SELECT source_id,
@@ -85,7 +92,8 @@ def gather(conn, areas, cfg) -> dict:
         WHERE ran_at = (SELECT MAX(ran_at) FROM fetch_log f2 WHERE f2.source_id = fetch_log.source_id)
         ORDER BY ok, source_id""").fetchall() if r["source_id"] in runnable]
 
-    return {"total": total, "on_page": on_page, "per_source": per_source,
+    return {"total": total, "on_page": on_page, "log": log, "events": events,
+            "hidden_why": hidden_why, "per_source": per_source,
             "dup_links": dup_links, "dup_titles": dup_titles, "stale": stale,
             "dormant": dormant, "shapes": shapes, "latest_run": latest_run,
             "by_area": by_area, "runs": results, "areas": areas, "cfg": cfg}
@@ -98,8 +106,11 @@ def render(d: dict) -> str:
     if stale:
         L += [f"> {stale}", ""]
     L += [
-         f"- rows stored: **{d['total']}**",
+         f"- rows stored: **{d['total']}** (nothing is ever deleted)",
          f"- rows the page can show: **{d['on_page']}**",
+         f"- routine rows, logged but not shown: **{d['log']['routine']}**",
+         f"- hidden rows, kept in the log: **{d['log']['hidden']}**",
+         f"- changes recorded: **{d['events'].get('changed', 0)}**",
          f"- duplicate links: **{sum(r['n'] - 1 for r in d['dup_links'])}**",
          f"- duplicate headlines: **{sum(r['n'] - 1 for r in d['dup_titles'])}**",
          "",
@@ -159,6 +170,20 @@ def render(d: dict) -> str:
     for r in d["by_area"]:
         L.append(f"| {d['areas'].name(None if r['area'] == '(none)' else r['area'])} | {r['n']} |")
 
+    if d["hidden_why"]:
+        L += ["", "## Hidden from the page, kept in the log", "", "| why | rows |", "| --- | --- |"]
+        for r in d["hidden_why"]:
+            L.append(f"| {r['reason']} | {r['n']} |")
+
+    if d.get("size"):
+        raw_mb, gz_mb = d["size"]
+        L += ["", "## Size of the log", "",
+              f"The database is **{raw_mb:.1f} MB**, about **{gz_mb:.1f} MB** compressed, which is "
+              "how it is stored on GitHub. GitHub refuses a single file over 100 MB."]
+        if gz_mb > 60:
+            L += ["", f"> **Act soon.** At {gz_mb:.0f} MB compressed the log is over halfway to "
+                  "GitHub's limit. Ask Claude to split it by year."]
+
     failed = [r for r in d["runs"] if not r["ok"]]
     L += ["", "## Last result per source", "",
           f"{len(d['runs']) - len(failed)} succeeded, {len(failed)} failed.", ""]
@@ -170,8 +195,19 @@ def render(d: dict) -> str:
     return "\n".join(L) + "\n"
 
 
+def file_size(path) -> tuple[float, float] | None:
+    """(megabytes on disk, megabytes compressed). The compressed size is what
+    GitHub stores, so it is the one that matters for the 100 MB limit."""
+    path = Path(path)
+    if not path.exists():
+        return None
+    data = path.read_bytes()
+    return len(data) / 1e6, len(gzip.compress(data, 6)) / 1e6
+
+
 def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml") -> Path:
     conn = db.connect(db_path)
     d = gather(conn, geo.Areas.load(), sources.load(config_path))
+    d["size"] = file_size(db_path)
     REPORT.write_text(render(d), encoding="utf-8")
     return REPORT
