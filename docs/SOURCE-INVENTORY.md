@@ -487,3 +487,10 @@ the fault.
 **Leaside Life's feed now refuses the crawler** (HTTP 403 since 6 October, after
 working in September). Per the project's rule it is not disguised to get past
 the refusal. Its earlier items stay in the log.
+
+**Second run after the key fix (16:50 UTC, 6 October):** zero changes for crime
+and serious collisions. The fix also recovered 283 offences that the old key had
+been overwriting. The remaining noise came from Google News, which spells each
+outlet two ways ("globalnews.ca", "Global News") from one fetch to the next. Its
+headlines now name the outlet by web address, which does not vary, and its
+description, which only repeats the headline, is no longer stored.

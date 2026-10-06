@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 import feedparser
 
@@ -27,6 +28,21 @@ def _best_text(entry) -> str:
     return max(candidates, key=len).strip()
 
 
+def _google_news(entry, title: str) -> str:
+    """"Headline (globalnews.ca)" for a Google News item.
+
+    Google appends the outlet to every headline but spells it two ways from one
+    fetch to the next - "globalnews.ca", then "Global News" - so the same story
+    logged a change on every run. The outlet's web address does not vary.
+    """
+    src = entry.get("source") or {}
+    host = urlparse(src.get("href") or "").netloc
+    host = host[4:] if host.startswith("www.") else host
+    if " - " in title:
+        title = title.rsplit(" - ", 1)[0].strip()
+    return f"{title} ({host})" if host else title
+
+
 def parse(text: str, source) -> list[dict]:
     feed = feedparser.parse(text)
     items = []
@@ -35,6 +51,9 @@ def parse(text: str, source) -> list[dict]:
         if not title:
             continue
         summary = _best_text(e)
+        if "news.google." in (source.url or ""):
+            title = _google_news(e, title)
+            summary = None      # Google's description is the headline again, nothing more
         items.append(
             {
                 "source_id": source.id,

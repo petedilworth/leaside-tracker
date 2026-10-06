@@ -2046,3 +2046,27 @@ def test_rows_sharing_a_key_collapse_to_the_same_one_in_any_order():
         assert merged == 2 and len(kept) == 1
         picks.add(kept[0]["raw"]["per_no"])
     assert len(picks) == 1
+
+
+def test_google_news_headlines_do_not_flip_between_outlet_spellings(tmp_path):
+    """Google names the outlet "globalnews.ca" on one fetch and "Global News" on the
+    next. 62 false changes in the log's first day came from that alone."""
+    from leaside import db
+    def feed(name):
+        return f"""<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>
+<item><title>Boy facing charges after officer hit - {name}</title>
+<link>https://news.google.com/rss/articles/CBMi123?oc=5</link><guid isPermaLink="false">CBMi123</guid>
+<pubDate>Mon, 05 Oct 2026 14:00:00 GMT</pubDate>
+<description>&lt;a href="x"&gt;Boy facing charges after officer hit&lt;/a&gt; {name}</description>
+<source url="https://www.globalnews.ca">Global News</source></item></channel></rss>"""
+    src = CFG.by_id("news_police_coverage")
+    conn = db.connect(tmp_path / "t.db")
+    for name in ("globalnews.ca", "Global News", "globalnews.ca"):
+        (it,) = rss_feed.parse(feed(name), src)
+        assert it["title"] == "Boy facing charges after officer hit (globalnews.ca)"
+        assert it["summary"] is None
+        db.upsert_item(conn, it)
+    assert conn.execute("SELECT COUNT(*) FROM item_log WHERE event='changed'").fetchone()[0] == 0
+    # Other feeds are untouched.
+    (plain,) = rss_feed.parse(feed("Global News"), CFG.by_id("ra_leaside"))
+    assert plain["title"] == "Boy facing charges after officer hit - Global News"
