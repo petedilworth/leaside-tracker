@@ -463,3 +463,27 @@ with gaps of up to 9.5 hours. Calls stay on the police map for about four hours,
 so by time covered the polls saw roughly three calls in four. The rest were never
 collected. A reliable cadence needs something outside GitHub's scheduler to start
 the poll; see the recommendation to the owner of the same date.
+
+**What the log caught on its first run.** The first run under the new code
+(12:19 UTC, 6 October) stored 22,124 records and logged 534 "changes". Almost all
+were false, and they exposed two old faults:
+
+- *One police event, two offences.* A break-in can be recorded as both "B&E" and
+  "Unlawfully In Dwelling-House" under one event number. Crime was keyed on the
+  event alone, so the second offence overwrote the first: offences were lost and
+  the record flipped on every run (503 of the 534). Crime is now keyed on event
+  plus offence code (UCR_CODE, UCR_EXT). Stored records are renamed to the new
+  key in place, with their history, rather than hidden, because records past the
+  newest 4,000 per offence are never fetched again.
+- *One crash, several people.* The killed-or-seriously-injured dataset lists each
+  person under one collision number. Which person was stored depended on row
+  order, so it flipped too (31). One row per key is now chosen by fingerprint, the
+  same one in any order.
+
+Replayed against a copy of the live log: after the first run, repeat runs log
+zero changes. The 534 entries from that first run stay in the log as a record of
+the fault.
+
+**Leaside Life's feed now refuses the crawler** (HTTP 403 since 6 October, after
+working in September). Per the project's rule it is not disguised to get past
+the refusal. Its earlier items stay in the log.

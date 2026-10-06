@@ -163,7 +163,7 @@ def parse_features(text: str, source, areas, label: str | None = None,
                 "url": None,
                 "summary": summary,
                 "published_at": _epoch_to_iso(occ),
-                "external_id": str(attrs.get("EVENT_UNIQUE_ID") or attrs.get("OBJECTID")),
+                "external_id": feature_key(attrs),
                 "area": area,
                 "lat": lat,
                 "lon": lon,
@@ -282,6 +282,23 @@ def _where_and_what(attrs: dict, label: str | None) -> tuple[str, str | None]:
             seen.add(text.lower())
             out.append(text)
     return str(title), " · ".join(out) or None
+
+
+def feature_key(attrs: dict) -> str:
+    """One police record's identity.
+
+    An event number alone is not enough: one break-in can be recorded as both
+    "B&E" and "Unlawfully In Dwelling-House" under the same event. Keyed on the
+    event alone, the two collapsed into one item, the second overwrote the first,
+    and the stored record flipped between them on every run. The offence code
+    (UCR_CODE, UCR_EXT) separates them. Layers without offence codes, such as
+    traffic collisions, keep the plain event number, so their keys do not move.
+    """
+    event = attrs.get("EVENT_UNIQUE_ID") or attrs.get("OBJECTID")
+    code, ext = attrs.get("UCR_CODE"), attrs.get("UCR_EXT")
+    if code is not None:
+        return f"{event}|{code}.{ext}"
+    return str(event)
 
 
 def _epoch_to_iso(value):

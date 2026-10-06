@@ -1980,3 +1980,69 @@ def test_save_refuses_without_a_finished_restore_and_never_shrinks_the_log():
     assert save.index('[ ! -f "$COUNT_FILE" ]') < save.index("git push")
     assert save.index('"$after" -lt "$before"') < save.index("git push")
     assert "gzip" in save and "leaside.db.gz" in script[:script.index("  save)")]
+
+
+def test_one_police_event_with_two_offences_is_two_records_and_stays_put(tmp_path):
+    """Found by the change log on its first day: 503 crime records "changed" in one
+    run. One break-in is recorded as both B&E and Unlawfully In Dwelling-House
+    under one event number. Keyed on the event alone, the second overwrote the
+    first and the record flipped on every run."""
+    from leaside import db
+    from leaside.fetchers import arcgis
+    src = _src(id="tps_reported_crime", category="crime")
+    base = {"EVENT_UNIQUE_ID": "GO-2026-1", "OCC_DATE": 1780000000000, "PREMISES_TYPE": "House",
+            "NEIGHBOURHOOD_158": "Leaside-Bennington (56)", "LAT_WGS84": 43.708, "LONG_WGS84": -79.364}
+    rows = [{**base, "OBJECTID": 1, "OFFENCE": "B&E", "UCR_CODE": 2120, "UCR_EXT": 200},
+            {**base, "OBJECTID": 2, "OFFENCE": "Unlawfully In Dwelling-House", "UCR_CODE": 2120, "UCR_EXT": 210}]
+    feats = [{"attributes": r, "geometry": {"x": r["LONG_WGS84"], "y": r["LAT_WGS84"]}} for r in rows]
+    items = arcgis.parse_features(json.dumps({"features": feats}), src, AREAS, label="Break and Enter")
+    assert {it["external_id"] for it in items} == {"GO-2026-1|2120.200", "GO-2026-1|2120.210"}
+    # Layers without offence codes keep the bare event number, so their keys do not move.
+    assert arcgis.feature_key({"EVENT_UNIQUE_ID": "GO-9", "OBJECTID": 4}) == "GO-9"
+
+    conn = db.connect(tmp_path / "t.db")
+    for _ in range(3):
+        its, merged = db.collapse_same_key(list(reversed(items)) if _ % 2 else items)
+        assert merged == 0
+        for it in its:
+            db.upsert_item(conn, it)
+    assert conn.execute("SELECT COUNT(*) FROM items").fetchone()[0] == 2
+    assert conn.execute("SELECT COUNT(*) FROM item_log WHERE event='changed'").fetchone()[0] == 0
+
+
+def test_stored_crime_is_renamed_to_its_corrected_key_with_its_history(tmp_path):
+    """Records past the newest 4,000 are never fetched again, so hiding the old-key
+    rows would hide real history. They are renamed in place instead."""
+    from leaside import db
+    from leaside.fetchers import arcgis
+    conn = db.connect(tmp_path / "t.db")
+    raw = {"EVENT_UNIQUE_ID": "GO-2014-7", "UCR_CODE": 1430, "UCR_EXT": 100, "OFFENCE": "Assault"}
+    db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime", url=None,
+                               title="Assault at X", external_id="GO-2014-7", raw=raw,
+                               published_at="2014-03-01"))
+    old_id = db.item_id("tps_reported_crime", "GO-2014-7")
+    moved = db.rekey(conn, "tps_reported_crime", arcgis.feature_key)
+    assert moved == {"renamed": 1, "superseded": 0}
+    new_id = db.item_id("tps_reported_crime", "GO-2014-7|1430.100")
+    assert conn.execute("SELECT id FROM items").fetchone()[0] == new_id
+    assert conn.execute("SELECT item_id FROM item_log").fetchone()[0] == new_id
+    assert db.rekey(conn, "tps_reported_crime", arcgis.feature_key) == {"renamed": 0, "superseded": 0}
+    assert new_id != old_id
+
+
+def test_rows_sharing_a_key_collapse_to_the_same_one_in_any_order():
+    """The City lists each person in a serious collision under one collision number."""
+    import random
+    from leaside import db
+    rows = [_item(source_id="city_ksi_collisions", category="collision", url=None,
+                  title="Pedestrian collision", external_id="collision_id:5",
+                  raw={"_id": n, "collision_id": 5, "per_no": n, "injury": inj})
+            for n, inj in enumerate(("Major", "Minor", "None"))]
+    picks = set()
+    for seed in range(6):
+        shuffled = rows[:]
+        random.Random(seed).shuffle(shuffled)
+        kept, merged = db.collapse_same_key(shuffled)
+        assert merged == 2 and len(kept) == 1
+        picks.add(kept[0]["raw"]["per_no"])
+    assert len(picks) == 1

@@ -274,6 +274,64 @@ def hide(conn: sqlite3.Connection, iid: str, source_id: str, reason: str) -> Non
     _log(conn, iid, source_id, now, "hidden", reason, {"title": title[0] if title else None})
 
 
+def rekey(conn: sqlite3.Connection, source_id: str, key_for_raw) -> dict:
+    """Move rows to the key the parser now produces, keeping them and their history.
+
+    Run before a fetch's items are stored. A row whose correct key is free is
+    renamed in place, with its log entries, so records that have aged out of the
+    publisher's window keep their place. A row whose correct key is already taken
+    is a duplicate and is hidden as superseded. Nothing is deleted.
+    """
+    out = {"renamed": 0, "superseded": 0}
+    for row in conn.execute(
+        "SELECT id, raw FROM items WHERE source_id = ? AND raw IS NOT NULL", (source_id,)
+    ).fetchall():
+        try:
+            key = key_for_raw(json.loads(row["raw"]))
+        except (ValueError, TypeError, KeyError):
+            continue
+        if not key:
+            continue
+        new_id = item_id(source_id, key)
+        if new_id == row["id"]:
+            continue
+        if conn.execute("SELECT 1 FROM items WHERE id = ?", (new_id,)).fetchone():
+            hide(conn, row["id"], source_id, "superseded by a corrected record")
+            out["superseded"] += 1
+        else:
+            conn.execute("UPDATE items SET id = ? WHERE id = ?", (new_id, row["id"]))
+            conn.execute("UPDATE item_log SET item_id = ? WHERE item_id = ?", (new_id, row["id"]))
+            out["renamed"] += 1
+    return out
+
+
+def collapse_same_key(items: list[dict]) -> tuple[list[dict], int]:
+    """One item per key within a single fetch, chosen the same way every run.
+
+    Sources publish several rows under one key - the City lists each person in a
+    serious collision separately under one collision number. Stored one after the
+    other, the last row won, and which row came last varied, so the record flipped
+    between people on every run and logged a false change each time. The row kept
+    is the one with the lowest fingerprint: arbitrary, but always the same one.
+    """
+    groups: dict[str, list[dict]] = {}
+    order = []
+    for it in items:
+        key = it.get("external_id") or it.get("url") or it["title"]
+        if key not in groups:
+            order.append(key)
+        groups.setdefault(key, []).append(it)
+    out, merged = [], 0
+    for key in order:
+        group = groups[key]
+        if len(group) > 1:
+            merged += len(group) - 1
+            group = sorted(group, key=lambda it: content_hash(
+                {**normalise(it), "raw": _storable_raw(it.get("raw"))}))
+        out.append(group[0])
+    return out, merged
+
+
 def hide_superseded(conn: sqlite3.Connection, source_id: str, key_for_raw) -> int:
     """Hide rows stored under a key the parser no longer produces.
 

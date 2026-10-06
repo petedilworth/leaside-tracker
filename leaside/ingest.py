@@ -9,6 +9,9 @@ from .fetchers import REGISTRY, arcgis, ckan
 # Sources whose items can be re-keyed from their stored record. After a key fix,
 # rows stored under the old key are hidden (never deleted) as superseded.
 REKEY = {"ckan_dinesafe": ckan.inspection_external_id}
+# Rows moved to a corrected key before the fetch is stored, so the ones that have
+# aged out of the publisher's window keep their place under the new key.
+RENAME = {"arcgis_multi": arcgis.feature_key, "arcgis_feature": arcgis.feature_key}
 
 
 def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> dict:
@@ -59,6 +62,15 @@ def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> 
                 1 for it in items
                 if it.get("published_at") and dates.to_iso(it["published_at"]) is None
             )
+            items, merged = db.collapse_same_key(items)
+            if merged:
+                print(f"        {merged} rows shared a key with another row; one kept per key")
+            if src.kind in RENAME and items:
+                moved = db.rekey(conn, src.id, RENAME[src.kind])
+                if moved["renamed"] or moved["superseded"]:
+                    print(f"        re-keyed {moved['renamed']} stored records"
+                          + (f", {moved['superseded']} duplicates hidden"
+                             if moved["superseded"] else ""))
             before_log = conn.execute("SELECT COUNT(*) FROM item_log WHERE source_id = ?"
                                       " AND event = 'changed'", (src.id,)).fetchone()[0]
             new = sum(db.upsert_item(conn, it) for it in items)
