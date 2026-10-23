@@ -563,3 +563,22 @@ the same reason: browsers refuse to fetch a neighbouring file from disk. The
 background is CARTO's light or dark map of OpenStreetMap data, credited on the map
 and on the page. Without a connection the background is blank and the circles
 still draw.
+
+**Fixes after the owner's first look on a phone (23 October):**
+
+- *"API KEY REQUIRED" across the map.* CARTO's free background tiles now demand a
+  key. Replaced with OpenStreetMap's own tiles, which need none, shown in grey
+  (inverted in dark mode) so the data stays the loud thing. Credit: "©
+  OpenStreetMap contributors".
+- *One blob on a phone.* Circles were drawn at street-level size at every zoom.
+  They now shrink as the map zooms out, keeping area proportional to the count,
+  and the size legend follows the zoom. The legend moved to the top corner, off
+  the credits.
+- *Crime type filter.* A row of chips: Assault, Break and enter, Car theft,
+  Theft from a car, Bike theft, Robbery. The police's own categories hide two of
+  these: theft from a car is filed as "NonMCI" (under $5,000) or "Theft Over",
+  and bike thefts carry no category, only bike fields. On 23 October every one of
+  8,454 crime records fell into one of the six.
+- *Date slider.* Replaces the period buttons. Twelve steps from one week to
+  everything, evenly spaced on the slider but not in time, so the recent months,
+  where the news is, are not a sliver at one end. Works by touch and keyboard.

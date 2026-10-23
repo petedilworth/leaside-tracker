@@ -2266,3 +2266,28 @@ def test_the_demo_map_does_not_overwrite_the_real_one(tmp_path, monkeypatch):
     demo.run(db_path=tmp_path / "demo.db")
     render.run(db_path=tmp_path / "demo.db", out_name="demo.html")
     assert (tmp_path / "demo-map.html").exists() and not (tmp_path / "map.html").exists()
+
+
+def test_crime_types_read_through_the_polices_own_categories():
+    """Theft from a car is filed as "NonMCI" or "Theft Over"; bike thefts have no
+    category at all. Both must land in a type a reader recognises."""
+    from leaside.mapdata import crime_type
+    assert crime_type({"CSI_CATEGORY": "NonMCI", "OFFENCE": "Theft From Motor Vehicle Under"}) == "Theft from a car"
+    assert crime_type({"CSI_CATEGORY": "Theft Over", "OFFENCE": "Theft From Motor Vehicle Over"}) == "Theft from a car"
+    assert crime_type({"PRIMARY_OFFENCE": "THEFT UNDER", "BIKE_MAKE": "TREK"}) == "Bike theft"
+    assert crime_type({"CSI_CATEGORY": "Auto Theft", "OFFENCE": "Theft Of Motor Vehicle"}) == "Car theft"
+    assert crime_type({"CSI_CATEGORY": "Break and Enter", "OFFENCE": "B&E W'Intent"}) == "Break and enter"
+    assert crime_type({"CSI_CATEGORY": "Assault", "OFFENCE": "Assault With Weapon"}) == "Assault"
+    assert crime_type({"CSI_CATEGORY": "Robbery", "OFFENCE": "Robbery - Mugging"}) == "Robbery"
+    assert crime_type({"OFFENCE": "Something new"}) == "Other"
+
+
+def test_map_payload_carries_types_and_slider_steps(tmp_path):
+    from leaside import mapdata
+    d = mapdata.build(_police_db(tmp_path), AREAS, CFG)
+    assert d["type_totals"][d["crime_types"].index("Assault")] == 3
+    assert d["type_totals"][d["crime_types"].index("Robbery")] == 1
+    days = [s["days"] for s in d["stops"]]
+    assert days[0] == 7 and days[-1] == 0 and days[d["default_stop"]] == 365
+    assert days[:-1] == sorted(days[:-1])                       # further back as it moves left to right
+    assert d["oldest"] is not None

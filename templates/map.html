@@ -32,7 +32,17 @@
   .stamp { color:var(--muted); font-size:13.5px; margin:4px 0 14px; }
   .caveat { font-size:14px; color:var(--muted); margin:0 0 14px; max-width:760px; }
 
-  .bar { display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; margin:0 0 10px; }
+  .filters { display:flex; flex-direction:column; gap:8px; margin:0 0 10px; }
+  .slider { display:grid; grid-template-columns:auto 1fr; gap:2px 10px; align-items:start; max-width:640px; }
+  .slider > .lbl { padding-top:7px; }
+  .slider .track { position:relative; }
+  .slider input[type=range] { width:100%; margin:0; accent-color:var(--accent); height:28px; }
+  .slider .ticks { display:flex; justify-content:space-between; font-size:10.5px; color:var(--faint);
+                   padding:0 6px; margin-top:-4px; }
+  .slider .ticks span { width:0; display:flex; justify-content:center; white-space:nowrap; }
+  .slider .ticks span:empty { visibility:hidden; }
+  .slider output { grid-column:2; font-size:13.5px; color:var(--fg); }
+  #types[hidden] { display:none !important; }
   .grp { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
   .lbl { font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--faint); }
   .chip { border:1px solid var(--line); background:var(--card); border-radius:999px; padding:4px 11px;
@@ -50,6 +60,11 @@
          background:var(--card); }
   .nomap { border:1px dashed var(--line); border-radius:10px; padding:20px; color:var(--muted); }
   .leaflet-container { font:inherit; background:var(--card); }
+  /* OpenStreetMap's own tiles, greyed so the data is the loud thing. */
+  .leaflet-tile-pane { filter:grayscale(1) contrast(.88) brightness(1.04); opacity:.85; }
+  @media (prefers-color-scheme: dark) {
+    .leaflet-tile-pane { filter:grayscale(1) invert(1) brightness(.78) contrast(.9); opacity:.9; }
+  }
   .leaflet-tooltip, .leaflet-popup-content-wrapper, .leaflet-popup-tip {
     background:var(--card); color:var(--fg); border:1px solid var(--line); box-shadow:0 2px 10px rgba(0,0,0,.18); }
   .leaflet-tooltip { font-size:12.5px; padding:6px 8px; }
@@ -65,7 +80,7 @@
   .pp li .d { color:var(--muted); }
   .pp .note { color:var(--faint); font-size:11.5px; margin:6px 0 0; }
   .legend-size { background:var(--card); border:1px solid var(--line); border-radius:8px;
-                 padding:6px 8px; font-size:11.5px; color:var(--muted); }
+                 padding:5px 7px; font-size:11px; color:var(--muted); }
   .legend-size svg { display:block; }
   .legend-size text { fill:var(--muted); font-size:10.5px; }
 
@@ -100,17 +115,22 @@
 </header>
 
 <p class="caveat">The police place every record at the nearest intersection, never the address,
-  so one circle stands for every record at that point. The bigger the circle, the more records.
+  so one circle stands for every record at that point. The bigger the circle, the more records;
+  circles shrink as you zoom out so neighbours stay apart.
   Crime and collision records arrive about three months late. Police calls start in October 2026
   and include only the calls this tracker saw on the police's live map.</p>
 
-<div class="bar" role="group" aria-label="Filters">
+<div class="filters" role="group" aria-label="Filters">
   <div class="grp" id="layers"><span class="lbl">Show</span></div>
-  <div class="grp" id="since"><span class="lbl">Since</span>
-    <button class="chip" data-days="90" aria-pressed="false">90 days</button>
-    <button class="chip" data-days="365" aria-pressed="true">1 year</button>
-    <button class="chip" data-days="1095" aria-pressed="false">3 years</button>
-    <button class="chip" data-days="0" aria-pressed="false">Everything</button>
+  <div class="grp" id="types" aria-label="Crime types"><span class="lbl">Crime</span></div>
+  <div class="slider">
+    <label class="lbl" for="since">Since</label>
+    <div class="track">
+      <input type="range" id="since" min="0" max="{{ data.stops|length - 1 }}" step="1"
+             aria-describedby="since-out">
+      <div class="ticks" aria-hidden="true">{% for s in data.stops %}<span>{{ s.tick }}</span>{% endfor %}</div>
+    </div>
+    <output id="since-out" for="since"></output>
   </div>
 </div>
 <p id="summary" aria-live="polite"></p>
@@ -129,7 +149,7 @@
 {% include "_sources.html" %}
 <p class="lic" style="font-size:12.5px;color:var(--muted)">Map background &copy;
   <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>,
-  &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>.
+  shown in grey.
   Map drawn with <a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a> (BSD licence).</p>
 
 <p class="foot">Places are named from police calls and serious-collision records, which carry
@@ -149,15 +169,20 @@
   var css = getComputedStyle(document.documentElement);
   function colour(i) { return css.getPropertyValue('--s' + i).trim(); }
   var ring = css.getPropertyValue('--ring').trim();
+  var STOPS = D.stops, TYPES = D.crime_types;
   var on = [true, true, true];
-  var days = 365;
-  var VIEW = 'leaside.map.v1';
+  var typeOn = TYPES.map(function () { return true; });
+  var stop = D.default_stop;
+  var VIEW = 'leaside.map.v2';
   try {
     var saved = JSON.parse(localStorage.getItem(VIEW) || 'null');
     if (saved && saved.on && saved.on.length === 3) { on = saved.on; }
-    if (saved && typeof saved.days === 'number') { days = saved.days; }
+    if (saved && saved.types && saved.types.length === TYPES.length) { typeOn = saved.types; }
+    if (saved && saved.stop >= 0 && saved.stop < STOPS.length) { stop = saved.stop; }
   } catch (e) { /* private window: defaults */ }
-  function save() { try { localStorage.setItem(VIEW, JSON.stringify({ on: on, days: days })); } catch (e) {} }
+  function save() {
+    try { localStorage.setItem(VIEW, JSON.stringify({ on: on, types: typeOn, stop: stop })); } catch (e) {}
+  }
 
   function el(tag, cls, text) {
     var n = document.createElement(tag);
@@ -165,11 +190,16 @@
     if (text !== undefined && text !== null) { n.textContent = text; }   // data is never parsed as HTML
     return n;
   }
-  function placeName(s) { return s.name ? (s.exact ? s.name : 'Near ' + s.name) : 'Police-placed point'; }
+  function placeName(s) { return s.name ? (s.exact ? s.name : 'Near ' + s.name) : 'Unnamed point in ' + s.area; }
   function cutoff() {
+    var days = STOPS[stop].days;
     if (!days) { return ''; }
     var d = new Date(Date.now() - days * 864e5);
     return d.toISOString().slice(0, 10);
+  }
+  function longDate(iso) {
+    var d = new Date(iso + 'T12:00:00');
+    return d.toLocaleDateString('en-CA', { day: 'numeric', month: 'short', year: 'numeric' });
   }
   function fmt(n) { return n.toLocaleString('en-CA'); }
 
@@ -185,24 +215,48 @@
     layerBox.appendChild(b);
     return b;
   });
-  var sinceChips = Array.prototype.slice.call(document.querySelectorAll('#since .chip'));
-  sinceChips.forEach(function (b) {
-    b.setAttribute('aria-pressed', String(+b.dataset.days === days));
+  var typeBox = document.getElementById('types');
+  var typeChips = TYPES.map(function (t, i) {
+    var b = el('button', 'chip');
+    b.setAttribute('aria-pressed', typeOn[i] ? 'true' : 'false');
+    b.appendChild(document.createTextNode(t + ' '));
+    b.appendChild(el('small'));
     b.addEventListener('click', function () {
-      days = +b.dataset.days; save();
-      sinceChips.forEach(function (c) { c.setAttribute('aria-pressed', String(c === b)); });
-      draw();
+      typeOn[i] = !typeOn[i]; b.setAttribute('aria-pressed', typeOn[i]); save(); draw();
     });
+    typeBox.appendChild(b);
+    return b;
   });
+  var allTypes = el('button', 'chip', 'Select none');
+  allTypes.addEventListener('click', function () {
+    var every = typeOn.every(Boolean);
+    typeOn = typeOn.map(function () { return !every; });
+    typeChips.forEach(function (b, i) { b.setAttribute('aria-pressed', typeOn[i]); });
+    save(); draw();
+  });
+  typeBox.appendChild(allTypes);
+
+  var slider = document.getElementById('since'), out = document.getElementById('since-out');
+  slider.value = stop;
+  function sliderText() {
+    var st = STOPS[stop], from = cutoff();
+    var text = st.days ? 'Since ' + longDate(from) + ' (' + st.label + ')' :
+      'Everything collected, since ' + longDate(D.oldest);
+    out.textContent = text;
+    slider.setAttribute('aria-valuetext', text);
+  }
+  slider.addEventListener('input', function () { stop = +slider.value; sliderText(); draw(); });
+  slider.addEventListener('change', save);
 
   // ---- counting under the current filter -----------------------------------
   function current() {
-    var from = cutoff(), totals = [0, 0, 0], places = [];
+    var from = cutoff(), totals = [0, 0, 0], places = [], types = TYPES.map(function () { return 0; });
     D.spots.forEach(function (s, idx) {
       var c = [0, 0, 0], kept = [];
       for (var j = 0; j < s.r.length; j++) {
         var r = s.r[j];
         if (from && r[1] < from) { continue; }
+        if (r[0] === 0) { types[r[5]]++; if (!typeOn[r[5]]) { continue; } }
         totals[r[0]]++;
         if (!on[r[0]]) { continue; }
         c[r[0]]++; kept.push(r);
@@ -211,19 +265,25 @@
       if (all) { places.push({ s: s, idx: idx, c: c, all: all, kept: kept }); }
     });
     places.sort(function (a, b) { return b.all - a.all; });
-    return { places: places, totals: totals };
+    return { places: places, totals: totals, types: types };
   }
 
   // ---- the map --------------------------------------------------------------
   var map = null, group = null, markers = {};
   var hasLeaflet = typeof window.L !== 'undefined';
-  function radius(n) { return Math.min(34, 4 + 2.4 * Math.sqrt(n)); }
+  // Full size at street level, smaller as you zoom out, so neighbours stay apart
+  // on a phone. Area stays proportional to the count at every zoom.
+  function scale() { return map ? Math.max(0.35, Math.min(1, Math.pow(2, (map.getZoom() - 16) / 3))) : 1; }
+  function radius(n) { return Math.max(2.5, Math.min(34, 4 + 2.4 * Math.sqrt(n)) * scale()); }
   if (hasLeaflet) {
     map = L.map('map', { preferCanvas: true, scrollWheelZoom: true });
     var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/' + (dark ? 'dark_all' : 'light_all') + '/{z}/{x}/{y}{r}.png', {
-      subdomains: 'abcd', maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    // OpenStreetMap's own tiles: free, no key, attribution required. CARTO's were
+    // used first and began demanding an API key, painting "API KEY REQUIRED"
+    // across the map. Greyed in CSS so the data stands out.
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
     var renderer = L.canvas({ tolerance: 8, padding: 0.3 });   // a bigger hit area than the mark
     (D.areas || []).forEach(function (a) {
@@ -238,11 +298,19 @@
                      [Math.max.apply(null, lats), Math.max.apply(null, lons)]], { padding: [16, 16] });
     } else { map.setView([43.705, -79.375], 14); }
 
-    var Size = L.Control.extend({ options: { position: 'bottomleft' }, onAdd: function () {
-      var box = el('div', 'legend-size');
-      box.appendChild(el('div', null, 'Records at a place'));
+    var legendBox = null;
+    var Size = L.Control.extend({ options: { position: 'topright' }, onAdd: function () {
+      legendBox = el('div', 'legend-size');
+      drawLegend();
+      return legendBox;
+    } });
+    var drawLegend = function () {
+      var box = legendBox;
+      if (!box) { return; }
+      box.textContent = '';
       var ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
       var w = 4, sizes = [1, 10, 100];
+      box.appendChild(el('div', null, 'Records at a place'));
       sizes.forEach(function (n) { w += radius(n) * 2 + 30; });   // room for each label
       svg.setAttribute('width', w); svg.setAttribute('height', radius(100) * 2 + 4);
       var x = 2;
@@ -257,9 +325,9 @@
         x += r * 2 + 30;
       });
       box.appendChild(svg);
-      return box;
-    } });
+    };
     map.addControl(new Size());
+    map.on('zoomend', function () { drawLegend(); draw(); });
   } else {
     document.getElementById('map').hidden = true;
     document.getElementById('nomap').hidden = false;
@@ -310,10 +378,16 @@
   function draw() {
     var cur = current();
     layerChips.forEach(function (b, i) { b.querySelector('small').textContent = fmt(cur.totals[i]); });
+    typeChips.forEach(function (b, i) {
+      b.querySelector('small').textContent = fmt(cur.types[i]);
+      b.hidden = !cur.types[i] && !D.type_totals[i];            // never seen at all: no chip
+    });
+    typeBox.hidden = !on[0];
+    allTypes.textContent = typeOn.every(Boolean) ? 'Select none' : 'Select all';
     var recs = 0; cur.places.forEach(function (p) { recs += p.all; });
     var n = cur.places.length;
     document.getElementById('summary').textContent = fmt(recs) + (recs === 1 ? ' record' : ' records') +
-      ' at ' + fmt(n) + (n === 1 ? ' place' : ' places') + (days ? ', since ' + cutoff() : ', everything collected') + '.';
+      ' at ' + fmt(n) + (n === 1 ? ' place' : ' places') + (STOPS[stop].days ? ', since ' + cutoff() : ', everything collected') + '.';
 
     if (map) {
       group.clearLayers(); markers = {};
@@ -358,6 +432,7 @@
     document.getElementById('more').textContent = cur.places.length > 40
       ? 'The 40 busiest of ' + fmt(cur.places.length) + ' places. Every record is in the download on the news page.' : '';
   }
+  sliderText();
   draw();
 })();
 </script>

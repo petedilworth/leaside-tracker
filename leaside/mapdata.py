@@ -51,13 +51,48 @@ def _street_of(row, raw: dict) -> str | None:
     return None
 
 
+# Crime types a reader recognises, in the order the filter shows them. The
+# police's own categories hide two of them: theft from a car is filed as
+# "NonMCI" under $5,000 and "Theft Over" above it, and bike thefts carry no
+# category at all, only bike fields.
+CRIME_TYPES = ["Assault", "Break and enter", "Car theft", "Theft from a car",
+               "Bike theft", "Robbery", "Other"]
+
+
+# The date slider's steps. Even steps along the slider, uneven in time: the
+# records span twenty years but the interesting part is the recent months, and a
+# linear twenty-year slider would leave the last 90 days as a sliver at one end.
+STOPS = [
+    (7, "1 week", "1 wk"), (14, "2 weeks", ""), (30, "1 month", "1 mo"), (61, "2 months", ""),
+    (91, "3 months", "3 mo"), (182, "6 months", ""), (365, "1 year", "1 yr"),
+    (730, "2 years", ""), (1095, "3 years", "3 yr"), (1826, "5 years", ""),
+    (3652, "10 years", "10 yr"), (0, "everything", "All"),
+]
+DEFAULT_STOP = 6       # 1 year: crime arrives three months late, so less looks empty
+
+
+def crime_type(raw: dict) -> str:
+    offence = str(raw.get("OFFENCE") or raw.get("PRIMARY_OFFENCE") or "").lower()
+    category = str(raw.get("CSI_CATEGORY") or "").lower()
+    if any(k.startswith("BIKE_") for k in raw) or "bicycle" in offence:
+        return "Bike theft"
+    if "theft from motor vehicle" in offence:
+        return "Theft from a car"
+    for name, keys in (("Assault", ("assault",)), ("Break and enter", ("break and enter", "b&e")),
+                       ("Car theft", ("auto theft", "theft of motor vehicle")),
+                       ("Robbery", ("robbery",))):
+        if any(k in category or k in offence for k in keys):
+            return name
+    return "Other"
+
+
 def _label(row, raw: dict) -> tuple[str, str]:
     """(what happened, detail) in the reader's words."""
     title, summary = row["title"], row["summary"] or ""
     if row["category"] == "police_call":
         return title.split(" near ")[0], ""
     if row["category"] == "crime":
-        what = raw.get("OFFENCE") or title.split(" at ")[0]
+        what = raw.get("OFFENCE") or raw.get("PRIMARY_OFFENCE") or title.split(" at ")[0]
         where = raw.get("PREMISES_TYPE") or ""
         return str(what), str(where)
     # collisions: the title already says what; the first detail is the useful one
@@ -93,9 +128,10 @@ def build(conn, areas, cfg) -> dict:
         if street:
             spot["names"][street] = spot["names"].get(street, 0) + 1
         what, detail = _label(r, raw)
+        kind = (CRIME_TYPES.index(crime_type(raw)) if r["category"] == "crime" else -1)
         spot["r"].append([LAYER_INDEX[r["category"]],
                           (r["published_at"] or r["first_seen_at"] or "")[:10],
-                          code(what), code(detail), src_index.get(r["source_id"], -1)])
+                          code(what), code(detail), src_index.get(r["source_id"], -1), kind])
 
     named = [(s["lat"], s["lon"], max(s["names"], key=s["names"].get))
              for s in spots.values() if s["names"]]
@@ -116,6 +152,12 @@ def build(conn, areas, cfg) -> dict:
                    "ring": [[lat, lon] for lon, lat in f["geometry"]["coordinates"][0]]}
                   for f in areas.features],
         "layers": LAYERS,
+        "crime_types": CRIME_TYPES,
+        "type_totals": [sum(1 for sp in out for r in sp["r"] if r[0] == 0 and r[5] == i)
+                        for i in range(len(CRIME_TYPES))],
+        "stops": [{"days": d, "label": label, "tick": tick} for d, label, tick in STOPS],
+        "default_stop": DEFAULT_STOP,
+        "oldest": min((r[1] for sp in out for r in sp["r"] if r[1]), default=None),
         "sources": [{"name": s.name, "credit": s.credit, "home": s.home} for s in sources],
         "strings": list(strings),
         "spots": out,

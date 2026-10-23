@@ -300,9 +300,20 @@ def test_the_police_map_draws_filters_and_explains_a_place(tmp_path, monkeypatch
             (now - timedelta(days=365)).strftime("%Y-%m-%d") + "."
         row = pg.locator("#places tbody tr").first.inner_text()
         assert "Bayview Ave & Millwood Rd" in row
-        pg.locator("#since .chip", has_text="Everything").click()
+        assert pg.locator("#since-out").inner_text().endswith("(1 year)")
+        pg.locator("#since").fill("11")                           # the last step: everything
+        assert pg.locator("#since-out").inner_text().startswith("Everything collected")
         assert pg.locator("#summary").inner_text().startswith("4 records")
+        pg.locator("#since").focus()
+        pg.keyboard.press("ArrowLeft")                             # the slider works by keyboard
+        assert pg.locator("#since-out").inner_text().endswith("(10 years)")
+        # Crime types: two assaults recorded; switching assaults off removes both.
+        assert [c.inner_text().split()[0] for c in pg.locator("#types .chip").all() if c.is_visible()] \
+            == ["Assault", "Select"]
+        pg.locator("#types .chip", has_text="Assault").click()
+        assert pg.locator("#summary").inner_text().startswith("2 records")
         pg.locator("#layers .chip", has_text="Reported crime").click()
+        assert pg.locator("#types").is_hidden()                     # no crime, no crime types
         assert pg.locator("#summary").inner_text().startswith("2 records")
         pg.locator("#places tbody tr button").first.click()
         popup = pg.locator(".leaflet-popup-content")
