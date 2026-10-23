@@ -266,3 +266,51 @@ def test_pages_fit_a_phone_and_show_their_sources(tmp_path, monkeypatch):
             assert sources.is_visible(), page
             assert "where this data comes from" in sources.inner_text().lower()
         b.close()
+
+
+def test_the_police_map_draws_filters_and_explains_a_place(tmp_path, monkeypatch):
+    """Runs with no network: the map library ships with the site. Only the
+    background tiles fail to load here, which the page tolerates."""
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+    from leaside import db, render
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    conn = db.connect(tmp_path / "t.db")
+    rows = [("tps_calls_for_service", "police_call", "Theft near BAYVIEW AVE - MILLWOOD RD", 2),
+            ("tps_reported_crime", "crime", "Assault", 30),
+            ("tps_reported_crime", "crime", "Assault", 900),
+            ("tps_traffic_collisions", "collision", "Collision", 40)]
+    for i, (sid, cat, title, age) in enumerate(rows):
+        db.upsert_item(conn, {"source_id": sid, "category": cat, "title": title, "url": None,
+                              "external_id": str(i), "area": "leaside", "lat": 43.708, "lon": -79.364,
+                              "published_at": (now - timedelta(days=age)).isoformat(),
+                              "raw": {"OFFENCE": title} if cat == "crime" else None})
+    conn.commit()
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    render.run(db_path=tmp_path / "t.db", out_name="index.html")
+    with playwright.sync_playwright() as p:
+        b = p.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
+        pg = b.new_page(viewport={"width": 1000, "height": 900})
+        errors = []
+        pg.on("pageerror", lambda e: errors.append(str(e)))
+        pg.goto((tmp_path / "map.html").as_uri())
+        pg.wait_for_selector(".leaflet-container")
+        assert pg.locator("#nomap").is_hidden()
+        assert pg.locator("#summary").inner_text() == "3 records at 1 place, since " + \
+            (now - timedelta(days=365)).strftime("%Y-%m-%d") + "."
+        row = pg.locator("#places tbody tr").first.inner_text()
+        assert "Bayview Ave & Millwood Rd" in row
+        pg.locator("#since .chip", has_text="Everything").click()
+        assert pg.locator("#summary").inner_text().startswith("4 records")
+        pg.locator("#layers .chip", has_text="Reported crime").click()
+        assert pg.locator("#summary").inner_text().startswith("2 records")
+        pg.locator("#places tbody tr button").first.click()
+        popup = pg.locator(".leaflet-popup-content")
+        popup.wait_for()
+        assert "1 collision" in popup.inner_text() and "1 police call" in popup.inner_text()
+        assert "Source:" in popup.inner_text()
+        assert errors == []
+        phone = b.new_page(viewport={"width": 390, "height": 800})
+        phone.goto((tmp_path / "map.html").as_uri())
+        assert phone.evaluate("document.documentElement.scrollWidth") <= 390
+        b.close()

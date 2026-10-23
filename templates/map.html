@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Leaside Tracker · Police map</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<style>
+  :root {
+    --bg:#f7f5f1; --fg:#1c1b19; --muted:#6f6a63; --faint:#a39d94; --line:#e4e0d8;
+    --card:#fffdf9; --accent:#8a3b2a; --accent-soft:#f3e4df;
+    /* Three categorical slots, validated all-pairs on #f7f5f1 (dataviz validator,
+       23 Oct 2026): CVD ΔE 9.2, normal-vision 24.0. Orange and aqua sit under 3:1
+       contrast, so every colour also has its name beside it and the table repeats
+       every number. */
+    --s0:#2a78d6; --s1:#eb6834; --s2:#1baf7a; --ring:#fffdf9; --outline:#898781;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161513; --fg:#ebe7e0; --muted:#a19a90; --faint:#6b665e; --line:#2c2925;
+            --card:#1e1c19; --accent:#e0a08e; --accent-soft:#33241f;
+            /* the dark steps of the same three hues, validated on #1e1c19, all >= 3:1 */
+            --s0:#3987e5; --s1:#d95926; --s2:#199e70; --ring:#1e1c19; --outline:#6b665e; }
+  }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  a { color:var(--accent); }
+  .wrap { max-width:1100px; margin:0 auto; padding:24px 16px 80px; }
+  header h1 { font-size:24px; margin:0; letter-spacing:-0.01em; }
+  .stamp { color:var(--muted); font-size:13.5px; margin:4px 0 14px; }
+  .caveat { font-size:14px; color:var(--muted); margin:0 0 14px; max-width:760px; }
+
+  .bar { display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; margin:0 0 10px; }
+  .grp { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .lbl { font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--faint); }
+  .chip { border:1px solid var(--line); background:var(--card); border-radius:999px; padding:4px 11px;
+          font:inherit; font-size:13px; color:var(--muted); cursor:pointer; line-height:1.3;
+          display:inline-flex; align-items:center; gap:6px; }
+  .chip:hover { border-color:var(--muted); }
+  .chip[aria-pressed="true"] { border-color:var(--accent); background:var(--accent-soft); color:var(--fg); }
+  .chip[aria-pressed="false"] .key { opacity:.35; }
+  .key { width:10px; height:10px; border-radius:50%; display:inline-block; flex:none;
+         box-shadow:0 0 0 2px var(--ring); }
+  .chip small { color:var(--muted); font-variant-numeric:tabular-nums; }
+  #summary { font-size:13px; color:var(--muted); margin:0 0 8px; }
+
+  #map { height:68vh; min-height:420px; border:1px solid var(--line); border-radius:10px;
+         background:var(--card); }
+  .nomap { border:1px dashed var(--line); border-radius:10px; padding:20px; color:var(--muted); }
+  .leaflet-container { font:inherit; background:var(--card); }
+  .leaflet-tooltip, .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+    background:var(--card); color:var(--fg); border:1px solid var(--line); box-shadow:0 2px 10px rgba(0,0,0,.18); }
+  .leaflet-tooltip { font-size:12.5px; padding:6px 8px; }
+  .leaflet-tooltip-top:before { border-top-color:var(--line); }
+  .leaflet-popup-content { margin:10px 12px; font-size:13px; line-height:1.45; min-width:230px; }
+  .pp h3 { font-size:14px; margin:0; }
+  .pp .sub { color:var(--muted); font-size:12px; margin:0 0 6px; }
+  .pp .counts { display:flex; gap:10px; flex-wrap:wrap; margin:0 0 6px; font-variant-numeric:tabular-nums; }
+  .pp .counts span { display:inline-flex; align-items:center; gap:5px; }
+  .pp ol { list-style:none; margin:0; padding:0; max-height:150px; overflow:auto; }
+  .pp li { padding:3px 0; border-top:1px solid var(--line); }
+  .pp li time { color:var(--muted); font-variant-numeric:tabular-nums; margin-right:4px; }
+  .pp li .d { color:var(--muted); }
+  .pp .note { color:var(--faint); font-size:11.5px; margin:6px 0 0; }
+  .legend-size { background:var(--card); border:1px solid var(--line); border-radius:8px;
+                 padding:6px 8px; font-size:11.5px; color:var(--muted); }
+  .legend-size svg { display:block; }
+  .legend-size text { fill:var(--muted); font-size:10.5px; }
+
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:28px 0 6px; }
+  table.places { width:100%; border-collapse:collapse; font-size:13.5px; }
+  table.places th, table.places td { text-align:left; padding:6px 8px 6px 0; border-bottom:1px solid var(--line); }
+  table.places th { font-size:12px; color:var(--muted); font-weight:600; }
+  table.places .num { text-align:right; font-variant-numeric:tabular-nums; }
+  table.places button { background:none; border:0; padding:0; font:inherit; color:var(--accent);
+                        cursor:pointer; text-align:left; text-decoration:underline; }
+  @media (max-width:560px) { table.places .opt { display:none; } }
+
+  .sources { margin-top:36px; }
+  .sources h2 { margin:0 0 6px; }
+  .sources table { width:100%; border-collapse:collapse; font-size:13px; }
+  .sources th, .sources td { text-align:left; padding:6px 8px 6px 0; border-bottom:1px solid var(--line); vertical-align:top; }
+  .sources th { font-weight:600; color:var(--muted); font-size:12px; }
+  .sources .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .sources td:nth-child(5) { white-space:nowrap; }
+  .sources .pub { color:var(--muted); font-size:12px; }
+  .sources .lic { font-size:12.5px; color:var(--muted); margin:8px 0 0; }
+  @media (max-width:560px) { .sources th:nth-child(5), .sources td:nth-child(5) { display:none; } }
+  .foot { margin-top:30px; font-size:12.5px; color:var(--faint); }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Police data on a map</h1>
+  <p class="stamp"><a href="index.html">&larr; News</a> &middot; <a href="trends.html">Is it up this year?</a>
+    &middot; {{ "{:,}".format(data.records) }} records at {{ "{:,}".format(data.spots|length) }} places, built {{ generated[:10] }}</p>
+</header>
+
+<p class="caveat">The police place every record at the nearest intersection, never the address,
+  so one circle stands for every record at that point. The bigger the circle, the more records.
+  Crime and collision records arrive about three months late. Police calls start in October 2026
+  and include only the calls this tracker saw on the police's live map.</p>
+
+<div class="bar" role="group" aria-label="Filters">
+  <div class="grp" id="layers"><span class="lbl">Show</span></div>
+  <div class="grp" id="since"><span class="lbl">Since</span>
+    <button class="chip" data-days="90" aria-pressed="false">90 days</button>
+    <button class="chip" data-days="365" aria-pressed="true">1 year</button>
+    <button class="chip" data-days="1095" aria-pressed="false">3 years</button>
+    <button class="chip" data-days="0" aria-pressed="false">Everything</button>
+  </div>
+</div>
+<p id="summary" aria-live="polite"></p>
+
+<div id="map" role="region" aria-label="Map of police records. The table below lists the same places."></div>
+<div class="nomap" id="nomap" hidden>The map could not be drawn here. The table below lists every place and count.</div>
+
+<h2>Busiest places in this view</h2>
+<table class="places" id="places">
+  <thead><tr><th>Place</th><th class="opt">Area</th><th class="num" data-l="0">Crime</th>
+    <th class="num" data-l="1">Collisions</th><th class="num" data-l="2">Calls</th><th class="num">All</th></tr></thead>
+  <tbody></tbody>
+</table>
+<p class="foot" id="more"></p>
+
+{% include "_sources.html" %}
+<p class="lic" style="font-size:12.5px;color:var(--muted)">Map background &copy;
+  <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>,
+  &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>.
+  Map drawn with <a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a> (BSD licence).</p>
+
+<p class="foot">Places are named from police calls and serious-collision records, which carry
+  cross streets. A place shown as "near" borrowed the name of a named place within
+  {{ radius }} metres. The rest are labelled by neighbourhood only. Counts are records, not rates
+  per population, and a busy place is often just a busy place: a subway station, a plaza, a
+  major intersection.</p>
+</div>
+
+<script id="mapdata" type="application/json">{{ payload|safe }}</script>
+<script src="vendor/leaflet/leaflet.js"></script>
+<script>
+(function () {
+  'use strict';
+  var D = JSON.parse(document.getElementById('mapdata').textContent);
+  var S = D.strings, LAYERS = D.layers, SRC = D.sources;
+  var css = getComputedStyle(document.documentElement);
+  function colour(i) { return css.getPropertyValue('--s' + i).trim(); }
+  var ring = css.getPropertyValue('--ring').trim();
+  var on = [true, true, true];
+  var days = 365;
+  var VIEW = 'leaside.map.v1';
+  try {
+    var saved = JSON.parse(localStorage.getItem(VIEW) || 'null');
+    if (saved && saved.on && saved.on.length === 3) { on = saved.on; }
+    if (saved && typeof saved.days === 'number') { days = saved.days; }
+  } catch (e) { /* private window: defaults */ }
+  function save() { try { localStorage.setItem(VIEW, JSON.stringify({ on: on, days: days })); } catch (e) {} }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) { n.className = cls; }
+    if (text !== undefined && text !== null) { n.textContent = text; }   // data is never parsed as HTML
+    return n;
+  }
+  function placeName(s) { return s.name ? (s.exact ? s.name : 'Near ' + s.name) : 'Police-placed point'; }
+  function cutoff() {
+    if (!days) { return ''; }
+    var d = new Date(Date.now() - days * 864e5);
+    return d.toISOString().slice(0, 10);
+  }
+  function fmt(n) { return n.toLocaleString('en-CA'); }
+
+  // ---- filter chips ---------------------------------------------------------
+  var layerBox = document.getElementById('layers');
+  var layerChips = LAYERS.map(function (l, i) {
+    var b = el('button', 'chip');
+    b.setAttribute('aria-pressed', on[i] ? 'true' : 'false');
+    var k = el('span', 'key'); k.style.background = colour(i);
+    b.appendChild(k); b.appendChild(document.createTextNode(l.name + ' '));
+    b.appendChild(el('small'));
+    b.addEventListener('click', function () { on[i] = !on[i]; b.setAttribute('aria-pressed', on[i]); save(); draw(); });
+    layerBox.appendChild(b);
+    return b;
+  });
+  var sinceChips = Array.prototype.slice.call(document.querySelectorAll('#since .chip'));
+  sinceChips.forEach(function (b) {
+    b.setAttribute('aria-pressed', String(+b.dataset.days === days));
+    b.addEventListener('click', function () {
+      days = +b.dataset.days; save();
+      sinceChips.forEach(function (c) { c.setAttribute('aria-pressed', String(c === b)); });
+      draw();
+    });
+  });
+
+  // ---- counting under the current filter -----------------------------------
+  function current() {
+    var from = cutoff(), totals = [0, 0, 0], places = [];
+    D.spots.forEach(function (s, idx) {
+      var c = [0, 0, 0], kept = [];
+      for (var j = 0; j < s.r.length; j++) {
+        var r = s.r[j];
+        if (from && r[1] < from) { continue; }
+        totals[r[0]]++;
+        if (!on[r[0]]) { continue; }
+        c[r[0]]++; kept.push(r);
+      }
+      var all = c[0] + c[1] + c[2];
+      if (all) { places.push({ s: s, idx: idx, c: c, all: all, kept: kept }); }
+    });
+    places.sort(function (a, b) { return b.all - a.all; });
+    return { places: places, totals: totals };
+  }
+
+  // ---- the map --------------------------------------------------------------
+  var map = null, group = null, markers = {};
+  var hasLeaflet = typeof window.L !== 'undefined';
+  function radius(n) { return Math.min(34, 4 + 2.4 * Math.sqrt(n)); }
+  if (hasLeaflet) {
+    map = L.map('map', { preferCanvas: true, scrollWheelZoom: true });
+    var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/' + (dark ? 'dark_all' : 'light_all') + '/{z}/{x}/{y}{r}.png', {
+      subdomains: 'abcd', maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    }).addTo(map);
+    var renderer = L.canvas({ tolerance: 8, padding: 0.3 });   // a bigger hit area than the mark
+    (D.areas || []).forEach(function (a) {
+      L.polygon(a.ring, { renderer: renderer, color: css.getPropertyValue('--outline').trim(),
+        weight: 1, opacity: 0.6, fill: false, interactive: false }).addTo(map)
+        .bindTooltip(a.name, { permanent: false });
+    });
+    group = L.layerGroup().addTo(map);
+    var lats = D.spots.map(function (s) { return s.lat; }), lons = D.spots.map(function (s) { return s.lon; });
+    if (lats.length) {
+      map.fitBounds([[Math.min.apply(null, lats), Math.min.apply(null, lons)],
+                     [Math.max.apply(null, lats), Math.max.apply(null, lons)]], { padding: [16, 16] });
+    } else { map.setView([43.705, -79.375], 14); }
+
+    var Size = L.Control.extend({ options: { position: 'bottomleft' }, onAdd: function () {
+      var box = el('div', 'legend-size');
+      box.appendChild(el('div', null, 'Records at a place'));
+      var ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+      var w = 4, sizes = [1, 10, 100];
+      sizes.forEach(function (n) { w += radius(n) * 2 + 30; });   // room for each label
+      svg.setAttribute('width', w); svg.setAttribute('height', radius(100) * 2 + 4);
+      var x = 2;
+      sizes.forEach(function (n) {
+        var r = radius(n), c = document.createElementNS(ns, 'circle');
+        c.setAttribute('cx', x + r); c.setAttribute('cy', radius(100) + 2); c.setAttribute('r', r);
+        c.setAttribute('fill', 'none'); c.setAttribute('stroke', css.getPropertyValue('--muted').trim());
+        svg.appendChild(c);
+        var t = document.createElementNS(ns, 'text');
+        t.setAttribute('x', x + 2 * r + 3); t.setAttribute('y', radius(100) + 6); t.textContent = n;
+        svg.appendChild(t);
+        x += r * 2 + 30;
+      });
+      box.appendChild(svg);
+      return box;
+    } });
+    map.addControl(new Size());
+  } else {
+    document.getElementById('map').hidden = true;
+    document.getElementById('nomap').hidden = false;
+  }
+
+  function popupFor(p) {
+    var box = el('div', 'pp');
+    box.appendChild(el('h3', null, placeName(p.s)));
+    box.appendChild(el('p', 'sub', p.s.area + (p.s.name && !p.s.exact ? ' · name borrowed from a place nearby' : '')));
+    var counts = el('div', 'counts');
+    p.c.forEach(function (n, i) {
+      if (!n) { return; }
+      var sp = el('span'); var k = el('span', 'key'); k.style.background = colour(i);
+      sp.appendChild(k); sp.appendChild(document.createTextNode(fmt(n) + ' ' + (n === 1 ? LAYERS[i].one : LAYERS[i].many)));
+      counts.appendChild(sp);
+    });
+    box.appendChild(counts);
+    var ol = el('ol'), shown = p.kept.slice(0, 25);
+    shown.forEach(function (r) {
+      var li = el('li');
+      li.appendChild(el('time', null, r[1]));
+      li.appendChild(document.createTextNode(S[r[2]]));
+      if (S[r[3]]) { li.appendChild(el('span', 'd', ' · ' + S[r[3]])); }
+      var src = SRC[r[4]];
+      if (src) { li.title = 'Source: ' + src.credit; }
+      ol.appendChild(li);
+    });
+    box.appendChild(ol);
+    if (p.kept.length > shown.length) {
+      box.appendChild(el('p', 'note', 'And ' + fmt(p.kept.length - shown.length) +
+        ' more. The full list is in the download on the news page.'));
+    }
+    var srcs = {}; p.kept.forEach(function (r) { if (SRC[r[4]]) { srcs[SRC[r[4]].credit] = 1; } });
+    box.appendChild(el('p', 'note', 'Source: ' + Object.keys(srcs).join('; ') +
+      '. Placed by the police at the nearest intersection, not an address.'));
+    var a = el('a', null, 'Open this point on OpenStreetMap');
+    a.href = 'https://www.openstreetmap.org/?mlat=' + p.s.lat + '&mlon=' + p.s.lon + '#map=18/' + p.s.lat + '/' + p.s.lon;
+    a.target = '_blank'; a.rel = 'noopener';
+    var pa = el('p', 'note'); pa.appendChild(a); box.appendChild(pa);
+    return box;
+  }
+  function tipFor(p) {
+    var parts = [];
+    p.c.forEach(function (n, i) { if (n) { parts.push(fmt(n) + ' ' + (n === 1 ? LAYERS[i].one : LAYERS[i].many)); } });
+    return placeName(p.s) + ' · ' + parts.join(', ');
+  }
+
+  function draw() {
+    var cur = current();
+    layerChips.forEach(function (b, i) { b.querySelector('small').textContent = fmt(cur.totals[i]); });
+    var recs = 0; cur.places.forEach(function (p) { recs += p.all; });
+    var n = cur.places.length;
+    document.getElementById('summary').textContent = fmt(recs) + (recs === 1 ? ' record' : ' records') +
+      ' at ' + fmt(n) + (n === 1 ? ' place' : ' places') + (days ? ', since ' + cutoff() : ', everything collected') + '.';
+
+    if (map) {
+      group.clearLayers(); markers = {};
+      var marks = [];
+      cur.places.forEach(function (p) {
+        p.c.forEach(function (n, i) { if (n) { marks.push({ p: p, i: i, n: n }); } });
+      });
+      marks.sort(function (a, b) { return b.n - a.n; });          // big circles under small ones
+      marks.forEach(function (m) {
+        var c = L.circleMarker([m.p.s.lat, m.p.s.lon], {
+          renderer: renderer, radius: radius(m.n), color: ring, weight: 2,   // a surface ring, not a border
+          // Nearly solid: see-through circles stacked at one point mixed into
+          // colours the legend does not have (blue over orange read as brown).
+          fillColor: colour(m.i), fillOpacity: 0.9
+        });
+        c.bindTooltip(tipFor(m.p), { direction: 'top', offset: [0, -radius(m.n)] });
+        c.bindPopup(function () { return popupFor(m.p); },
+                    { maxWidth: 320, autoPanPadding: [20, 20], keepInView: true });
+        c.addTo(group);
+        markers[m.p.idx] = markers[m.p.idx] || c;
+      });
+    }
+
+    var body = document.querySelector('#places tbody');
+    body.textContent = '';
+    cur.places.slice(0, 40).forEach(function (p) {
+      var tr = el('tr'), td = el('td');
+      var b = el('button', null, placeName(p.s));
+      b.type = 'button';
+      b.addEventListener('click', function () {
+        if (!map) { return; }
+        map.setView([p.s.lat, p.s.lon], Math.max(map.getZoom(), 17));
+        var mk = markers[p.idx]; if (mk) { mk.openPopup(); }
+        document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      td.appendChild(b); tr.appendChild(td);
+      tr.appendChild(el('td', 'opt', p.s.area));
+      p.c.forEach(function (n) { tr.appendChild(el('td', 'num', n ? fmt(n) : '')); });
+      tr.appendChild(el('td', 'num', fmt(p.all)));
+      body.appendChild(tr);
+    });
+    document.getElementById('more').textContent = cur.places.length > 40
+      ? 'The 40 busiest of ' + fmt(cur.places.length) + ' places. Every record is in the download on the news page.' : '';
+  }
+  draw();
+})();
+</script>
+</body>
+</html>

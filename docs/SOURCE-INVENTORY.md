@@ -531,3 +531,35 @@ Only sources with records on a page are cited on that page.
   caution that it is preliminary information that may not have been verified.
 - Feeds: headlines and excerpts belong to their publishers; every item links to
   the original. Google News headlines are credited to the outlet named after each.
+
+## The police map, 23 October 2026
+
+`site/map.html` puts every located police record on one map: reported crime,
+both collision sources and police calls. Read from the live log that day: 10,970
+records with coordinates sat on only 873 distinct points, because the police move
+every record to the nearest intersection. The busiest point, Rosedale subway
+station (Yonge St & Park Rd), held 524 records, 261 of them recorded as "Transit".
+
+**Form.** One circle per point and layer, area proportional to the record count,
+with a size legend. A pin per record would have stacked hundreds of pins on one
+point and shown one. Three layers, the most a map can carry by colour: the first
+three palette slots, validated all-pairs with the dataviz validator against this
+site's surfaces (light CVD ΔE 9.2, dark 9.4; normal-vision 24.0 and 20.9). Orange
+and aqua sit under 3:1 contrast on the light background, so every colour is also
+named beside it and the "Busiest places" table repeats every number. Fills are
+nearly solid; see-through circles stacked at one point mixed into colours the
+legend did not have.
+
+**Names.** Crime and the police collision layer carry no street names. Police
+calls and the City's serious-collision records do. A point borrows the name of
+the nearest named point within 60 metres, shown as "Near ...". On 23 October
+282 of the 873 points had a name, 205 of them their own. The rest are labelled
+by neighbourhood rather than guessed.
+
+**Library and tiles.** Leaflet 1.9.4 is copied into the site from the npm
+registry, checked against the registry's published sha512, so the map works
+offline and when opened from disk on Windows. The data is inlined in the page for
+the same reason: browsers refuse to fetch a neighbouring file from disk. The
+background is CARTO's light or dark map of OpenStreetMap data, credited on the map
+and on the page. Without a connection the background is blank and the circles
+still draw.

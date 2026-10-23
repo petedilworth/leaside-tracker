@@ -6,12 +6,13 @@ read state. The server only knows dates and when the last two runs happened.
 """
 from __future__ import annotations
 
+import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from . import attribution, db, export, geo, sources, trends, version
+from . import attribution, db, export, geo, mapdata, sources, trends, version
 
 OUT = Path("site")
 
@@ -137,6 +138,7 @@ def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml",
     target = OUT / out_name
     target.write_text(env.get_template("index.html").render(**data), encoding="utf-8")
     render_trends(conn, areas, env, out_name)
+    render_map(conn, areas, env, cfg, out_name)
     if out_name == "index.html":          # never let the demo overwrite the real log
         export.write(conn, areas, cfg, OUT / "log")
     return target
@@ -176,3 +178,24 @@ def source_lines(attrib: dict, cfg) -> dict:
             parts.append(f"{link} ({escape(s['name'])}{newest})")
         out[cat] = "; ".join(parts)
     return out
+
+
+VENDOR = Path("static/vendor")
+
+
+def render_map(conn, areas, env, cfg, out_name: str = "index.html") -> Path:
+    """Police records on a map, one circle per police-placed point and layer."""
+    data = mapdata.build(conn, areas, cfg)
+    used = [r[0] for r in conn.execute(
+        "SELECT DISTINCT source_id FROM items WHERE category IN ('crime', 'collision', 'police_call')"
+        f" AND {db.SHOWN} AND lat IS NOT NULL ORDER BY source_id")]
+    attrib = attribution.for_sources(conn, cfg, used, where=f"AND {db.SHOWN} AND lat IS NOT NULL")
+    # The map library ships with the site, so the page works offline and from disk.
+    if VENDOR.exists():
+        shutil.copytree(VENDOR, OUT / "vendor", dirs_exist_ok=True)
+    name = "map.html" if out_name == "index.html" else out_name.replace(".html", "-map.html")
+    target = OUT / name
+    target.write_text(env.get_template("map.html").render(
+        data=data, payload=mapdata.payload(data), attrib=attrib,
+        generated=db.utcnow(), radius=mapdata.NAME_RADIUS_M), encoding="utf-8")
+    return target

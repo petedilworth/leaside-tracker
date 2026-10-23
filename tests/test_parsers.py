@@ -292,6 +292,14 @@ def test_area_overlaps_are_the_known_set_and_no_worse():
 
 # ---------------------------------------------------------------- the four review fixes
 
+def _recent(days: int = 1) -> str:
+    """A date relative to today. Fixed dates in digest tests expire: the first
+    email only covers the last 14 days, so a test written with "2026-10-02"
+    started failing on 17 October."""
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds")
+
+
 def _item(**over):
     base = {"source_id": "ra_leaside", "category": "ra_news", "title": "T",
             "url": "https://example.invalid/a", "published_at": None}
@@ -1682,9 +1690,9 @@ def test_digest_counts_police_calls_instead_of_listing_them(tmp_path):
         db.upsert_item(conn, _item(source_id="tps_calls_for_service", category="police_call",
                                    title=f"{'Check Address' if i % 3 else 'Theft'} near X & Y",
                                    url=None, area="leaside" if i % 2 else "davisville",
-                                   external_id=f"event:{i}", published_at="2026-10-02"))
+                                   external_id=f"event:{i}", published_at=_recent()))
     db.upsert_item(conn, _item(title="A real story", external_id="story",
-                               published_at="2026-10-02"))
+                               published_at=_recent()))
     conn.commit()
     data = digest.gather(conn, geo.Areas.load(), sources.load())
     assert data["total"] == 1                              # calls do not count as items
@@ -1874,13 +1882,13 @@ def test_routine_and_hidden_rows_stay_off_the_page_email_and_trends(tmp_path, mo
     from leaside import db, digest, render, trends
     conn = db.connect(tmp_path / "t.db")
     db.upsert_item(conn, _item(source_id="city_dinesafe", category="inspection", url=None,
-                               title="Pass: LAIRD CAFE", routine=True, published_at="2026-10-01"))
+                               title="Pass: LAIRD CAFE", routine=True, published_at=_recent()))
     db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime", url=None,
                                title="Assault at X", external_id="hid", area="leaside",
-                               published_at="2026-10-01", raw={"CSI_CATEGORY": "Assault"}))
+                               published_at=_recent(), raw={"CSI_CATEGORY": "Assault"}))
     db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime", url=None,
                                title="Robbery at Y", external_id="ok", area="leaside",
-                               published_at="2026-10-01", raw={"CSI_CATEGORY": "Robbery"}))
+                               published_at=_recent(), raw={"CSI_CATEGORY": "Robbery"}))
     iid = db.item_id("tps_reported_crime", "hid")
     db.hide(conn, iid, "tps_reported_crime", "superseded by a corrected record")
     conn.commit()
@@ -2176,3 +2184,85 @@ def test_the_email_credits_the_sources_it_carries(tmp_path):
     assert OGL in html_out and OGL in text_out
     assert "Police calls come from the Toronto Police Service" in html_out    # counted, still credited
     assert "not affiliated with or endorsed by" in html_out and "not affiliated" in text_out
+
+
+# ---------------------------------------------------------------- the police map
+
+def _police_db(tmp_path):
+    from leaside import db
+    conn = db.connect(tmp_path / "t.db")
+    corner = dict(lat=43.708001, lon=-79.364002, area="leaside")
+    db.upsert_item(conn, _item(source_id="tps_calls_for_service", category="police_call", url=None,
+                               title="Theft near BAYVIEW AVE - MILLWOOD RD", external_id="k1",
+                               published_at=_recent(2), **corner))
+    for i in range(3):
+        db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime", url=None,
+                                   title="Assault", summary="House · Leaside-Bennington (56)",
+                                   external_id=f"c{i}", published_at=_recent(30 + i),
+                                   raw={"OFFENCE": "Assault", "PREMISES_TYPE": "House"}, **corner))
+    # 40 m away, no name of its own: borrows the corner's name, as "near"
+    db.upsert_item(conn, _item(source_id="tps_traffic_collisions", category="collision", url=None,
+                               title="Collision with injuries", summary="injury · x",
+                               external_id="t1", published_at=_recent(40),
+                               lat=43.70836, lon=-79.364002, area="leaside"))
+    # far from anything named: stays unnamed rather than guessed
+    db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime", url=None,
+                               title="Robbery </script><b>x</b>", external_id="c9",
+                               published_at=_recent(50), raw={"OFFENCE": "Robbery </script><b>x</b>"},
+                               lat=43.7300, lon=-79.3900, area="lawrence_park"))
+    # hidden and unlocated records never reach the map
+    db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime", url=None,
+                               title="Assault", external_id="nope", published_at=_recent(3)))
+    conn.commit()
+    return conn
+
+
+def test_map_groups_records_by_the_point_the_police_placed_them(tmp_path):
+    from leaside import mapdata
+    d = mapdata.build(_police_db(tmp_path), AREAS, CFG)
+    assert d["records"] == 6 and len(d["spots"]) == 3
+    corner = d["spots"][0]                                      # busiest first
+    assert len(corner["r"]) == 4 and corner["name"] == "Bayview Ave & Millwood Rd" and corner["exact"]
+    layers = sorted(r[0] for r in corner["r"])
+    assert layers == [0, 0, 0, 2]                               # three crimes, one call
+    labels = {d["strings"][r[2]] for r in corner["r"]}
+    assert labels == {"Assault", "Theft"}
+    assert "House" in d["strings"]
+    near = next(s for s in d["spots"] if s["lat"] == 43.70836)
+    assert near["name"] == "Bayview Ave & Millwood Rd" and near["exact"] is False
+    far = next(s for s in d["spots"] if s["area"] == "Lawrence Park")
+    assert far["name"] is None
+    assert [a["name"] for a in d["areas"]][0] == "Leaside" and len(d["areas"][0]["ring"]) == 5
+
+
+def test_map_payload_cannot_close_its_script_element(tmp_path):
+    from leaside import mapdata
+    d = mapdata.build(_police_db(tmp_path), AREAS, CFG)
+    text = mapdata.payload(d)
+    assert "</script>" not in text and "<\\/script>" in text
+    assert json.loads(text)["records"] == 6
+
+
+def test_the_map_page_is_built_with_its_library_sources_and_links(tmp_path, monkeypatch):
+    from leaside import render
+    _police_db(tmp_path)
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    render.run(db_path=tmp_path / "t.db", out_name="index.html")
+    page = (tmp_path / "map.html").read_text(encoding="utf-8")
+    assert (tmp_path / "vendor" / "leaflet" / "leaflet.js").exists()
+    assert (tmp_path / "vendor" / "leaflet" / "LICENSE").exists()
+    assert 'src="vendor/leaflet/leaflet.js"' in page and "cdnjs" not in page
+    assert '<meta name="robots" content="noindex, nofollow">' in page
+    section = page[page.index('id="sources"'):]
+    assert "Contains information licensed under the Open Government Licence – Ontario." in section
+    assert "OpenStreetMap contributors" in page and "CARTO" in page
+    for other in ("index.html", "trends.html"):
+        assert 'href="map.html"' in (tmp_path / other).read_text(encoding="utf-8"), other
+
+
+def test_the_demo_map_does_not_overwrite_the_real_one(tmp_path, monkeypatch):
+    from leaside import demo, render
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    demo.run(db_path=tmp_path / "demo.db")
+    render.run(db_path=tmp_path / "demo.db", out_name="demo.html")
+    assert (tmp_path / "demo-map.html").exists() and not (tmp_path / "map.html").exists()

@@ -137,7 +137,8 @@
   <h1>Leaside Tracker</h1>
   <p class="stamp">Last collected <time data-ts="{{ latest_run or generated_at }}">{{ (latest_run or generated_at)[:16] }}</time>
      &middot; <span id="scope">{{ "{:,}".format(total_stored) }} items on this page</span>{% if truncated %} (the newest; <a href="log/everything.csv" style="color:var(--accent)">the full log</a> has all {{ "{:,}".format(log_total) }}){% endif %}
-     &middot; <a href="trends.html" style="color:var(--accent)">Is it up this year? &rarr;</a></p>
+     &middot; <a href="trends.html" style="color:var(--accent)">Is it up this year? &rarr;</a>
+     &middot; <a href="map.html" style="color:var(--accent)">Police map &rarr;</a></p>
 </header>
 
 {% if items %}

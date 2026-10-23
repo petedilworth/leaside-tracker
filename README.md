@@ -60,6 +60,8 @@ To see the site render without any network:
 | `docs/THE-LOG.md` | What is kept, where to find it, how it is protected |
 | `config/health-report.md` | Written every run: what came in, duplicates, failures |
 | `site/trends.html` | Built every run: is crime or collisions up this year, honestly |
+| `site/map.html` | Built every run: every located police record, one circle per police-placed point |
+| `static/vendor/leaflet/` | The map library (Leaflet 1.9.4, BSD licence), copied into the site so the map works offline |
 | `tests/` | Parser tests against fixtures, no network |
 | `run-windows.bat` | Double-click launcher for Windows. A stub that never changes: pulls, then hands over |
 | `scripts/run-windows-main.bat` | The real Windows run, safe to update because it is never executing during the pull |
