@@ -119,8 +119,12 @@ def build(conn, areas, cfg, now=None) -> dict:
         # "New this week" means first seen by the tracker. The City dates a permit
         # by its application day and publishes it days later; counting by that
         # date showed zero permits in a week that brought 21.
-        sql = f"SELECT COUNT(*) FROM items WHERE category = ? AND {db.SHOWN} AND first_seen_at >= ?"
-        params = [category, since]
+        # ...but not a backfill: when the City's datastore came back after three
+        # days down, 299 old inspections arrived in one morning. An item dated more
+        # than 30 days before it was first seen is history, not this week's news.
+        sql = (f"SELECT COUNT(*) FROM items WHERE category = ? AND {db.SHOWN} AND first_seen_at >= ?"
+               " AND (published_at IS NULL OR published_at >= ?)")
+        params = [category, since, _iso(_now(now) - timedelta(days=WEEK + 30))]
         if until:
             sql += " AND first_seen_at < ?"
             params.append(until)
@@ -166,7 +170,8 @@ def build(conn, areas, cfg, now=None) -> dict:
     big = sorted(permits, key=lambda p: -_cost(p["summary"]))[:8]
 
     inspections = decorate(_rows(conn, f"""SELECT * FROM items WHERE category = 'inspection' AND {db.SHOWN}
-        AND first_seen_at >= ? ORDER BY COALESCE(published_at, first_seen_at) DESC LIMIT 8""", (month_ago,)))
+        AND first_seen_at >= ? AND (published_at IS NULL OR published_at >= ?)
+        ORDER BY COALESCE(published_at, first_seen_at) DESC LIMIT 8""", (month_ago, month_ago)))
 
     recent_text = decorate(_rows(conn, f"""SELECT * FROM items WHERE category IN ({marks}) AND {db.SHOWN}
         AND COALESCE(published_at, first_seen_at) >= ?""", (*STORY_CATEGORIES, month_ago)))
