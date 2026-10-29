@@ -207,7 +207,7 @@ def file_size(path) -> tuple[float, float] | None:
 
 def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml") -> Path:
     conn = db.connect(db_path)
-    d = gather(conn, geo.Areas.load(), sources.load(config_path))
+    d = gather(conn, geo.Areas.load(conn=conn), sources.load(config_path))
     d["size"] = file_size(db_path)
     REPORT.write_text(render(d), encoding="utf-8")
     return REPORT

@@ -4,341 +4,164 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Leaside Tracker</title>
+<title>Leaside Tracker · Today</title>
+{% include "_shell_head.html" %}
 <style>
-  :root {
-    --bg:#f7f5f1; --fg:#1c1b19; --muted:#6f6a63; --faint:#a39d94; --line:#e4e0d8;
-    --card:#fffdf9; --accent:#8a3b2a; --accent-soft:#f3e4df; --new:#2e6b47;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#161513; --fg:#ebe7e0; --muted:#a19a90; --faint:#6b665e; --line:#2c2925;
-            --card:#1e1c19; --accent:#e0a08e; --accent-soft:#33241f; --new:#7fc39a; }
-  }
-  * { box-sizing:border-box; }
-  /* Author styles beat the browser's [hidden] rule, and li.item sets display:grid.
-     Without this, filtered-out items stay visible while the counters say otherwise. */
-  [hidden] { display:none !important; }
-  html { scroll-behavior:smooth; }
-  body { margin:0; background:var(--bg); color:var(--fg);
-         font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
-  a { color:inherit; }
-  .wrap { max-width:760px; margin:0 auto; padding:28px 20px 96px; }
-
-  header h1 { font-size:24px; margin:0; letter-spacing:-0.01em; }
-  .stamp { color:var(--muted); font-size:13.5px; margin:4px 0 18px; }
-  .stats { display:flex; gap:10px; flex-wrap:wrap; margin:0 0 18px; }
-  .stat { background:var(--card); border:1px solid var(--line); border-radius:10px;
-          padding:10px 14px; min-width:120px; }
-  .stat b { display:block; font-size:22px; line-height:1.1; }
-  .stat span { font-size:12.5px; color:var(--muted); }
-  .stat.new b { color:var(--new); }
-
-  .bar { position:sticky; top:0; z-index:5; background:var(--bg);
-         padding:10px 0 8px; border-bottom:1px solid var(--line); margin-bottom:8px; }
-  .row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; align-items:center; }
-  .row .lbl { font-size:11.5px; text-transform:uppercase; letter-spacing:.06em;
-              color:var(--faint); margin-right:2px; min-width:44px; }
-  .chip { border:1px solid var(--line); background:var(--card); border-radius:999px;
-          padding:4px 11px; font-size:13px; color:var(--muted); cursor:pointer; line-height:1.3; }
-  .chip:hover { border-color:var(--muted); }
-  .chip[aria-pressed="true"] { border-color:var(--accent); background:var(--accent-soft);
-                               color:var(--accent); }
-  .row[data-multi] .chip[aria-pressed="false"] { opacity:.5; text-decoration:line-through;
-                                                 text-decoration-thickness:1px; }
-  .chip.reset { margin-left:auto; font-size:12px; }
-  .chip.action { margin-left:auto; }
-  #shown { font-size:12.5px; color:var(--muted); }
-
-  h2.day { font-size:12.5px; text-transform:uppercase; letter-spacing:.07em;
-           color:var(--muted); margin:26px 0 6px; padding-bottom:4px;
-           border-bottom:1px solid var(--line); }
-  ul.items { list-style:none; margin:0; padding:0; }
-  li.item { display:grid; grid-template-columns:14px 1fr auto; gap:0 10px;
-            padding:11px 0 11px 4px; border-bottom:1px solid var(--line); }
-  li.item .dot { width:8px; height:8px; border-radius:50%; margin-top:9px;
-                 background:var(--new); visibility:hidden; }
-  li.item.unread .dot { visibility:visible; }
-  /* A grid cell will not shrink below its longest unbroken word by default, and
-     some permit descriptions run long tokens together; on a phone that pushed the
-     whole page sideways. */
-  li.item > div { min-width:0; }
-  li.item .t, li.item .sum, li.item .meta { overflow-wrap:anywhere; }
-  li.item .t { font-weight:600; text-decoration:none; }
-  li.item .t:hover { color:var(--accent); text-decoration:underline; }
-  li.item:not(.unread) .t { font-weight:500; color:var(--muted); }
-  .meta { font-size:12.5px; color:var(--muted); margin-top:3px; }
-  .meta .src { color:var(--fg); }
-  li.item:not(.unread) .meta .src { color:var(--muted); }
-  .meta .sep { color:var(--faint); margin:0 5px; }
-  .tag { display:inline-block; border:1px solid var(--line); border-radius:4px;
-         padding:0 5px; font-size:11px; margin-right:4px; vertical-align:1px; }
-  .sum { font-size:14px; color:var(--muted); margin-top:6px; line-height:1.5; }
-  .sum.clipped { display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical;
-                 overflow:hidden; }
-  .more { background:none; border:0; padding:2px 0; margin-top:2px; cursor:pointer;
-          color:var(--accent); font-size:12.5px; font-family:inherit; }
-  .more:hover { text-decoration:underline; }
-  .links { margin-top:6px; font-size:12.5px; }
-  .links a { color:var(--accent); text-decoration:none; margin-right:12px; }
-  .links a:hover { text-decoration:underline; }
-  .done { align-self:start; border:0; background:none; color:var(--faint);
-          cursor:pointer; font-size:16px; padding:2px 6px; border-radius:6px; }
-  .done:hover { color:var(--accent); background:var(--accent-soft); }
-  li.item:not(.unread) .done { visibility:hidden; }
-
-  details { margin-top:44px; }
-  summary { cursor:pointer; font-size:13px; text-transform:uppercase; letter-spacing:.06em;
-            color:var(--muted); }
-  table { width:100%; border-collapse:collapse; font-size:13.5px; margin-top:10px; }
-  th,td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line);
-          vertical-align:top; }
-  .ok { color:var(--new); } .bad { color:var(--accent); }
-  .empty { border:1px dashed var(--line); border-radius:10px; padding:24px;
-           color:var(--muted); font-size:14px; }
-  code { font-size:12.5px; background:var(--card); padding:1px 5px; border-radius:4px; }
-  .foot { margin-top:40px; font-size:12.5px; color:var(--faint); }
-
-  .live { background:var(--card); border:1px solid var(--line); border-radius:10px;
-          padding:12px 14px; margin:0 0 18px; }
-  .live h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
-             margin:0 0 6px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
-  .live h2 span { font-weight:400; text-transform:none; letter-spacing:0; }
-  .live ol { list-style:none; margin:0; padding:0; font-size:13.5px; columns:2; column-gap:22px; }
-  @media (max-width:560px) { .live ol { columns:1; } }
-  .live li { break-inside:avoid; padding:3px 0; border-bottom:1px dotted var(--line); }
-  .live li time { color:var(--faint); font-size:12px; margin-right:6px; white-space:nowrap; }
-  .live li .w { color:var(--muted); }
-  .live .note { font-size:12px; color:var(--faint); margin:8px 0 0; }
-
-  .sources { margin-top:36px; }
-  .sources h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
-                margin:0 0 6px; }
-  .sources table { width:100%; border-collapse:collapse; font-size:13px; }
-  .sources th, .sources td { text-align:left; padding:6px 8px 6px 0; border-bottom:1px solid var(--line);
-                             vertical-align:top; }
-  .sources th { font-weight:600; color:var(--muted); font-size:12px; }
-  .sources .num { text-align:right; font-variant-numeric:tabular-nums; }
-  .sources td:nth-child(5) { white-space:nowrap; }
-  .sources .pub { color:var(--muted); font-size:12px; }
-  .sources a { color:var(--accent); }
-  .sources .lic { font-size:12.5px; color:var(--muted); margin:8px 0 0; }
-  @media (max-width:560px) { .sources th:nth-child(5), .sources td:nth-child(5) { display:none; } }
-  .srcline { font-size:12.5px; color:var(--muted); margin:-4px 0 12px; }
-  .srcline a { color:var(--accent); }
-  .logbox { margin-top:36px; font-size:13.5px; color:var(--muted); background:var(--card);
-            border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
-  .logbox a { color:var(--accent); }
+  .lead { font-size:14px; color:var(--muted); margin:0 0 16px; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin:0 0 22px; }
+  .tile { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px;
+          text-decoration:none; display:block; }
+  .tile:hover { border-color:var(--muted); }
+  .tile b { display:block; font-size:30px; line-height:1.05; font-weight:600; }
+  .tile .lbl { font-size:13px; color:var(--fg); margin-top:4px; }
+  .tile .note { font-size:12px; color:var(--muted); }
+  .tile .delta { font-size:12.5px; margin-top:6px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .tile .delta.up { color:#b3402e; } .tile .delta.down { color:#2f7d4f; }
+  @media (prefers-color-scheme: dark) { .tile .delta.up { color:#e08a78; } .tile .delta.down { color:#7fc39a; } }
+  section { margin:0 0 28px; }
+  section > h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+                 margin:0 0 8px; padding-bottom:4px; border-bottom:1px solid var(--line);
+                 display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  section > h2 a { font-weight:400; text-transform:none; letter-spacing:0; font-size:13px; color:var(--accent); text-decoration:none; }
+  section > h2 a:hover { text-decoration:underline; }
+  ul.plain { list-style:none; margin:0; padding:0; }
+  ul.plain li { padding:8px 0; border-bottom:1px solid var(--line); }
+  ul.plain li:last-child { border-bottom:0; }
+  .t { font-weight:600; text-decoration:none; }
+  .t:hover { color:var(--accent); text-decoration:underline; }
+  .meta { font-size:12.5px; color:var(--muted); margin-top:2px; }
+  .meta .tag { display:inline-block; border:1px solid var(--line); border-radius:4px; padding:0 5px; font-size:11px; margin-right:4px; vertical-align:1px; }
+  .sum { font-size:13.5px; color:var(--muted); margin-top:3px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .events li { display:grid; grid-template-columns:72px 1fr; gap:10px; }
+  .events .d { font-weight:600; font-size:14px; line-height:1.3; }
+  .events .d small { display:block; font-weight:400; color:var(--muted); font-size:12px; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:0 28px; }
+  @media (max-width:640px) { .cols { grid-template-columns:1fr; } }
+  .calls li { font-size:13.5px; padding:4px 0; }
+  .calls time { color:var(--faint); font-size:12px; margin-right:6px; white-space:nowrap; }
+  .calls .w { color:var(--muted); }
+  .kinds { font-size:13px; color:var(--muted); margin:0 0 6px; }
+  .empty { color:var(--muted); font-size:14px; padding:8px 0; }
+  .home { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .home p { margin:0; font-size:14px; color:var(--muted); }
+  .home ul.plain li { padding:6px 0; font-size:14px; }
+  .home .dist { color:var(--faint); font-size:12px; margin-left:6px; }
+  .lag { font-size:12.5px; color:var(--faint); margin:10px 0 0; }
 </style>
 </head>
 <body>
 <div class="wrap">
+{% set page = 'today' %}{% include "_shell_nav.html" %}
 
-<header>
-  <h1>Leaside Tracker</h1>
-  <p class="stamp">Last collected <time data-ts="{{ latest_run or generated_at }}">{{ (latest_run or generated_at)[:16] }}</time>
-     &middot; <span id="scope">{{ "{:,}".format(total_stored) }} items on this page</span>{% if truncated %} (the newest; <a href="log/everything.csv" style="color:var(--accent)">the full log</a> has all {{ "{:,}".format(log_total) }}){% endif %}
-     &middot; <a href="trends.html" style="color:var(--accent)">Is it up this year? &rarr;</a>
-     &middot; <a href="map.html" style="color:var(--accent)">Police map &rarr;</a></p>
-</header>
+<h1>This week in the neighbourhood</h1>
+<p class="lead">Since {{ b.week_start }}. Collected <time data-ts="{{ b.latest_run or b.now }}">{{ (b.latest_run or b.now)[:16] }}</time>.
+  Everything here comes from the public sources named at the bottom.</p>
 
-{% if items %}
-<div class="stats">
-  <div class="stat new"><b id="unread-count">{{ in_window }}</b><span>unread in view</span></div>
-  <div class="stat"><b>{{ new_this_run }}</b><span>new in the last collection</span></div>
-  <div class="stat"><b id="view-count">{{ in_window }}</b><span>items in view</span></div>
-</div>
-
-{% if live_total %}
-<section class="live" aria-label="Police calls this week">
-  <h2>Police calls, last {{ live_days }} days
-    <span>{{ live_total }} attended{% if live_kinds %} &middot; {% for k, n in live_kinds %}{{ k }} {{ n }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</span></h2>
-  <ol>
-  {% for it in live %}
-    <li><time data-ts="{{ it.when }}">{{ it.when[5:16] }}</time>{{ it.title.split(' near ')[0] }}
-      {% if ' near ' in it.title %}<span class="w">near {{ it.title.split(' near ', 1)[1] }}</span>{% endif %}
-      <span class="w">&middot; {{ it.area_name }}</span></li>
-  {% endfor %}
-  </ol>
-  <p class="note">Source: <a href="{{ live_source.home }}" target="_blank" rel="noopener">{{ live_source.credit }}</a>, checked every half hour. Placed at the nearest
-    intersection by the police. Medical, sexual assault, suicide and domestic calls are never shown.
-    {% if live_total > live|length %}Showing the newest {{ live|length }}; the rest are in the list below.{% endif %}</p>
-</section>
-{% endif %}
-
-<div class="bar">
-  <div class="row" data-group="read">
-    <span class="lbl">Show</span>
-    <button class="chip" aria-pressed="true" data-filter="unread">Unread</button>
-    <button class="chip" aria-pressed="false" data-filter="all">Everything</button>
-    <button class="chip action" id="mark-all" title="Mark every visible item as read">Mark all read</button>
-  </div>
-  <div class="row" data-group="since">
-    <span class="lbl">Since</span>
-    {% for days, label in window_choices %}
-    <button class="chip" aria-pressed="{{ 'true' if days == window_days else 'false' }}"
-            data-filter="{{ days }}">{{ label }}</button>
-    {% endfor %}
-    <span class="chip" style="border:0;background:none;cursor:default;color:var(--faint)"
-          title="Police collision and crime records arrive months, sometimes years, late">late data lives here</span>
-  </div>
-  <div class="row" data-group="cat">
-    <span class="lbl">Type</span>
-    <button class="chip" aria-pressed="true" data-filter="all">All</button>
-    {% for cat, n in counts.items()|sort %}
-    <button class="chip" aria-pressed="false" data-filter="{{ cat }}">{{ cat.replace('_',' ') }} <small>{{ n }}</small></button>
-    {% endfor %}
-  </div>
-  <div class="row" data-group="area" data-multi="1">
-    <span class="lbl">Where</span>
-    {% for key, n in area_counts.items()|sort %}
-    <button class="chip" data-area="{{ key }}"
-            aria-pressed="{{ 'false' if key in area_default_off else 'true' }}"
-            title="Click to show or hide this area">{{ area_names[key] }} <small>{{ n }}</small></button>
-    {% endfor %}
-    <button class="chip reset" id="area-reset" title="Back to the default selection">Reset areas</button>
-  </div>
-  <div class="row"><span id="shown"></span></div>
-</div>
-
-<ul class="items" id="list">
-{% for it in items %}
-  <li class="item unread" id="i-{{ it.id }}" data-id="{{ it.id }}" data-cat="{{ it.category }}"
-      data-area="{{ it.area or 'none' }}" data-when="{{ it.when }}" data-seen="{{ it.first_seen_at }}">
-    <span class="dot" aria-hidden="true"></span>
-    <div>
-      {% if it.url %}<a class="t" href="{{ it.url }}" target="_blank" rel="noopener">{{ it.title }}</a>
-      {% else %}<span class="t">{{ it.title }}</span>{% endif %}
-      <div class="meta">
-        {% if it.source_home %}<a class="src" href="{{ it.source_home }}" target="_blank" rel="noopener" title="Source: {{ it.source_credit }}">{{ it.source_name }}</a>
-        {% else %}<span class="src">{{ it.source_name }}</span>{% endif %}
-        <span class="sep">&middot;</span><span class="tag">{{ it.area_name }}</span>
-        <span class="sep">&middot;</span><time data-ts="{{ it.when }}">{{ it.when[:10] }}</time>
-      </div>
-      {% if it.summary %}<div class="sum clipped">{{ it.summary }}</div>{% endif %}
-      <div class="links">
-        {% if it.url %}<a href="{{ it.url }}" target="_blank" rel="noopener">Read the original &rarr;</a>
-        {% elif it.source_home %}<a href="{{ it.source_home }}" target="_blank" rel="noopener">Where this came from &rarr;</a>{% endif %}
-        {% if it.lat and it.lon %}<a href="https://www.openstreetmap.org/?mlat={{ it.lat }}&amp;mlon={{ it.lon }}#map=17/{{ it.lat }}/{{ it.lon }}"
-           target="_blank" rel="noopener"
-           {% if it.category in ('crime', 'collision', 'police_call') %}title="Approximate. Police move these to the nearest intersection on purpose, so this is the junction, not the address."{% endif %}>{{ 'Nearest intersection on a map' if it.category in ('crime', 'collision', 'police_call') else 'See it on a map' }} &rarr;</a>{% endif %}
-      </div>
-    </div>
-    <button class="done" title="Mark as read" aria-label="Mark as read">&#10003;</button>
-  </li>
+<div class="tiles">
+{% for t in b.tiles %}
+  <a class="tile" href="news.html?cat={{ t.category }}&amp;since=7">
+    <b>{{ t.this }}</b>
+    <span class="lbl">{{ t.label }}</span>
+    <span class="note">{{ t.note }}</span>
+    <span class="delta {% if t.bad_up %}{{ 'up' if t.delta > 0 else ('down' if t.delta < 0 else '') }}{% endif %}">
+      {% if t.last or t.this %}{{ '+' if t.delta > 0 }}{{ t.delta }} vs last week ({{ t.last }}){% else %}none in two weeks{% endif %}</span>
+  </a>
 {% endfor %}
-</ul>
-{% else %}
-<div class="empty">
-  <strong>Nothing collected in the last {{ window_days }} days.</strong><br>
-  Run <code>run-windows.bat</code>, or check <code>config/health-report.md</code>.
 </div>
-{% endif %}
 
-<details>
-  <summary>Source health</summary>
-  {% if fetches %}
-  <table>
-    <tr><th>Source</th><th>Last run</th><th>Result</th><th>Items</th></tr>
-    {% for f in fetches %}
-    <tr>
-      <td>{{ f.source_name }}</td>
-      <td><time data-ts="{{ f.ran_at }}">{{ f.ran_at[:10] }}</time></td>
-      <td class="{{ 'ok' if f.ok else 'bad' }}">{{ 'ok' if f.ok else (f.error or 'failed')[:90] }}</td>
-      <td>{{ f.item_count }}</td>
-    </tr>
-    {% endfor %}
-  </table>
-  {% else %}<p class="sub">Nothing has been fetched yet.</p>{% endif %}
-</details>
+<section id="home-block" hidden>
+  <h2>Near home <a href="map.html">change home on the map</a></h2>
+  <div class="home">
+    <p id="home-sub"></p>
+    <ul class="plain" id="home-list"></ul>
+  </div>
+</section>
 
-<details>
-  <summary>Configured sources</summary>
-  <table>
-    <tr><th>Source</th><th>Kind</th><th>Status</th></tr>
-    {% for s in sources %}
-    <tr><td>{{ s.name }}</td><td><code>{{ s.kind }}</code></td>
-        <td class="{{ 'bad' if s.status in ('blocked','manual') else '' }}">{{ s.status }}</td></tr>
-    {% endfor %}
-  </table>
-</details>
+<section>
+  <h2>Coming up <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--faint)">next {{ lookahead }} days, read from recent items</span></h2>
+  {% if b.events %}
+  <ul class="plain events">
+  {% for e in b.events %}
+    <li>
+      <div class="d" data-date="{{ e.date }}">{{ e.date[5:] }}{% if e.clock %}<small>{{ e.clock }}</small>{% endif %}</div>
+      <div>
+        {% if e.url %}<a class="t" href="{{ e.url }}" target="_blank" rel="noopener">{{ e.title }}</a>{% else %}<span class="t">{{ e.title }}</span>{% endif %}
+        <div class="meta"><span class="tag">{{ e.area_name }}</span>{{ e.source_name }}</div>
+        <div class="sum">…{{ e.snippet }}…</div>
+      </div>
+    </li>
+  {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">Nothing dated in the next {{ lookahead }} days has been mentioned by a local source.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Stories <a href="news.html?cat=media&amp;since=30">all local news</a></h2>
+  {% if b.stories %}
+  <ul class="plain">
+  {% for it in b.stories %}
+    <li>
+      {% if it.url %}<a class="t" href="{{ it.url }}" target="_blank" rel="noopener">{{ it.title }}</a>{% else %}<span class="t">{{ it.title }}</span>{% endif %}
+      <div class="meta"><span class="tag">{{ it.area_name }}</span>{{ it.source_name }} &middot; <time data-ts="{{ it.when }}">{{ it.when[:10] }}</time></div>
+      {% if it.summary and it.category != 'media' %}<div class="sum">{{ it.summary }}</div>{% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+  {% else %}<p class="empty">No stories in the last two weeks.</p>{% endif %}
+</section>
+
+<div class="cols">
+<section>
+  <h2>Police calls <a href="map.html?layers=calls&amp;since=7">on the map</a></h2>
+  {% if b.calls %}
+  <p class="kinds">{{ b.calls_total }} attended this week: {% for k, n in b.call_kinds %}{{ k }} {{ n }}{{ ', ' if not loop.last }}{% endfor %}.</p>
+  <ul class="plain calls">
+  {% for it in b.calls %}
+    <li><time data-ts="{{ it.when }}">{{ it.when[5:16] }}</time>{{ it.title.split(' near ')[0] }}{% if ' near ' in it.title %} <span class="w">near {{ it.title.split(' near ', 1)[1] }}</span>{% endif %}</li>
+  {% endfor %}
+  </ul>
+  {% if b.calls_total > b.calls|length %}<p class="meta"><a href="news.html?cat=police_call&amp;since=7" style="color:var(--accent)">All {{ b.calls_total }} this week &rarr;</a></p>{% endif %}
+  {% else %}<p class="empty">No police calls seen this week.</p>{% endif %}
+</section>
+
+<section>
+  <h2>Being built <a href="news.html?cat=permit&amp;since=30">all permits</a></h2>
+  {% if b.permits %}
+  <ul class="plain">
+  {% for it in b.permits %}
+    <li><span class="t">{{ it.title }}</span><div class="sum">{{ it.summary }}</div></li>
+  {% endfor %}
+  </ul>
+  {% if b.permits_total > b.permits|length %}<p class="meta">{{ b.permits_total }} permits were new this week; these are the largest.</p>{% endif %}
+  {% else %}<p class="empty">No new building permits this week.</p>{% endif %}
+
+  <h2 style="margin-top:22px">Eating out <a href="news.html?cat=inspection&amp;since=90">all inspections</a></h2>
+  {% if b.inspections %}
+  <ul class="plain">
+  {% for it in b.inspections %}
+    <li><span class="t">{{ it.title }}</span><div class="meta"><time data-ts="{{ it.when }}">{{ it.when[:10] }}</time></div><div class="sum">{{ it.summary }}</div></li>
+  {% endfor %}
+  </ul>
+  {% else %}<p class="empty">No inspections with findings in the last month.</p>{% endif %}
+</section>
+</div>
+
+<p class="lag">Reported crime and collisions arrive months late: the newest crime record is from {{ b.lag.crime or 'no data' }}
+  and the newest collision from {{ b.lag.collision or 'no data' }}. They are on the <a href="map.html">map</a> and in the
+  <a href="trends.html">trends</a>, not here.</p>
 
 {% include "_sources.html" %}
 
-<div class="logbox">
-  <strong>The complete log.</strong> Everything ever collected is kept: {{ "{:,}".format(log_total) }} records{% if log_routine %},
-  including {{ "{:,}".format(log_routine) }} routine ones not shown here (clean restaurant inspections){% endif %}{% if log_hidden %},
-  and {{ "{:,}".format(log_hidden) }} hidden because their source was retired or the record was corrected{% endif %}.
-  Nothing is ever deleted, and {{ "{:,}".format(log_changes) }} changes to records have been recorded.
-  <br><a href="log/everything.csv" download>Download everything</a> (opens in Excel)
-  &middot; <a href="log/changes.csv" download>Download every change</a>
-  &middot; <a href="log/sources.csv" download>Download the list of sources</a>
-</div>
-
-<p class="foot">
-Police crime and collision records are placed at the nearest road intersection, not
-at the address, and they arrive months or years after the event. Widen
-<strong>Since</strong> to see them.<br>
-Read state is remembered by this browser only.<br>
+<p class="foot">Nothing collected is ever deleted. The complete log and its downloads are on the <a href="news.html#log">News page</a>.<br>
 Page generated {{ generated_at[:16] }} UTC by code {{ code_version }}.</p>
 </div>
 
+<script id="near" type="application/json">{{ b.near_json|safe }}</script>
 <script>
 (function () {
   'use strict';
-  var KEY = 'leaside.read.v1';
-  var VIEW = 'leaside.view.v1';
-  var items = Array.prototype.slice.call(document.querySelectorAll('li.item'));
-  var picked = { read: 'unread', cat: 'all', since: {{ window_days }} };
-  var areaChips = Array.prototype.slice.call(document.querySelectorAll('.chip[data-area]'));
-  var defaultAreas = {};
-  areaChips.forEach(function (c) {
-    defaultAreas[c.dataset.area] = c.getAttribute('aria-pressed') === 'true';
-  });
-  var areas = Object.assign({}, defaultAreas);
-  try {
-    var saved = JSON.parse(localStorage.getItem(VIEW) || 'null');
-    if (saved && typeof saved.since === 'number') {
-      picked.since = saved.since;
-      document.querySelectorAll('.row[data-group="since"] .chip[data-filter]')
-        .forEach(function (c) {
-          c.setAttribute('aria-pressed',
-            String(parseInt(c.dataset.filter, 10) === picked.since));
-        });
-    }
-    if (saved && saved.areas) {
-      // Keep the stored choice only for areas that still exist on the page.
-      areaChips.forEach(function (c) {
-        if (Object.prototype.hasOwnProperty.call(saved.areas, c.dataset.area)) {
-          areas[c.dataset.area] = !!saved.areas[c.dataset.area];
-        }
-      });
-    }
-  } catch (e) {}
-  function saveView() {
-    try {
-      localStorage.setItem(VIEW, JSON.stringify({ areas: areas, since: picked.since }));
-    } catch (e) {}
-  }
-  function paintAreas() {
-    areaChips.forEach(function (c) {
-      c.setAttribute('aria-pressed', String(!!areas[c.dataset.area]));
-    });
-    saveView();
-  }
-
-  // ---- persistence: which ids have been read, and when this browser last looked
-  function load() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } }
-  function save(state) {
-    // keep only ids still on the page, so the store never grows without bound
-    var keep = {};
-    items.forEach(function (li) { var id = li.dataset.id; if (state[id]) keep[id] = state[id]; });
-    if (state.__lastVisit) keep.__lastVisit = state.__lastVisit;
-    try { localStorage.setItem(KEY, JSON.stringify(keep)); } catch (e) {}
-    return keep;
-  }
-  var state = load();
-
-  // ---- local time
   var fmtDay = new Intl.DateTimeFormat('en-CA', { weekday: 'short', day: 'numeric', month: 'short' });
   var fmtTime = new Intl.DateTimeFormat('en-CA', { hour: 'numeric', minute: '2-digit' });
   function relative(d) {
@@ -354,129 +177,41 @@ Page generated {{ generated_at[:16] }} UTC by code {{ code_version }}.</p>
     t.textContent = relative(d);
     t.title = fmtDay.format(d) + ', ' + fmtTime.format(d);
   });
+  document.querySelectorAll('.events .d[data-date]').forEach(function (el) {
+    var d = new Date(el.dataset.date + 'T12:00:00');
+    var small = el.querySelector('small');
+    el.textContent = fmtDay.format(d);
+    if (small) el.appendChild(small);
+  });
 
-  // ---- day headings, inserted in the reader's own time zone
-  function dayKey(d) {
-    var today = new Date(); today.setHours(0, 0, 0, 0);
-    var that = new Date(d); that.setHours(0, 0, 0, 0);
-    var diff = Math.round((today - that) / 86400000);
-    if (diff === 0) return 'Today';
-    if (diff === 1) return 'Yesterday';
-    return fmtDay.format(d);
+  // Near home. The pin is set on the map page and lives only in this browser.
+  var home = null;
+  try { home = JSON.parse(localStorage.getItem('leaside.home.v1') || 'null'); } catch (e) {}
+  if (!home || typeof home.lat !== 'number') return;
+  var rows = JSON.parse(document.getElementById('near').textContent);
+  var R = home.radius || 500;
+  function metres(lat, lon) {
+    var dy = (lat - home.lat) * 111320, dx = (lon - home.lon) * 111320 * Math.cos(home.lat * Math.PI / 180);
+    return Math.sqrt(dx * dx + dy * dy);
   }
-  var list = document.getElementById('list');
-  if (list) {
-    var last = null;
-    items.forEach(function (li) {
-      var d = new Date(li.dataset.when);
-      var k = isNaN(d) ? 'Undated' : dayKey(d);
-      if (k !== last) {
-        var h = document.createElement('h2'); h.className = 'day'; h.textContent = k;
-        h.dataset.day = '1';
-        list.insertBefore(h, li);
-        last = k;
-      }
-      li.dataset.day = k;
-    });
-  }
-
-  // ---- read state
-  function isRead(li) { return !!state[li.dataset.id]; }
-  function paint(li) { li.classList.toggle('unread', !isRead(li)); }
-  function markRead(li) { state[li.dataset.id] = Date.now(); state = save(state); paint(li); apply(); }
-  items.forEach(function (li) {
-    paint(li);
-    var t = li.querySelector('a.t');
-    if (t) t.addEventListener('click', function () { markRead(li); });
-    li.querySelector('.done').addEventListener('click', function () { markRead(li); });
+  var NAMES = { police_call: 'Police call', crime: 'Reported crime', collision: 'Collision', inspection: 'Inspection', city_notice: 'City notice' };
+  var near = rows.map(function (r) { return { r: r, m: metres(r[4], r[5]) }; })
+    .filter(function (x) { return x.m <= R; })
+    .sort(function (a, b) { return a.r[3] < b.r[3] ? 1 : -1; });
+  var block = document.getElementById('home-block'), list = document.getElementById('home-list');
+  block.hidden = false;
+  document.getElementById('home-sub').textContent = near.length
+    ? near.length + ' located record' + (near.length === 1 ? '' : 's') + ' within ' + R + ' m of your pin in the last 30 days. Police records sit at the nearest intersection, so "near" is approximate.'
+    : 'Nothing located within ' + R + ' m of your pin in the last 30 days.';
+  near.slice(0, 15).forEach(function (x) {
+    var r = x.r, li = document.createElement('li');
+    var kind = document.createElement('span'); kind.className = 'tag'; kind.textContent = NAMES[r[1]] || r[1];
+    li.appendChild(kind);
+    if (r[7]) { var a = document.createElement('a'); a.href = r[7]; a.target = '_blank'; a.rel = 'noopener'; a.textContent = r[2]; li.appendChild(a); }
+    else { li.appendChild(document.createTextNode(r[2])); }
+    var d = document.createElement('span'); d.className = 'dist'; d.textContent = Math.round(x.m) + ' m · ' + r[3]; li.appendChild(d);
+    list.appendChild(li);
   });
-  var markAll = document.getElementById('mark-all');
-  if (markAll) markAll.addEventListener('click', function () {
-    items.forEach(function (li) { if (!li.hidden) state[li.dataset.id] = Date.now(); });
-    state = save(state);
-    items.forEach(paint);
-    apply();
-  });
-
-  // ---- filters
-  function apply() {
-    var shown = 0, unread = 0, inScope = 0;
-    var floor = picked.since > 0 ? Date.now() - picked.since * 86400000 : -Infinity;
-    items.forEach(function (li) {
-      var when = new Date(li.dataset.when).getTime();
-      var dated = !isNaN(when);
-      var withinWindow = !dated || when >= floor;   // undated items always show
-      var r = isRead(li);
-      var scoped = withinWindow
-                && (picked.cat === 'all' || li.dataset.cat === picked.cat)
-                && areas[li.dataset.area] !== false;
-      if (scoped) {
-        inScope++;
-        if (!r) unread++;
-      }
-      var hit = scoped && (picked.read === 'all' || !r);
-      li.hidden = !hit;
-      if (hit) shown++;
-    });
-    // hide a day heading when nothing under it is visible
-    document.querySelectorAll('h2.day').forEach(function (h) {
-      var any = false, n = h.nextElementSibling;
-      while (n && n.tagName !== 'H2') { if (!n.hidden) { any = true; break; } n = n.nextElementSibling; }
-      h.hidden = !any;
-    });
-    var s = document.getElementById('shown');
-    if (s) s.textContent = shown + ' shown · ' + unread + ' unread of ' + inScope + ' in view';
-    var uc = document.getElementById('unread-count');
-    if (uc) uc.textContent = unread;
-    var vc = document.getElementById('view-count');
-    if (vc) vc.textContent = inScope;
-    if (markAll) markAll.hidden = shown === 0 || picked.read !== 'unread';
-  }
-  areaChips.forEach(function (chip) {
-    chip.addEventListener('click', function () {
-      areas[chip.dataset.area] = !areas[chip.dataset.area];
-      paintAreas();
-      apply();
-    });
-  });
-  var areaReset = document.getElementById('area-reset');
-  if (areaReset) areaReset.addEventListener('click', function () {
-    areas = Object.assign({}, defaultAreas);
-    paintAreas();
-    apply();
-  });
-
-  // Long summaries are clipped to four lines with a button to open them.
-  document.querySelectorAll('.sum').forEach(function (sum) {
-    if (sum.scrollHeight - sum.clientHeight < 8) { sum.classList.remove('clipped'); return; }
-    var btn = document.createElement('button');
-    btn.className = 'more';
-    btn.textContent = 'Show more';
-    btn.addEventListener('click', function () {
-      var open = sum.classList.toggle('clipped');
-      btn.textContent = open ? 'Show more' : 'Show less';
-    });
-    sum.parentNode.insertBefore(btn, sum.nextSibling);
-  });
-
-  document.querySelectorAll('.row[data-group]:not([data-multi])').forEach(function (row) {
-    var group = row.dataset.group;
-    row.querySelectorAll('.chip[data-filter]').forEach(function (chip) {
-      chip.addEventListener('click', function () {
-        row.querySelectorAll('.chip[data-filter]').forEach(function (o) {
-          o.setAttribute('aria-pressed', String(o === chip));
-        });
-        picked[group] = group === 'since'
-          ? parseInt(chip.dataset.filter, 10)
-          : chip.dataset.filter;
-        saveView();
-        apply();
-      });
-    });
-  });
-  paintAreas();
-  apply();
-  state.__lastVisit = Date.now(); state = save(state);
 })();
 </script>
 </body>

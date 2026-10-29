@@ -11,5 +11,6 @@ REGISTRY = {
     "ckan_dataset": ckan.fetch_dataset,
     "ckan_permits": ckan.fetch_permits,
     "ckan_dinesafe": ckan.fetch_dinesafe,
+    "ckan_boundaries": ckan.fetch_boundaries,
     "tps_calls": c4s.fetch_calls,
 }

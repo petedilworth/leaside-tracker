@@ -46,6 +46,8 @@ To see the site render without any network:
 | `config/sources.yaml` | Every source, its kind, and an honest status |
 | `config/areas.geojson` | Placeholder rectangles for each neighbourhood |
 | `leaside/fetchers/` | One module per source kind: RSS, JSON, ArcGIS, CKAN, HTML |
+| `leaside/briefing.py` | The Today page's numbers, stories and dated events |
+| `templates/_shell_head.html`, `_shell_nav.html` | The one header and colour set every page shares |
 | `docs/SOURCE-INVENTORY.md` | What data exists, what it costs, what is blocked |
 | `docs/ROADMAP.md` | Phased plan and five more things worth tracking |
 | `docs/MAILING-LISTS.md` | Which newsletters to join, and why a separate address |
@@ -59,6 +61,8 @@ To see the site render without any network:
 | `site/log/everything.csv`, `site/log/changes.csv` | The complete log, rebuilt with the page; opens in Excel |
 | `docs/THE-LOG.md` | What is kept, where to find it, how it is protected |
 | `config/health-report.md` | Written every run: what came in, duplicates, failures |
+| `site/index.html` | Built every run: the Today briefing, this week against last, what is coming up, stories, permits, police calls |
+| `site/news.html` | Built every run: everything collected, drawn in the browser a page at a time, with search |
 | `site/trends.html` | Built every run: is crime or collisions up this year, honestly |
 | `site/map.html` | Built every run: every located police record, one circle per police-placed point |
 | `static/vendor/leaflet/` | The map library (Leaflet 1.9.4, BSD licence), copied into the site so the map works offline |

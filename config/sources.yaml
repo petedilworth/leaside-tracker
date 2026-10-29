@@ -445,6 +445,31 @@ sources:
       Everything any outlet writes with "Leaside" in it. Catches the Globe, the
       Star and television, which the local papers' feeds do not.
 
+  # ---------------------------------------------------------------- boundaries
+  # Fetched first, so every source below is matched against the City's own lines.
+  - id: city_neighbourhoods
+    name: City of Toronto neighbourhood boundaries
+    category: registry
+    area: null
+    kind: ckan_boundaries
+    dataset: neighbourhoods
+    publisher: City of Toronto, Social Development, Finance and Administration
+    licence: ogl_toronto
+    home_url: https://open.toronto.ca/dataset/neighbourhoods/
+    timeout: 120
+    retries: 2
+    status: guess
+    notes: |
+      The 158 City neighbourhoods as polygons. Only the five that cover our areas
+      are kept, in the boundaries table. Once present, a located record must fall
+      inside one of them before a hand-drawn rectangle names the sub-area. Found
+      by the owner's request to rethink the site: the South Rosedale rectangle
+      reached across Bloor into Yorkville and St James Town, and the police map's
+      busiest place was Rosedale subway station. The dataset's resource names and
+      columns are unconfirmed from here; the fetcher tries the datastore rows
+      (a geometry column) and then any GeoJSON file resource, and prints which
+      worked.
+
   # ---------------------------------------------------------------- live and daily feeds
   - id: tps_calls_for_service
     name: Toronto Police calls for service (live map)

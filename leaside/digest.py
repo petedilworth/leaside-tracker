@@ -308,7 +308,7 @@ def send(data: dict, to: str, api_key: str, timeout: int = 30) -> dict:
 def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml", dry_run: bool = False,
         to: str | None = None, skip_empty: bool = True) -> dict:
     conn = db.connect(db_path)
-    data = gather(conn, geo.Areas.load(), sources.load(config_path))
+    data = gather(conn, geo.Areas.load(conn=conn), sources.load(config_path))
     print(f"{data['total']} new items since {data['since'][:16]}"
           f" ({data['shown']} listed, {data['overflow']} beyond the cap)")
 

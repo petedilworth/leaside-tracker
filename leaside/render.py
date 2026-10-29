@@ -12,7 +12,9 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from . import attribution, db, export, geo, mapdata, sources, trends, version
+import json
+
+from . import attribution, briefing, db, export, geo, mapdata, sources, trends, version
 
 OUT = Path("site")
 
@@ -87,8 +89,19 @@ def collect(conn, areas, cfg, window_days: int = WINDOW_DAYS) -> dict:
     changes = conn.execute("SELECT COUNT(*) FROM item_log WHERE event = 'changed'").fetchone()[0]
 
     calls_src = cfg.by_id("tps_calls_for_service")
+    # The reader draws its list in the browser from this, a page at a time.
+    compact = [{
+        "id": it["id"], "cat": it["category"], "area": it["area"], "area_name": it["area_name"],
+        "when": it["when"], "title": it["title"], "url": it["url"], "summary": it["summary"],
+        "source": it["source_name"], "home": it["source_home"], "credit": it["source_credit"],
+        "lat": it["lat"], "lon": it["lon"],
+    } for it in items]
+    items_json = json.dumps({"items": compact, "cat_names": sources.CATEGORY_NAMES},
+                            separators=(",", ":"), ensure_ascii=False).replace("</", "<\\/")
     return {
         "items": items,
+        "items_json": items_json,
+        "cat_names": sources.CATEGORY_NAMES,
         # Only the sources whose records are actually on this page are cited.
         "attrib": attribution.for_sources(conn, cfg, [it["source_id"] for it in items],
                                           where=f"AND {db.SHOWN}"),
@@ -118,10 +131,15 @@ def collect(conn, areas, cfg, window_days: int = WINDOW_DAYS) -> dict:
     }
 
 
+def _companion(out_name: str, kind: str) -> str:
+    """index.html -> news.html; demo.html -> demo-news.html."""
+    return f"{kind}.html" if out_name == "index.html" else out_name.replace(".html", f"-{kind}.html")
+
+
 def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml",
         out_name="index.html") -> Path:
     conn = db.connect(db_path)
-    areas = geo.Areas.load()
+    areas = geo.Areas.load(conn=conn)
     cfg = sources.load(config_path)
     env = Environment(
         loader=FileSystemLoader("templates"), autoescape=select_autoescape(["html"])
@@ -135,8 +153,15 @@ def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml",
     # files whose names start with an underscore and rewrites others; the page
     # wants neither. An empty .nojekyll file switches it off.
     (OUT / ".nojekyll").write_text("", encoding="utf-8")
+    # The front page is the briefing; the full reader is news.html. The demo
+    # keeps its own names (demo.html, demo-news.html) so it never overwrites them.
     target = OUT / out_name
-    target.write_text(env.get_template("index.html").render(**data), encoding="utf-8")
+    today = briefing.build(conn, areas, cfg)
+    target.write_text(env.get_template("index.html").render(
+        b=today, attrib=data["attrib"], lookahead=briefing.LOOKAHEAD_DAYS,
+        generated_at=data["generated_at"], code_version=data["code_version"]), encoding="utf-8")
+    news = OUT / _companion(out_name, "news")
+    news.write_text(env.get_template("news.html").render(**data), encoding="utf-8")
     render_trends(conn, areas, env, out_name)
     render_map(conn, areas, env, cfg, out_name)
     if out_name == "index.html":          # never let the demo overwrite the real log
@@ -150,8 +175,7 @@ def render_trends(conn, areas, env, out_name: str = "index.html") -> Path:
     for group in (data["crime"], data["collisions"]):
         for f in group["facets"]:
             trends.decorate(f)
-    name = "trends.html" if out_name == "index.html" else out_name.replace(".html", "-trends.html")
-    target = OUT / name
+    target = OUT / _companion(out_name, "trends")
     cfg = sources.load()
     used = [r[0] for r in conn.execute(
         "SELECT DISTINCT source_id FROM items WHERE category IN ('crime', 'collision')"
@@ -193,8 +217,7 @@ def render_map(conn, areas, env, cfg, out_name: str = "index.html") -> Path:
     # The map library ships with the site, so the page works offline and from disk.
     if VENDOR.exists():
         shutil.copytree(VENDOR, OUT / "vendor", dirs_exist_ok=True)
-    name = "map.html" if out_name == "index.html" else out_name.replace(".html", "-map.html")
-    target = OUT / name
+    target = OUT / _companion(out_name, "map")
     target.write_text(env.get_template("map.html").render(
         data=data, payload=mapdata.payload(data), attrib=attrib,
         generated=db.utcnow(), radius=mapdata.NAME_RADIUS_M), encoding="utf-8")

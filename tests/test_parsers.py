@@ -189,7 +189,7 @@ def test_unicode_survives_the_whole_pipeline(tmp_path):
     conn.commit()
 
     out = render.run(db_path=dbfile)
-    written = out.read_text(encoding="utf-8")
+    written = (out.parent / "news.html").read_text(encoding="utf-8")   # the reader
     assert "→" in written
     assert "café" in written
 
@@ -516,8 +516,10 @@ def test_page_carries_what_the_browser_needs(tmp_path):
     from leaside import render
 
     _seed_reader_db(tmp_path)
-    html = render.run(db_path=tmp_path / "t.db", out_name="t.html").read_text(encoding="utf-8")
-    assert 'data-when="' in html and 'data-seen="' in html and 'data-id="' in html
+    render.run(db_path=tmp_path / "t.db", out_name="t.html")
+    html = (render.OUT / "t-news.html").read_text(encoding="utf-8")
+    # The list is drawn in the browser from this data: each item carries its id and date.
+    assert '"when":"' in html and '"id":"' in html and 'id="items" type="application/json"' in html
     assert 'target="_blank"' in html and 'rel="noopener"' in html
     assert "Leaside Residents Association" in html, "source name, not source id"
     assert "fresh" in html and "<b>fresh</b>" not in html, "summary html was stripped"
@@ -708,7 +710,8 @@ def test_page_switches_off_a_muted_area(tmp_path, monkeypatch):
         return areas
 
     monkeypatch.setattr(geo.Areas, "load", staticmethod(muted))
-    html = render.run(db_path=tmp_path / "t.db", out_name="t.html").read_text(encoding="utf-8")
+    render.run(db_path=tmp_path / "t.db", out_name="t.html")
+    html = (render.OUT / "t-news.html").read_text(encoding="utf-8")
     assert 'data-area="leaside"' in html
     assert 'aria-pressed="false"' in html
 
@@ -926,7 +929,8 @@ def test_page_warns_that_police_locations_are_approximate(tmp_path):
                                area="leaside", lat=43.705, lon=-79.365,
                                published_at="2026-09-01"))
     conn.commit()
-    html = render.run(db_path=tmp_path / "t.db", out_name="t.html").read_text(encoding="utf-8")
+    render.run(db_path=tmp_path / "t.db", out_name="t.html")
+    html = (render.OUT / "t-news.html").read_text(encoding="utf-8")
     assert "openstreetmap.org" in html
     assert "Nearest intersection on a map" in html
     assert "nearest road intersection, not" in html
@@ -1727,11 +1731,12 @@ def test_page_shows_a_police_calls_strip_for_the_last_week(tmp_path, monkeypatch
                                    published_at=(now - timedelta(days=days)).isoformat()))
     conn.commit()
     monkeypatch.setattr(render, "OUT", tmp_path)
-    html_out = render.run(db_path=tmp_path / "t.db", out_name="t.html").read_text(encoding="utf-8")
-    assert "Police calls, last 7 days" in html_out
-    assert "3 attended" in html_out                        # the 20-day-old one is not live
-    assert "Check Address 3" in html_out
-    assert "Nearest intersection on a map" in html_out
+    today = render.run(db_path=tmp_path / "t.db", out_name="t.html").read_text(encoding="utf-8")
+    assert "3 attended this week" in today                 # the 20-day-old one is not this week
+    assert "Check Address 3" in today
+    assert 'href="map.html?layers=calls&amp;since=7"' in today
+    news = (tmp_path / "t-news.html").read_text(encoding="utf-8")
+    assert "Nearest intersection on a map" in news
 
 
 def test_probe_reports_which_candidate_answered():
@@ -1893,7 +1898,8 @@ def test_routine_and_hidden_rows_stay_off_the_page_email_and_trends(tmp_path, mo
     db.hide(conn, iid, "tps_reported_crime", "superseded by a corrected record")
     conn.commit()
     monkeypatch.setattr(render, "OUT", tmp_path)
-    page = render.run(db_path=tmp_path / "t.db", out_name="t.html").read_text(encoding="utf-8")
+    render.run(db_path=tmp_path / "t.db", out_name="t.html")
+    page = (tmp_path / "t-news.html").read_text(encoding="utf-8")
     assert "Robbery at Y" in page
     assert "Pass: LAIRD CAFE" not in page and "Assault at X" not in page
     assert "3 records" in page and "1 routine" in page and "1 hidden" in page
@@ -1945,7 +1951,7 @@ def test_the_log_downloads_open_cleanly_in_excel(tmp_path, monkeypatch):
     changes = list(csv.DictReader((tmp_path / "log" / "changes.csv").open(encoding="utf-8-sig")))
     assert [c["What happened"] for c in changes] == ["Changed", "First seen", "First seen"]
     assert changes[0]["What changed"] == "summary"
-    page = (tmp_path / "index.html").read_text(encoding="utf-8")
+    page = (tmp_path / "news.html").read_text(encoding="utf-8")
     assert 'href="log/everything.csv"' in page and 'href="log/changes.csv"' in page
 
 
@@ -2122,7 +2128,8 @@ def test_the_news_page_cites_every_source_it_shows(tmp_path, monkeypatch):
     from leaside import render
     _sourced_db(tmp_path)
     monkeypatch.setattr(render, "OUT", tmp_path)
-    page = render.run(db_path=tmp_path / "t.db", out_name="index.html").read_text(encoding="utf-8")
+    today = render.run(db_path=tmp_path / "t.db", out_name="index.html").read_text(encoding="utf-8")
+    page = (tmp_path / "news.html").read_text(encoding="utf-8")
     section = page[page.index('id="sources"'):]
     for sid in ("city_building_permits", "ra_leaside", "tps_reported_crime", "tps_calls_for_service"):
         s = CFG.by_id(sid)
@@ -2132,11 +2139,12 @@ def test_the_news_page_cites_every_source_it_shows(tmp_path, monkeypatch):
     assert "Headlines and short excerpts belong to their publishers" in section
     # Sources with nothing on the page are not cited.
     assert CFG.by_id("city_dinesafe").name not in section
-    # Each item's source name links to the source.
-    assert f'class="src" href="{CFG.by_id("ra_leaside").home}"' in page
-    # The police-calls strip names its source.
-    strip = page[page.index('class="live"'):page.index("</section>", page.index('class="live"'))]
-    assert "Source:" in strip and CFG.by_id("tps_calls_for_service").home in strip
+    # Each item carries its source page and credit for the link the browser draws.
+    assert f'"home":"{CFG.by_id("ra_leaside").home}"' in page
+    # The front page cites the sources of what it shows, police calls included.
+    front = today[today.index('id="sources"'):]
+    assert CFG.by_id("tps_calls_for_service").name in front
+    assert CFG.by_id("tps_calls_for_service").home in front
 
 
 def test_the_trends_page_cites_its_sources_under_each_heading(tmp_path, monkeypatch):
@@ -2171,7 +2179,7 @@ def test_downloads_carry_the_source_and_terms_of_every_row(tmp_path, monkeypatch
     assert {r["Source"] for r in listed} == {CFG.by_id(s).name for s in
         ("city_building_permits", "ra_leaside", "tps_reported_crime", "tps_calls_for_service")}
     assert any(r["Required wording"] == OGL for r in listed)
-    page = (tmp_path / "index.html").read_text(encoding="utf-8")
+    page = (tmp_path / "news.html").read_text(encoding="utf-8")
     assert 'href="log/sources.csv"' in page
 
 
@@ -2291,3 +2299,133 @@ def test_map_payload_carries_types_and_slider_steps(tmp_path):
     assert days[0] == 7 and days[-1] == 0 and days[d["default_stop"]] == 365
     assert days[:-1] == sorted(days[:-1])                       # further back as it moves left to right
     assert d["oldest"] is not None
+
+
+# ---------------------------------------------------------------- the rethink: Today, boundaries, speed
+
+def test_the_front_page_is_a_briefing_and_the_reader_is_news(tmp_path, monkeypatch):
+    from leaside import render
+    _police_db(tmp_path)
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    render.run(db_path=tmp_path / "t.db", out_name="index.html")
+    today = (tmp_path / "index.html").read_text(encoding="utf-8")
+    news = (tmp_path / "news.html").read_text(encoding="utf-8")
+    assert "This week in the neighbourhood" in today and 'href="news.html?cat=police_call&amp;since=7"' in today
+    assert "Everything collected" in news and 'id="q"' in news
+    for page in (today, news, (tmp_path / "map.html").read_text(encoding="utf-8"),
+                 (tmp_path / "trends.html").read_text(encoding="utf-8")):
+        assert 'aria-current="page"' in page and 'href="news.html"' in page and 'href="map.html"' in page
+    # The front page is small: it no longer carries every item.
+    assert len(today) < 60_000
+
+
+def test_news_page_stays_small_however_much_is_collected(tmp_path, monkeypatch):
+    """3,000 items used to be 46,000 elements and eight seconds on a phone. The
+    page now carries them as data and draws 120 at a time."""
+    from leaside import db, render
+    conn = db.connect(tmp_path / "t.db")
+    for i in range(3000):
+        db.upsert_item(conn, _item(title=f"Post {i}", url=f"https://x/{i}", external_id=str(i),
+                                   area="leaside", published_at=_recent(i % 100)))
+    conn.commit()
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    render.run(db_path=tmp_path / "t.db", out_name="index.html")
+    news = (tmp_path / "news.html").read_text(encoding="utf-8")
+    assert news.count("<li") < 50 and '"title":"Post 2999"' in news
+
+
+def test_upcoming_dates_are_read_strictly():
+    from datetime import datetime, timezone
+    from leaside.briefing import upcoming
+    now = datetime(2026, 10, 29, tzinfo=timezone.utc)
+    def it(title, summary, published):
+        return {"id": title, "title": title, "summary": summary, "published_at": published,
+                "first_seen_at": published, "source_id": "s", "category": "media", "url": None}
+    found = upcoming([
+        it("Closing", "will close for the final time on November 8, 2026 at 4 p.m.", "2026-10-26"),
+        it("AGM", "Join us Wednesday, Nov 12 at 7:30 pm in the library", "2026-10-20"),
+        it("Old fair", "returns Sept 20 to Trace Manes Park", "2026-09-10"),        # already past
+        it("Month only", "renderings from May 2026 and October 1979", "2026-10-20"),  # not a day
+        it("Too far", "the project is expected in March 15, 2027", "2026-10-20"),    # beyond 60 days
+        it("No year, next", "the meeting is on January 5", "2026-12-28"),             # past the horizon
+    ], now=now)
+    assert [(e["date"], e["clock"], e["title"]) for e in found] == [
+        ("2026-11-08", "16:00", "Closing"), ("2026-11-12", "19:30", "AGM")]
+
+
+def test_official_boundaries_gate_every_point_when_all_five_are_present(tmp_path):
+    """A hand-drawn rectangle reached across Bloor into Yorkville. With the City's
+    polygons loaded, a point outside our official neighbourhoods is not ours,
+    wherever a rectangle says."""
+    from leaside import db, geo
+    conn = db.connect(tmp_path / "t.db")
+    areas = geo.Areas.load()
+    inside_rosedale = (43.6760, -79.3780)      # inside the South Rosedale rectangle, north of Bloor
+    south_of_bloor = (43.6700, -79.3780)       # also inside that rectangle: Yorkville/St James Town
+    assert areas.match_point(*south_of_bloor) == "south_rosedale"     # the old, wrong answer
+    box = lambda s, w, n, e: {"type": "Polygon", "coordinates": [[[w, s], [e, s], [e, n], [w, n], [w, s]]]}
+    db.save_boundaries(conn, {"Rosedale-Moore Park (98)": box(43.6712, -79.3895, 43.6960, -79.3610)})
+    assert areas.attach_official(conn) == 1 and not areas.official_gate   # four of ours still missing
+    db.save_boundaries(conn, {
+        "Leaside-Bennington (56)": box(43.689, -79.382, 43.719, -79.348),
+        "Mount Pleasant East (99)": box(43.696, -79.400, 43.708, -79.388),
+        "South Eglinton-Davisville (174)": box(43.696, -79.388, 43.708, -79.376),
+        "Lawrence Park South (103)": box(43.725, -79.405, 43.740, -79.390),
+        "Lawrence Park North (105)": box(43.725, -79.390, 43.740, -79.375),
+    })
+    areas.attach_official(conn)
+    assert areas.official_gate
+    assert areas.match_point(*inside_rosedale) == "south_rosedale"
+    assert areas.match_point(*south_of_bloor) is None
+    assert areas.match_point(43.708, -79.364) == "leaside"
+    # inside the City's Rosedale-Moore Park but in no rectangle: still Rosedale-Moore Park's area
+    assert areas.match_point(43.6950, -79.3620) in ("north_rosedale", "south_rosedale", "moore_park")
+
+
+def test_boundary_correction_hides_outside_rows_but_keeps_them(tmp_path):
+    from leaside import db, geo, sources
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime", url=None,
+                               title="Assault", external_id="a", area="south_rosedale",
+                               lat=43.6700, lon=-79.3780, published_at="2026-05-01"))
+    db.upsert_item(conn, _item(source_id="city_building_permits", category="permit", url=None,
+                               title="New Building: 50 Cumberland St", external_id="p", area="south_rosedale",
+                               raw={"STREET_NUM": "50", "STREET_NAME": "CUMBERLAND", "STREET_TYPE": "ST", "POSTAL": "M4W"}))
+    db.upsert_item(conn, _item(source_id="city_building_permits", category="permit", url=None,
+                               title="New Building: 10 Roxborough Dr", external_id="q", area="north_rosedale",
+                               raw={"STREET_NUM": "10", "STREET_NAME": "ROXBOROUGH", "STREET_TYPE": "DR", "POSTAL": "M4W"}))
+    conn.commit()
+    box = lambda s, w, n, e: {"type": "Polygon", "coordinates": [[[w, s], [e, s], [e, n], [w, n], [w, s]]]}
+    db.save_boundaries(conn, {n: box(43.6712, -79.41, 43.75, -79.34) for n in (
+        "Rosedale-Moore Park (98)", "Leaside-Bennington (56)", "Mount Pleasant East (99)",
+        "South Eglinton-Davisville (174)", "Lawrence Park South (103)", "Lawrence Park North (105)")})
+    areas = geo.Areas.load(conn=conn)
+    counts = db.refresh_all(conn, areas, sources.load())
+    assert counts["outside_hidden"] == 2
+    kept = {r[0] for r in conn.execute(f"SELECT title FROM items WHERE {db.SHOWN}")}
+    assert kept == {"New Building: 10 Roxborough Dr"}
+    assert conn.execute("SELECT COUNT(*) FROM items").fetchone()[0] == 3
+    why = [tuple(r) for r in conn.execute("SELECT DISTINCT hidden_reason FROM items WHERE hidden_at IS NOT NULL")]
+    assert why == [("outside your areas after a boundary correction",)]
+
+
+def test_loose_postal_areas_need_a_known_street():
+    assert AREAS.match_postal("M4W 1J5", "CUMBERLAND") is None          # Yorkville
+    assert AREAS.match_postal("M4W 1J5", "BLOOR") is None
+    assert AREAS.match_postal("M4W 2P9", "ROXBOROUGH") == "north_rosedale"
+    assert AREAS.match_postal("M4W 3C3", "Castle Frank Cres") == "south_rosedale"
+    assert AREAS.match_postal("M4G 2E1", "ANYTHING") == "leaside"       # M4G is tight
+
+
+def test_boundary_polygons_are_picked_out_of_city_rows_by_name():
+    from leaside.fetchers import ckan
+    rows = [{"_id": 1, "AREA_NAME": "Leaside-Bennington", "AREA_SHORT_CODE": "56",
+             "geometry": '{"type":"Polygon","coordinates":[[[-79.38,43.69],[-79.34,43.69],[-79.34,43.72],[-79.38,43.69]]]}'},
+            {"_id": 2, "AREA_NAME": "Annex", "AREA_SHORT_CODE": "95",
+             "geometry": {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]]}}]
+    got = ckan._polygons_from_rows(rows, AREAS)
+    assert list(got) == ["Leaside-Bennington"] and got["Leaside-Bennington"]["type"] == "Polygon"
+    doc = {"type": "FeatureCollection", "features": [
+        {"type": "Feature", "properties": {"AREA_NAME": "Rosedale-Moore Park", "AREA_SHORT_CODE": "98"},
+         "geometry": {"type": "MultiPolygon", "coordinates": [[[[0, 0], [1, 0], [1, 1], [0, 0]]]]}}]}
+    assert list(ckan._polygons_from_geojson(doc, AREAS)) == ["Rosedale-Moore Park"]

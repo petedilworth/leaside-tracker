@@ -5,8 +5,8 @@ from every source is kept, and every change to a record is kept too.
 
 ## How to look at it
 
-**On the web page.** Scroll to the bottom. The box called *The complete log* has
-two download links. Both open in Excel.
+**On the web page.** Open *News* and scroll to the bottom. The box called *The complete
+log* has the download links. They open in Excel.
 
 - **Download everything**: one row per thing ever collected, shown on the page or
   not, with when it was first and last seen, where, and a link.
@@ -25,6 +25,7 @@ day whether your PC is on or not.
 | Clean restaurant inspections | A pass is the normal outcome and would bury the rest | Status *Routine, not shown* |
 | Rows from a source that was removed | The source is gone | Status *Hidden: source no longer configured* |
 | Rows stored under a faulty key | A parser fix replaced them with correct rows | Status *Hidden: superseded by a corrected record* |
+| Rows outside your areas | A boundary correction (the City's own neighbourhood lines, or a tighter postal rule) found they were never in your areas | Status *Hidden: outside your areas after a boundary correction* |
 | Items older than a source's email window | Too old to be news | On the page under *Since*, never emailed |
 
 The page itself shows the newest 3,000 items. The download has all of them.

@@ -1,0 +1,10 @@
+{# The header, included once at the top of <body>. `page` names the current one. #}
+<header class="top">
+  <a class="brand" href="index.html">Leaside Tracker<small>Leaside, Bennington, Rosedale, Moore Park, Davisville, Lawrence Park</small></a>
+  <nav class="nav" aria-label="Pages">
+    <a href="index.html" {% if page == 'today' %}aria-current="page"{% endif %}>Today</a>
+    <a href="news.html" {% if page == 'news' %}aria-current="page"{% endif %}>News</a>
+    <a href="map.html" {% if page == 'map' %}aria-current="page"{% endif %}>Map</a>
+    <a href="trends.html" {% if page == 'trends' %}aria-current="page"{% endif %}>Trends</a>
+  </nav>
+</header>

@@ -6,30 +6,15 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Leaside Tracker · Police map</title>
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+{% include "_shell_head.html" %}
 <style>
-  :root {
-    --bg:#f7f5f1; --fg:#1c1b19; --muted:#6f6a63; --faint:#a39d94; --line:#e4e0d8;
-    --card:#fffdf9; --accent:#8a3b2a; --accent-soft:#f3e4df;
-    /* Three categorical slots, validated all-pairs on #f7f5f1 (dataviz validator,
-       23 Oct 2026): CVD ΔE 9.2, normal-vision 24.0. Orange and aqua sit under 3:1
-       contrast, so every colour also has its name beside it and the table repeats
-       every number. */
-    --s0:#2a78d6; --s1:#eb6834; --s2:#1baf7a; --ring:#fffdf9; --outline:#898781;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#161513; --fg:#ebe7e0; --muted:#a19a90; --faint:#6b665e; --line:#2c2925;
-            --card:#1e1c19; --accent:#e0a08e; --accent-soft:#33241f;
-            /* the dark steps of the same three hues, validated on #1e1c19, all >= 3:1 */
-            --s0:#3987e5; --s1:#d95926; --s2:#199e70; --ring:#1e1c19; --outline:#6b665e; }
-  }
-  * { box-sizing:border-box; }
-  [hidden] { display:none !important; }
-  body { margin:0; background:var(--bg); color:var(--fg);
-         font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  :root { --ring:#fffdf9; --outline:#898781; }
+  @media (prefers-color-scheme: dark) { :root { --ring:#1e1c19; --outline:#6b665e; } }
   a { color:var(--accent); }
-  .wrap { max-width:1100px; margin:0 auto; padding:24px 16px 80px; }
-  header h1 { font-size:24px; margin:0; letter-spacing:-0.01em; }
-  .stamp { color:var(--muted); font-size:13.5px; margin:4px 0 14px; }
+  .home-ctl { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .home-ctl .hint { font-size:12.5px; color:var(--muted); }
+  .map-home { background:var(--card); border:2px solid var(--accent); border-radius:50%; width:14px; height:14px; }
+  .leaflet-container.picking { cursor:crosshair; }
   .caveat { font-size:14px; color:var(--muted); margin:0 0 14px; max-width:760px; }
 
   .filters { display:flex; flex-direction:column; gap:8px; margin:0 0 10px; }
@@ -107,11 +92,11 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="wrap wide">
+{% set page = 'map' %}{% include "_shell_nav.html" %}
 <header>
   <h1>Police data on a map</h1>
-  <p class="stamp"><a href="index.html">&larr; News</a> &middot; <a href="trends.html">Is it up this year?</a>
-    &middot; {{ "{:,}".format(data.records) }} records at {{ "{:,}".format(data.spots|length) }} places, built {{ generated[:10] }}</p>
+  <p class="stamp">{{ "{:,}".format(data.records) }} records at {{ "{:,}".format(data.spots|length) }} places, built {{ generated[:10] }}</p>
 </header>
 
 <p class="caveat">The police place every record at the nearest intersection, never the address,
@@ -131,6 +116,13 @@
       <div class="ticks" aria-hidden="true">{% for s in data.stops %}<span>{{ s.tick }}</span>{% endfor %}</div>
     </div>
     <output id="since-out" for="since"></output>
+  </div>
+  <div class="home-ctl">
+    <span class="lbl">Home</span>
+    <button class="chip" id="home-set" type="button">Set home on the map</button>
+    <button class="chip" id="home-near" type="button" aria-pressed="false" hidden>Within 500 m of home</button>
+    <button class="chip" id="home-clear" type="button" hidden>Forget home</button>
+    <span class="hint" id="home-hint">Your pin stays in this browser only. It is never sent anywhere.</span>
   </div>
 </div>
 <p id="summary" aria-live="polite"></p>
@@ -173,6 +165,9 @@
   var on = [true, true, true];
   var typeOn = TYPES.map(function () { return true; });
   var stop = D.default_stop;
+  var NEAR_M = 500, home = null, nearOnly = false, homeMarker = null, picking = false;
+  try { home = JSON.parse(localStorage.getItem('leaside.home.v1') || 'null'); } catch (e) {}
+  if (!home || typeof home.lat !== 'number') home = null;
   var VIEW = 'leaside.map.v2';
   try {
     var saved = JSON.parse(localStorage.getItem(VIEW) || 'null');
@@ -182,6 +177,22 @@
   } catch (e) { /* private window: defaults */ }
   function save() {
     try { localStorage.setItem(VIEW, JSON.stringify({ on: on, types: typeOn, stop: stop })); } catch (e) {}
+  }
+  // Links from the Today page: ?layers=calls,crime&since=7
+  var params = new URLSearchParams(location.search);
+  if (params.get('layers')) {
+    var want = params.get('layers').split(',');
+    on = LAYERS.map(function (l) { return want.indexOf(l.key) >= 0 || want.indexOf(l.key.replace('police_', '') + 's') >= 0 || want.indexOf(l.key + 's') >= 0; });
+  }
+  if (params.get('since')) {
+    var days = parseInt(params.get('since'), 10), best = 0;
+    STOPS.forEach(function (st, i) { if (st.days && st.days >= days && (!STOPS[best].days || st.days < STOPS[best].days)) best = i; });
+    stop = best;
+  }
+  function metres(lat, lon) {
+    if (!home) return Infinity;
+    var dy = (lat - home.lat) * 111320, dx = (lon - home.lon) * 111320 * Math.cos(home.lat * Math.PI / 180);
+    return Math.sqrt(dx * dx + dy * dy);
   }
 
   function el(tag, cls, text) {
@@ -252,6 +263,7 @@
   function current() {
     var from = cutoff(), totals = [0, 0, 0], places = [], types = TYPES.map(function () { return 0; });
     D.spots.forEach(function (s, idx) {
+      if (nearOnly && metres(s.lat, s.lon) > NEAR_M) return;
       var c = [0, 0, 0], kept = [];
       for (var j = 0; j < s.r.length; j++) {
         var r = s.r[j];
@@ -328,6 +340,36 @@
     };
     map.addControl(new Size());
     map.on('zoomend', function () { drawLegend(); draw(); });
+
+    // ---- home pin: set by clicking the map, kept in this browser only
+    var homeIcon = L.divIcon({ className: 'map-home', iconSize: [14, 14] });
+    function paintHome() {
+      if (homeMarker) { map.removeLayer(homeMarker); homeMarker = null; }
+      if (home) {
+        homeMarker = L.marker([home.lat, home.lon], { icon: homeIcon, interactive: false, zIndexOffset: 1000 }).addTo(map);
+      }
+      document.getElementById('home-near').hidden = !home;
+      document.getElementById('home-clear').hidden = !home;
+      document.getElementById('home-near').setAttribute('aria-pressed', String(nearOnly));
+      document.getElementById('home-set').textContent = home ? 'Move home' : 'Set home on the map';
+      document.getElementById('home-hint').textContent = picking ? 'Now tap the map where home is.' :
+        (home ? 'Home is set. Today and News can now show what is near it.' : 'Your pin stays in this browser only. It is never sent anywhere.');
+      map.getContainer().classList.toggle('picking', picking);
+    }
+    document.getElementById('home-set').addEventListener('click', function () { picking = !picking; paintHome(); });
+    map.on('click', function (e) {
+      if (!picking) return;
+      home = { lat: +e.latlng.lat.toFixed(5), lon: +e.latlng.lng.toFixed(5), radius: NEAR_M };
+      try { localStorage.setItem('leaside.home.v1', JSON.stringify(home)); } catch (err) {}
+      picking = false; paintHome(); draw();
+    });
+    document.getElementById('home-near').addEventListener('click', function () { nearOnly = !nearOnly; paintHome(); draw(); });
+    document.getElementById('home-clear').addEventListener('click', function () {
+      home = null; nearOnly = false;
+      try { localStorage.removeItem('leaside.home.v1'); } catch (err) {}
+      paintHome(); draw();
+    });
+    paintHome();
   } else {
     document.getElementById('map').hidden = true;
     document.getElementById('nomap').hidden = false;
@@ -387,7 +429,8 @@
     var recs = 0; cur.places.forEach(function (p) { recs += p.all; });
     var n = cur.places.length;
     document.getElementById('summary').textContent = fmt(recs) + (recs === 1 ? ' record' : ' records') +
-      ' at ' + fmt(n) + (n === 1 ? ' place' : ' places') + (STOPS[stop].days ? ', since ' + cutoff() : ', everything collected') + '.';
+      ' at ' + fmt(n) + (n === 1 ? ' place' : ' places') + (STOPS[stop].days ? ', since ' + cutoff() : ', everything collected') +
+      (nearOnly ? ', within ' + NEAR_M + ' m of home' : '') + '.';
 
     if (map) {
       group.clearLayers(); markers = {};

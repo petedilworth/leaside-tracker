@@ -16,18 +16,31 @@ RENAME = {"arcgis_multi": arcgis.feature_key, "arcgis_feature": arcgis.feature_k
 
 def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> dict:
     cfg = sources.load(config_path)
-    areas = geo.Areas.load()
     fetcher = http.Fetcher(cfg.user_agent, cfg.timeout, cfg.delay)
     conn = db.connect(db_path)
+    areas = geo.Areas.load(conn=conn)
+    if areas.official_gate:
+        print("  using the City's neighbourhood boundaries as the outer gate")
     layers = {}
     totals = {"new": 0, "seen": 0, "failed": 0}
     run_id = db.start_run(conn)
 
-    for src in cfg.sources:
+    # Boundaries first, whatever the config order, so this run's records are gated.
+    ordered = sorted(cfg.sources, key=lambda s: 0 if s.kind == "ckan_boundaries" else 1)
+    for src in ordered:
         if not src.runnable or (only and src.id not in only):
             continue
         started = db.utcnow()
         try:
+            if src.kind == "ckan_boundaries":
+                REGISTRY[src.kind](src, fetcher, areas)
+                n = db.save_boundaries(conn, getattr(src, "_polygons", {}))
+                areas.attach_official(conn)
+                db.log_fetch(conn, src.id, True, 200, n)
+                print(f"  ok    {src.id:<32} {n:>5} polygons"
+                      + (", gate on" if areas.official_gate else ", gate OFF: a neighbourhood is missing"))
+                conn.commit()
+                continue
             if src.kind == "arcgis_feature":
                 title, url = _discover(src, cfg, fetcher, layers)
                 items, status = arcgis.fetch_features(

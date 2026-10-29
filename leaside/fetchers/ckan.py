@@ -369,7 +369,8 @@ def permit_rows_to_items(rows: list[dict], source, areas, stats: dict | None = N
         tally["rows"] += 1
         addr = permit_address(row)
         _, postal = fields.pick(row, **P_POSTAL)
-        area = areas.match_text(addr) or areas.match_postal(postal)
+        _, street = fields.pick(row, **P_STREET)
+        area = areas.match_text(addr) or areas.match_postal(postal, street)
         if not area:
             tally["outside_areas"] += 1
             continue
@@ -410,7 +411,8 @@ def fetch_permits(source, http, areas) -> tuple[list[dict], int]:
     if rows is None:
         def keep(r):
             _, postal = fields.pick(r, **P_POSTAL)
-            return bool(areas.match_postal(postal) or areas.match_text(permit_address(r)))
+            _, street = fields.pick(r, **P_STREET)
+            return bool(areas.match_postal(postal, street) or areas.match_text(permit_address(r)))
         rows = scan_rows(http, resource["id"], keep, **kw)
     stats: dict = {}
     items = permit_rows_to_items(rows, source, areas, stats=stats)
@@ -596,3 +598,90 @@ def fetch_dinesafe(source, http, areas) -> tuple[list[dict], int]:
     print(f"        {stats['rows']} rows, {stats['inspections']} inspections in your areas, "
           f"{stats['kept']} worth showing, {stats['routine']} clean passes logged as routine")
     return items, 200
+
+
+# ---------------------------------------------------------------- City neighbourhood boundaries
+
+B_NAME = dict(exact=("AREA_NAME", "area_name", "AREA_NAME_EN", "name"),
+              contains=("area_name", "name"), exclude=("short", "code", "desc", "id"))
+B_GEOM = dict(exact=("geometry", "GEOMETRY", "geom", "the_geom"), contains=("geometry", "geom"),
+              exclude=())
+
+
+def _polygons_from_rows(rows: list[dict], areas) -> dict:
+    """{City neighbourhood name: geometry} for our neighbourhoods only."""
+    out = {}
+    for row in rows:
+        _, name = fields.pick(row, **B_NAME)
+        if not name or not areas.is_official_ours(name):
+            continue
+        _, geom = fields.pick(row, **B_GEOM)
+        if isinstance(geom, str):
+            try:
+                geom = json.loads(geom)
+            except ValueError:
+                continue
+        if isinstance(geom, dict) and geom.get("type") in ("Polygon", "MultiPolygon"):
+            out[str(name)] = geom
+    return out
+
+
+def _polygons_from_geojson(doc: dict, areas) -> dict:
+    out = {}
+    for feat in doc.get("features", []):
+        props = feat.get("properties") or {}
+        _, name = fields.pick(props, **B_NAME)
+        geom = feat.get("geometry") or {}
+        if name and areas.is_official_ours(name) and geom.get("type") in ("Polygon", "MultiPolygon"):
+            out[str(name)] = geom
+    return out
+
+
+def fetch_boundaries(source, http, areas) -> tuple[list[dict], int]:
+    """The City's 158 neighbourhood polygons, kept for the five that are ours.
+
+    Not news: nothing becomes an item. The polygons go to the boundaries table,
+    and from the next record on, a point must fall inside one of them before a
+    hand-drawn rectangle may name the sub-area.
+    """
+    from .. import db
+
+    kw = dict(timeout=source.timeout, retries=source.retries)
+    package = package_show(http, source.dataset, **kw)
+    polygons: dict = {}
+    for r in datastore_resources(package):
+        try:
+            result = datastore_search(http, r["id"], limit=200, **kw)
+        except Exception as exc:
+            print(f"        datastore resource {r.get('name')}: {type(exc).__name__}")
+            continue
+        polygons = _polygons_from_rows(result.get("records", []), areas)
+        if polygons:
+            print(f"        read from datastore resource {r.get('name')!r}")
+            break
+    if not polygons:
+        for r in package.get("resources", []):
+            url = r.get("url") or ""
+            if "geojson" not in (r.get("format") or "").lower() and not url.lower().endswith(".geojson"):
+                continue
+            try:
+                resp = http.get(url, **kw)
+                resp.raise_for_status()
+                polygons = _polygons_from_geojson(resp.json(), areas)
+            except Exception as exc:
+                print(f"        geojson resource {r.get('name')}: {type(exc).__name__}: {exc}"[:200])
+                continue
+            if polygons:
+                print(f"        read from file resource {r.get('name')!r}")
+                break
+    wanted = areas.official_names()
+    got = {areas._norm(n) for n in polygons}
+    missing = sorted(wanted - got)
+    if not polygons:
+        names = [r.get("name") for r in package.get("resources", [])]
+        raise RuntimeError(f"{source.id}: no polygons found for our neighbourhoods. "
+                           f"Resources: {names}")
+    source._polygons = polygons         # picked up by ingest, which holds the connection
+    print(f"        {len(polygons)} of our neighbourhoods: {', '.join(sorted(polygons))}"
+          + (f"; MISSING: {', '.join(missing)}" if missing else ""))
+    return [], 200

@@ -45,17 +45,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>Leaside Tracker · Trends</title>
+{% include "_shell_head.html" %}
 <style>
   :root {
-    --bg:#f7f5f1; --fg:#1c1b19; --muted:#6f6a63; --faint:#a39d94; --line:#e4e0d8;
-    --card:#fbfaf8; --accent:#8a3b2a; --accent-soft:#f3e4df;
+    --card:#fbfaf8;
     /* chart roles: the accent series and the prior-year context, validated on --card */
     --series:#2a78d6; --context:#898781; --grid:#e1e0d9; --axis:#c3c2b7;
     --unknown:rgba(137,135,129,0.10); --up:#b3402e; --down:#2f7d4f;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#161513; --fg:#ebe7e0; --muted:#a19a90; --faint:#6b665e; --line:#2c2925;
-            --card:#161513; --accent:#e0a08e; --accent-soft:#33241f;
+    :root { --card:#161513;
             --series:#3987e5; --context:#898781; --grid:#2c2c2a; --axis:#383835;
             --unknown:rgba(137,135,129,0.14); --up:#e08a78; --down:#7fc39a; }
   }
@@ -137,12 +136,10 @@
 </head>
 <body>
 <div class="wrap">
+{% set page = 'trends' %}{% include "_shell_nav.html" %}
 <header>
   <h1>Is it up this year?</h1>
-  <p class="stamp">
-    <a href="index.html">&larr; Back to the news</a> &middot; <a href="map.html">Police map</a> &middot;
-    counts for the collected area, generated {{ data.generated[:10] }}
-  </p>
+  <p class="stamp">Counts for the collected area, generated {{ data.generated[:10] }}</p>
 </header>
 
 <p class="caveat">

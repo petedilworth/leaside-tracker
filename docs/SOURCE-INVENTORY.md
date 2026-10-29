@@ -582,3 +582,52 @@ still draw.
 - *Date slider.* Replaces the period buttons. Twelve steps from one week to
   everything, evenly spaced on the slider but not in time, so the recent months,
   where the news is, are not a sliver at one end. Works by touch and keyboard.
+
+## The rethink, 29 October 2026
+
+The owner asked for the site to be made "a lot better". Measured first, then changed.
+
+**What was wrong.** The front page was the whole log: 3,000 items as HTML, 46,000
+elements, 4.5 MB, and 8.5 seconds to open on a phone. It told a reader nothing
+until they scrolled. The three pages had three different headers. And the data
+under "Rosedale" was polluted: the hand-drawn South Rosedale rectangle reached
+across Bloor into Yorkville and St James Town, and postal area M4W runs along
+Bloor, so 833 Bloor Street permits, 226 Yonge Street permits and 54 Yorkville
+Avenue permits were "Rosedale", and Rosedale subway station was the busiest place
+on the police map.
+
+**What changed.**
+
+| Page | Before | After |
+| --- | --- | --- |
+| `index.html` | the whole log | *Today*: four tiles (police calls, permits, inspections, stories, this week against last), "coming up" dates read from recent items, this fortnight's stories with Google News duplicates folded, this week's police calls, the largest new permits, inspections with findings, and a "near home" block when a pin is set |
+| `news.html` (new) | – | the reader: items as data, drawn 120 at a time, with a search box, deep links from Today (`?cat=permit&since=7`), and a "within 500 m of home" chip |
+| `map.html` | – | "Set home on the map" (a tap; the pin is kept in the browser only, never sent anywhere), a within-500-m filter, and link parameters (`?layers=calls&since=7`) |
+| all four | three headers | one shared header and nav, one colour set |
+
+Load on a phone, from the live log: front page 8.45 s to 0.08 s; 45,794 elements
+to 414. The reader opens in 0.15 s.
+
+**Boundaries.** A new source, `city_neighbourhoods`, fetches the City's own 158
+neighbourhood polygons and keeps the five that cover our areas, in a `boundaries`
+table carried with the log. When all five are present, a located record must fall
+inside one of them before a rectangle may name the sub-area; a point outside is
+not ours. Permits have no coordinates, so postal area M4W is marked loose and a
+permit there must also be on a street the area lists. Rows that no longer match
+are hidden with the reason "outside your areas after a boundary correction",
+never deleted: 1,231 on the live log the day this shipped, before the polygons
+had even arrived. Until the City's polygons are fetched the rectangles stand, so
+the police map's Rosedale station point remains until the next daily run.
+
+**"Coming up" is strict on purpose.** A month and a day are required; "May 2026"
+is not a date. Without a year, the item's own year is used, rolled forward only
+when the date fell before the item was written, so "Sept 19" in a September item
+stays in September and is dropped as past. Only the next 60 days count. On the
+live log that day it found one event, a bookshop's closing day, and rejected
+nineteen false ones a looser reading produced.
+
+**The City's datastore was down.** The permit and inspection fetches failed on
+26, 27 and 28 October with 502, 504 and 409 answers from open.toronto.ca. The
+tracker keeps what it had; the Today tiles count what is new to the tracker
+(first seen) rather than by the City's own dates, which lag by days even when it
+is up.

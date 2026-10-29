@@ -85,6 +85,14 @@ CREATE INDEX IF NOT EXISTS item_log_item ON item_log(item_id);
 CREATE INDEX IF NOT EXISTS item_log_at   ON item_log(at);
 CREATE INDEX IF NOT EXISTS item_log_src  ON item_log(source_id, event);
 
+-- The City's own neighbourhood polygons, fetched by the boundaries source and
+-- used by geo.Areas as the outer gate for every located record.
+CREATE TABLE IF NOT EXISTS boundaries (
+    name       TEXT PRIMARY KEY,
+    geojson    TEXT NOT NULL,
+    fetched_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS probe_results (
     source_id    TEXT PRIMARY KEY,
     checked_at   TEXT NOT NULL,
@@ -264,6 +272,26 @@ def upsert_item(conn: sqlite3.Connection, item: dict, seen_at: str | None = None
     return True
 
 
+def _permit_area(raw: dict, areas) -> str | None:
+    from .fetchers import ckan
+    addr = ckan.permit_address(raw)
+    _, postal = ckan.fields.pick(raw, **ckan.P_POSTAL)
+    _, street = ckan.fields.pick(raw, **ckan.P_STREET)
+    return areas.match_text(addr) or areas.match_postal(postal, street)
+
+
+def save_boundaries(conn: sqlite3.Connection, polygons: dict) -> int:
+    """{City neighbourhood name: GeoJSON geometry}. Replaces what was there."""
+    now = utcnow()
+    for name, geom in polygons.items():
+        conn.execute(
+            "INSERT INTO boundaries (name, geojson, fetched_at) VALUES (?,?,?)"
+            " ON CONFLICT(name) DO UPDATE SET geojson=excluded.geojson, fetched_at=excluded.fetched_at",
+            (name, json.dumps(geom, separators=(",", ":")), now))
+    conn.commit()
+    return len(polygons)
+
+
 def hide(conn: sqlite3.Connection, iid: str, source_id: str, reason: str) -> None:
     """Take a row off the page and out of the email. It stays in the file and
     in the downloadable log, marked with the reason."""
@@ -375,18 +403,32 @@ def refresh_all(conn: sqlite3.Connection, areas, cfg) -> dict:
         if row["source_id"] not in known:
             hide(conn, row["id"], row["source_id"], "source no longer configured")
             counts["retired_hidden"] += 1
+    counts["outside_hidden"] = 0
     for row in conn.execute(
-        "SELECT id, source_id, title, summary, published_at, area, lat, lon FROM items"
+        "SELECT id, source_id, title, summary, published_at, area, lat, lon, raw, hidden_at"
+        " FROM items"
     ).fetchall():
         counts["rows"] += 1
         fixed = normalise({"title": row["title"], "summary": row["summary"],
                            "published_at": row["published_at"]})
+        src = cfg.by_id(row["source_id"])
+        outside = False
         if row["lat"] is not None and row["lon"] is not None:
-            area = areas.match_point(row["lat"], row["lon"]) or row["area"]
+            area = areas.match_point(row["lat"], row["lon"])
+            # With the City's boundaries loaded, a point outside them is not ours,
+            # however a rectangle once read it. Hidden with the reason, never deleted.
+            outside = area is None and areas.official_gate
+            area = area or row["area"]
+        elif src and src.kind == "ckan_permits" and row["raw"]:
+            area = _permit_area(json.loads(row["raw"]), areas)
+            outside = area is None
+            area = area or row["area"]
         else:
-            src = cfg.by_id(row["source_id"])
             area = (areas.match_text(fixed["title"], fixed["summary"])
                     or (src.area if src else None) or row["area"])
+        if outside and not row["hidden_at"]:
+            hide(conn, row["id"], row["source_id"], "outside your areas after a boundary correction")
+            counts["outside_hidden"] += 1
         if (fixed["title"], fixed["summary"], fixed["published_at"], area) != (
             row["title"], row["summary"], row["published_at"], row["area"]
         ):

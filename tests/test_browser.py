@@ -42,13 +42,19 @@ def demo_url():
     return "file://" + str(pathlib.Path("site/demo.html").resolve())
 
 
-def test_read_state_and_filters_work_like_a_person_expects(demo_url):
+@pytest.fixture(scope="module")
+def reader_url(demo_url):
+    """The full reader. The front page (demo.html) is the briefing."""
+    return demo_url.replace("demo.html", "demo-news.html")
+
+
+def test_read_state_and_filters_work_like_a_person_expects(reader_url):
     with playwright.sync_playwright() as p:
         b = p.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
         pg = b.new_context().new_page()
         errors = []
         pg.on("pageerror", lambda e: errors.append(str(e)))
-        pg.goto(demo_url)
+        pg.goto(reader_url)
 
         def unread():
             return int(pg.locator("#unread-count").inner_text())
@@ -57,7 +63,9 @@ def test_read_state_and_filters_work_like_a_person_expects(demo_url):
             return shown_count(pg)
 
         assert unread() == 5 and visible() == 5
-        assert pg.locator("li.item").count() == 6, "one item is outside the default window"
+        # The list is drawn from data in the browser, so the item outside the
+        # default window is not in the DOM at all until Since is widened.
+        assert pg.locator("li.item").count() == 5
 
         pg.locator("li.item .done").first.click()
         assert unread() == 4 and visible() == 4, "ticked item should leave the unread view"
@@ -92,16 +100,19 @@ def test_read_state_and_filters_work_like_a_person_expects(demo_url):
         assert pg.locator('.chip[data-area="leaside"]').get_attribute("aria-pressed") == "true"
 
         assert unread() == 0, "mark-all must persist"
+        # Everything is read, so the unread view draws nothing at all; the rows
+        # exist only once Everything is chosen.
+        pg.locator('.row[data-group="read"] .chip[data-filter="all"]').click()
         assert "ago" in pg.locator("li.item time").first.inner_text()
         assert not errors, errors
         b.close()
 
 
-def test_every_item_offers_a_way_to_read_more(demo_url):
+def test_every_item_offers_a_way_to_read_more(reader_url):
     with playwright.sync_playwright() as p:
         b = p.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
         pg = b.new_context().new_page()
-        pg.goto(demo_url)
+        pg.goto(reader_url)
         items = pg.locator("li.item")
         for i in range(items.count()):
             row = items.nth(i)
@@ -113,11 +124,11 @@ def test_every_item_offers_a_way_to_read_more(demo_url):
         b.close()
 
 
-def test_long_summaries_clip_with_a_show_more_button(demo_url):
+def test_long_summaries_clip_with_a_show_more_button(reader_url):
     with playwright.sync_playwright() as p:
         b = p.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
         pg = b.new_context().new_page()
-        pg.goto(demo_url)
+        pg.goto(reader_url)
         assert pg.locator(".sum.clipped").count() == 1, "the long summary should be clipped"
         more = pg.locator("button.more").first
         assert more.count() == 1
@@ -138,7 +149,7 @@ def test_long_summaries_clip_with_a_show_more_button(demo_url):
         b.close()
 
 
-def test_since_control_reaches_late_arriving_records(demo_url):
+def test_since_control_reaches_late_arriving_records(reader_url):
     """Collision and crime data is months or years old. It has to be reachable.
 
     The default window keeps the page readable; the Everything option is how the
@@ -149,7 +160,7 @@ def test_since_control_reaches_late_arriving_records(demo_url):
         pg = b.new_context().new_page()
         errors = []
         pg.on("pageerror", lambda e: errors.append(str(e)))
-        pg.goto(demo_url)
+        pg.goto(reader_url)
 
         def visible():
             return shown_count(pg)
@@ -171,13 +182,13 @@ def test_since_control_reaches_late_arriving_records(demo_url):
         b.close()
 
 
-def test_since_choice_survives_touching_an_area(demo_url):
+def test_since_choice_survives_touching_an_area(reader_url):
     """Toggling an area used to save the view without the Since setting, so
     choosing Everything and then hiding a neighbourhood forgot Everything."""
     with playwright.sync_playwright() as p:
         b = p.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
         pg = b.new_context().new_page()
-        pg.goto(demo_url)
+        pg.goto(reader_url)
         pg.locator('.row[data-group="since"] .chip[data-filter="0"]').click()
         widened = shown_count(pg)
         pg.locator('.chip[data-area="leaside"]').click()
@@ -202,6 +213,7 @@ def test_trends_page_hover_layer_works_with_pointer_and_keyboard(demo_url):
 
         svg = pg.locator("svg[data-facet]").first
         assert svg.count() == 1, "the demo has a crime record, so one facet must render"
+        svg.scroll_into_view_if_needed()   # the shared header pushed the chart below the fold
         box = svg.bounding_box()
         tip = pg.locator("#tip")
         assert tip.is_hidden()
@@ -234,7 +246,7 @@ def test_trends_page_hover_layer_works_with_pointer_and_keyboard(demo_url):
         assert first_table.count() == 13, "header + 12 months, in this facet's table only"
 
         # the news page links here and this page links back
-        assert pg.locator('a[href="index.html"]').count() == 1
+        assert pg.locator('a[href="index.html"]').count() >= 1   # the brand and the nav both go home
         assert not errors, errors
         b.close()
 
