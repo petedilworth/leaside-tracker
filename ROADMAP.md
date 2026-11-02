@@ -2,6 +2,7 @@
 
 ## Now
 - [ ] Add the two Resend secrets on GitHub so the Monday email sends
+- [ ] Re-think the site: separate pages by topic, each with its own neighbourhoods
 
 ## Next
 - [ ] Poll the police calls map every 15 minutes from a timer outside GitHub
