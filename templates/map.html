@@ -108,6 +108,7 @@
 <div class="filters" role="group" aria-label="Filters">
   <div class="grp" id="layers"><span class="lbl">Show</span></div>
   <div class="grp" id="types" aria-label="Crime types"><span class="lbl">Crime</span></div>
+  <div class="grp" id="calltypes" aria-label="Police call types"><span class="lbl">Calls</span></div>
   <div class="slider">
     <label class="lbl" for="since">Since</label>
     <div class="track">
@@ -161,7 +162,9 @@
   var css = getComputedStyle(document.documentElement);
   function colour(i) { return css.getPropertyValue('--s' + i).trim(); }
   var ring = css.getPropertyValue('--ring').trim();
-  var STOPS = D.stops, TYPES = D.crime_types;
+  var STOPS = D.stops, TYPES = D.crime_types, CALLS = D.call_groups;
+  // Other (ambulance assists, welfare checks, hazards) starts switched off.
+  var callOn = CALLS.map(function (g, i) { return i < CALLS.length - 1; });
   var on = [true, true, true];
   var typeOn = TYPES.map(function () { return true; });
   var stop = D.default_stop;
@@ -173,10 +176,11 @@
     var saved = JSON.parse(localStorage.getItem(VIEW) || 'null');
     if (saved && saved.on && saved.on.length === 3) { on = saved.on; }
     if (saved && saved.types && saved.types.length === TYPES.length) { typeOn = saved.types; }
+    if (saved && saved.calls && saved.calls.length === CALLS.length) { callOn = saved.calls; }
     if (saved && saved.stop >= 0 && saved.stop < STOPS.length) { stop = saved.stop; }
   } catch (e) { /* private window: defaults */ }
   function save() {
-    try { localStorage.setItem(VIEW, JSON.stringify({ on: on, types: typeOn, stop: stop })); } catch (e) {}
+    try { localStorage.setItem(VIEW, JSON.stringify({ on: on, types: typeOn, calls: callOn, stop: stop })); } catch (e) {}
   }
   // Links from the Today page: ?layers=calls,crime&since=7
   var params = new URLSearchParams(location.search);
@@ -247,6 +251,20 @@
   });
   typeBox.appendChild(allTypes);
 
+  var callBox = document.getElementById('calltypes');
+  var callChips = CALLS.map(function (g, i) {
+    var b = el('button', 'chip');
+    b.setAttribute('aria-pressed', callOn[i] ? 'true' : 'false');
+    b.appendChild(document.createTextNode(g + ' '));
+    b.appendChild(el('small'));
+    if (i === CALLS.length - 1) b.title = 'Ambulance assists, welfare checks, hazards and other calls left out by default';
+    b.addEventListener('click', function () {
+      callOn[i] = !callOn[i]; b.setAttribute('aria-pressed', callOn[i]); save(); draw();
+    });
+    callBox.appendChild(b);
+    return b;
+  });
+
   var slider = document.getElementById('since'), out = document.getElementById('since-out');
   slider.value = stop;
   function sliderText() {
@@ -262,6 +280,7 @@
   // ---- counting under the current filter -----------------------------------
   function current() {
     var from = cutoff(), totals = [0, 0, 0], places = [], types = TYPES.map(function () { return 0; });
+    var callCounts = CALLS.map(function () { return 0; });
     D.spots.forEach(function (s, idx) {
       if (nearOnly && metres(s.lat, s.lon) > NEAR_M) return;
       var c = [0, 0, 0], kept = [];
@@ -269,6 +288,7 @@
         var r = s.r[j];
         if (from && r[1] < from) { continue; }
         if (r[0] === 0) { types[r[5]]++; if (!typeOn[r[5]]) { continue; } }
+        if (r[0] === 2) { callCounts[r[5]]++; if (!callOn[r[5]]) { continue; } }
         totals[r[0]]++;
         if (!on[r[0]]) { continue; }
         c[r[0]]++; kept.push(r);
@@ -277,7 +297,7 @@
       if (all) { places.push({ s: s, idx: idx, c: c, all: all, kept: kept }); }
     });
     places.sort(function (a, b) { return b.all - a.all; });
-    return { places: places, totals: totals, types: types };
+    return { places: places, totals: totals, types: types, calls: callCounts };
   }
 
   // ---- the map --------------------------------------------------------------
@@ -425,6 +445,11 @@
       b.hidden = !cur.types[i] && !D.type_totals[i];            // never seen at all: no chip
     });
     typeBox.hidden = !on[0];
+    callChips.forEach(function (b, i) {
+      b.querySelector('small').textContent = fmt(cur.calls[i]);
+      b.hidden = !cur.calls[i] && !D.call_group_totals[i];
+    });
+    callBox.hidden = !on[2];
     allTypes.textContent = typeOn.every(Boolean) ? 'Select none' : 'Select all';
     var recs = 0; cur.places.forEach(function (p) { recs += p.all; });
     var n = cur.places.length;

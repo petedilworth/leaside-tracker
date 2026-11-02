@@ -9,7 +9,7 @@ import gzip
 import json
 from pathlib import Path
 
-from . import db, fields, geo, sources, version
+from . import calltypes, db, fields, geo, sources, version
 
 REPORT = Path("config/health-report.md")
 
@@ -92,7 +92,21 @@ def gather(conn, areas, cfg) -> dict:
         WHERE ran_at = (SELECT MAX(ran_at) FROM fetch_log f2 WHERE f2.source_id = fetch_log.source_id)
         ORDER BY ok, source_id""").fetchall() if r["source_id"] in runnable]
 
-    return {"total": total, "on_page": on_page, "log": log, "events": events,
+    # Police call types that landed in Other: the owner places them in
+    # config/call_types.yaml, or leaves them out on purpose.
+    unplaced: dict[str, int] = {}
+    for r in q(f"SELECT title, raw FROM items WHERE category = 'police_call' AND {db.SHOWN}"):
+        try:
+            raw = json.loads(r["raw"]) if r["raw"] else {}
+        except ValueError:
+            raw = {}
+        t = calltypes.call_type_of({"raw": raw, "title": r["title"]})
+        if calltypes.classify(t)[0] == calltypes.other():
+            unplaced[t] = unplaced.get(t, 0) + 1
+    unplaced_types = sorted(unplaced.items(), key=lambda x: (-x[1], x[0]))
+
+    return {"unplaced_calls": unplaced_types,
+            "total": total, "on_page": on_page, "log": log, "events": events,
             "hidden_why": hidden_why, "per_source": per_source,
             "dup_links": dup_links, "dup_titles": dup_titles, "stale": stale,
             "dormant": dormant, "shapes": shapes, "latest_run": latest_run,
@@ -169,6 +183,14 @@ def render(d: dict) -> str:
     L += ["", "## By neighbourhood", "", "| area | items |", "| --- | --- |"]
     for r in d["by_area"]:
         L.append(f"| {d['areas'].name(None if r['area'] == '(none)' else r['area'])} | {r['n']} |")
+
+    if d.get("unplaced_calls"):
+        L += ["", "## Police call types in Other", "",
+              "Left off the Today page, the map and the email unless Other is switched on.",
+              "Most are left out on purpose. To place one, add it to config/call_types.yaml.", "",
+              "| police call type | calls |", "| --- | --- |"]
+        for t, n in d["unplaced_calls"]:
+            L.append(f"| {t} | {n} |")
 
     if d["hidden_why"]:
         L += ["", "## Hidden from the page, kept in the log", "", "| why | rows |", "| --- | --- |"]

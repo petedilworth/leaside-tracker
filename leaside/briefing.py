@@ -13,7 +13,7 @@ import json
 import re
 from datetime import date, datetime, timedelta, timezone
 
-from . import db
+from . import calltypes, db
 
 STORY_CATEGORIES = ("media", "ra_news", "councillor", "community", "business",
                     "planning", "city_notice", "police_news", "transit")
@@ -115,7 +115,24 @@ def build(conn, areas, cfg, now=None) -> dict:
             it["when"] = it["published_at"] or it["first_seen_at"]
         return rows
 
+    def kept_calls(since, until=None):
+        """Police calls in the owner's groups: Other is left out of the Today page."""
+        sql = (f"SELECT title, raw FROM items WHERE category = 'police_call' AND {db.SHOWN}"
+               " AND first_seen_at >= ? AND (published_at IS NULL OR published_at >= ?)")
+        params = [since, _iso(_now(now) - timedelta(days=WEEK + 30))]
+        if until:
+            sql += " AND first_seen_at < ?"
+            params.append(until)
+        n = 0
+        for r in conn.execute(sql, params):
+            raw = json.loads(r["raw"]) if r["raw"] else {}
+            if calltypes.classify(calltypes.call_type_of({"raw": raw, "title": r["title"]}))[0] != calltypes.other():
+                n += 1
+        return n
+
     def count(category, since, until=None):
+        if category == "police_call":
+            return kept_calls(since, until)
         # "New this week" means first seen by the tracker. The City dates a permit
         # by its application day and publishes it days later; counting by that
         # date showed zero permits in a week that brought 21.
@@ -141,14 +158,18 @@ def build(conn, areas, cfg, now=None) -> dict:
         tiles.append({"category": cat, "label": label, "note": note, "this": this, "last": last,
                       "delta": this - last, "bad_up": bad_up})
 
-    calls = decorate(_rows(conn, f"""SELECT * FROM items WHERE category = 'police_call' AND {db.SHOWN}
+    all_calls = decorate(_rows(conn, f"""SELECT * FROM items WHERE category = 'police_call' AND {db.SHOWN}
         AND COALESCE(published_at, first_seen_at) >= ? ORDER BY COALESCE(published_at, first_seen_at) DESC""",
         (week_ago,)))
-    kinds: dict[str, int] = {}
-    for it in calls:
-        k = it["title"].split(" near ")[0]
-        kinds[k] = kinds.get(k, 0) + 1
-    call_kinds = sorted(kinds.items(), key=lambda x: (-x[1], x[0]))[:6]
+    # The owner's groups (config/call_types.yaml). Calls in Other - ambulance
+    # assists, welfare checks, hazards - are left off this page, and counted
+    # separately so the page says how many it left out.
+    for it in all_calls:
+        raw = json.loads(it["raw"]) if it.get("raw") else {}
+        it["group"], it["kind"] = calltypes.classify(calltypes.call_type_of({"raw": raw, "title": it["title"]}))
+    calls = [it for it in all_calls if it["group"] != calltypes.other()]
+    calls_other = len(all_calls) - len(calls)
+    call_kinds = calltypes.counts(calls)
 
     marks = ",".join("?" * len(STORY_CATEGORIES))
     stories = decorate(_rows(conn, f"""SELECT * FROM items WHERE category IN ({marks}) AND {db.SHOWN}
@@ -185,10 +206,16 @@ def build(conn, areas, cfg, now=None) -> dict:
         lag[cat] = (newest or "")[:10]
 
     # For "near home": the last 30 days of located records, compact, for the browser.
-    near = _rows(conn, f"""SELECT id, category, title, published_at, first_seen_at, lat, lon, area, url
+    near = _rows(conn, f"""SELECT id, category, title, published_at, first_seen_at, lat, lon, area, url, raw
         FROM items WHERE {db.SHOWN} AND lat IS NOT NULL AND lon IS NOT NULL
         AND COALESCE(published_at, first_seen_at) >= ?
         ORDER BY COALESCE(published_at, first_seen_at) DESC LIMIT 1500""", (month_ago,))
+    def _other_call(r):
+        if r["category"] != "police_call":
+            return False
+        raw = json.loads(r["raw"]) if r["raw"] else {}
+        return calltypes.classify(calltypes.call_type_of({"raw": raw, "title": r["title"]}))[0] == calltypes.other()
+    near = [r for r in near if not _other_call(r)]
     near_payload = [[r["id"], r["category"], r["title"][:90], (r["published_at"] or r["first_seen_at"])[:10],
                      round(r["lat"], 5), round(r["lon"], 5), areas.name(r["area"]), r["url"] or ""]
                     for r in near]
@@ -197,6 +224,7 @@ def build(conn, areas, cfg, now=None) -> dict:
     return {
         "now": _iso(now), "week_start": (now - timedelta(days=WEEK)).date().isoformat(),
         "tiles": tiles, "calls": calls[:12], "calls_total": len(calls), "call_kinds": call_kinds,
+        "calls_other": calls_other,
         "stories": stories, "permits": big, "permits_total": len(permits),
         "inspections": inspections, "events": events, "lag": lag,
         "latest_run": runs[0] if runs else None,

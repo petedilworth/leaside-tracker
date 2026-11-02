@@ -16,8 +16,10 @@
 - [ ] A caution on each police record: preliminary, may change after review
 - [ ] Publish only the pages, not the downloads, if the log feels too public
 - [ ] Building permits with map points, so they count as near home
+- [ ] Show police call groups on the News page, with Other hidden
 
 ## Done
+- [x] 2026-11-02 – Police calls grouped your way; ambulance and welfare calls left out
 - [x] 2026-10-29 – Today briefing front page, fast News reader, one header
 - [x] 2026-10-29 – City neighbourhood boundaries gate every located record
 - [x] 2026-10-23 – Police map with crime types, a date slider and a home pin

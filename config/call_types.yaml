@@ -1,0 +1,45 @@
+# Police call types, grouped the owner's way (2 November 2026).
+#
+# The police map gives each call a type in capitals, such as "BREAK & ENTER IN
+# PROGRESS". Each group below has one or more kinds, and each kind lists the
+# exact police types it covers. A type not listed anywhere goes to Other, which
+# is switched off by default on the Today page, the map and the email. Nothing
+# is deleted: Other can be switched on, and the health report names every type
+# that landed there so it can be placed.
+#
+# Left out on purpose, so in Other: see ambulance, assist ambulance, unknown
+# trouble, holding a lost elderly person, holding someone in trouble, missing
+# child, missing vulnerable person, hazard, fire, arrest, found property, animal
+# complaint, demonstration, check traffic signals, traffic obstruction, damage
+# to a car.
+
+groups:
+  - name: Accidents
+    kinds:
+      Collision: [PERSONAL INJURY COLLISION, PROPERTY DAMAGE COLLISION]
+      Fail to remain: [FAIL TO REMAIN PROPERTY DAMAGE COLLISION, FAIL TO REMAIN PERSONAL INJURY COLLISION]
+  - name: Disorder
+    kinds:
+      Disorder: [DISORDERLIES, DISPUTE, NOISY PARTY]
+  - name: Incidents
+    kinds:
+      Trespass: [TRESPASS]
+      Indecent exposure: [INDECENT EXPOSURE, INDECENT EXPOSURE JUST OCCURRED]
+      Damage: [DAMAGE JUST OCCURRED, DAMAGE IN PROGRESS]
+  - name: Driving crime
+    kinds:
+      Impaired driver: [IMPAIRED DRIVER]
+      Vehicle pursuit: [VEHICLE PURSUIT]
+  - name: Violent crime
+    kinds:
+      Assault: [ASSAULT JUST OCCURRED, ASSAULT, ASSAULT IN PROGRESS, FIGHT]
+      Weapon: [PERSON WITH A GUN, PERSON WITH A KNIFE, SOUND OF GUNSHOTS]
+  - name: Theft
+    kinds:
+      Theft/robbery: [THEFT JUST OCCURRED, FRAUD, THEFT IN PROGRESS, HOLDUP ALARM, THEFT, ROBBERY]
+      Theft of a vehicle: [THEFT OF VEHICLE]
+  - name: Break-ins
+    kinds:
+      Break and enter: [BREAK & ENTER, BREAK & ENTER IN PROGRESS, BREAK & ENTER JUST OCCURRED, ATTEMPT BREAK & ENTER]
+
+other: Other

@@ -631,3 +631,32 @@ nineteen false ones a looser reading produced.
 tracker keeps what it had; the Today tiles count what is new to the tracker
 (first seen) rather than by the City's own dates, which lag by days even when it
 is up.
+
+## Police calls in the owner's groups, 2 November 2026
+
+The police map gave 48 call types in the first month. The owner grouped them in
+`config/call_types.yaml`:
+
+| Group | Kinds (police types) |
+| --- | --- |
+| Accidents | Collision (personal injury, property damage); Fail to remain (after either) |
+| Disorder | Disorder (disorderlies, dispute, noisy party) |
+| Incidents | Trespass; Indecent exposure (including "just occurred"); Damage (just occurred, in progress) |
+| Driving crime | Impaired driver; Vehicle pursuit |
+| Violent crime | Assault (just occurred, plain, in progress, fight); Weapon (gun, knife, gunshots) |
+| Theft | Theft/robbery (theft just occurred, fraud, theft in progress, holdup alarm, theft, robbery); Theft of a vehicle |
+| Break-ins | Break and enter (plain, in progress, just occurred, attempted) |
+| Other | everything not listed |
+
+Other holds what the owner left out: ambulance assists, unknown trouble, welfare
+checks, hazards, fires, arrests, found property, animal complaints,
+demonstrations, traffic signals and obstructions, damage to a car. It is off by
+default on the Today page, the map and the email, which each say how many calls
+they left out. Nothing is deleted, and the map can switch Other back on. Any new
+police type lands in Other and is named in the health report, under "Police call
+types in Other", so it can be placed. "Robbery in progress" will be the first if
+it ever appears: it is not in the owner's list.
+
+On the live log that day: 49 grouped calls this week (Accidents 20, Disorder 8,
+Incidents 2, Driving crime 2, Violent crime 6, Theft 8, Break-ins 3) and 19 left
+in Other. The News page is the complete reader and still shows every call.

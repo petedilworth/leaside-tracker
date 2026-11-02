@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import math
 
-from . import db
+from . import calltypes, db
 
 LAYERS = [
     {"key": "crime", "name": "Reported crime", "one": "reported crime", "many": "reported crimes"},
@@ -68,6 +68,9 @@ STOPS = [
     (730, "2 years", ""), (1095, "3 years", "3 yr"), (1826, "5 years", ""),
     (3652, "10 years", "10 yr"), (0, "everything", "All"),
 ]
+# Police call groups, the owner's (config/call_types.yaml), Other last.
+CALL_GROUPS = calltypes.groups()
+
 DEFAULT_STOP = 6       # 1 year: crime arrives three months late, so less looks empty
 
 
@@ -128,7 +131,15 @@ def build(conn, areas, cfg) -> dict:
         if street:
             spot["names"][street] = spot["names"].get(street, 0) + 1
         what, detail = _label(r, raw)
-        kind = (CRIME_TYPES.index(crime_type(raw)) if r["category"] == "crime" else -1)
+        if r["category"] == "crime":
+            kind = CRIME_TYPES.index(crime_type(raw))
+        elif r["category"] == "police_call":
+            group, sub = calltypes.classify(calltypes.call_type_of({"raw": raw, "title": r["title"]}))
+            kind = CALL_GROUPS.index(group)
+            if sub:
+                detail = sub                       # the owner's kind, beside the police's own words
+        else:
+            kind = -1
         spot["r"].append([LAYER_INDEX[r["category"]],
                           (r["published_at"] or r["first_seen_at"] or "")[:10],
                           code(what), code(detail), src_index.get(r["source_id"], -1), kind])
@@ -153,6 +164,9 @@ def build(conn, areas, cfg) -> dict:
                   for f in areas.features],
         "layers": LAYERS,
         "crime_types": CRIME_TYPES,
+        "call_groups": CALL_GROUPS,
+        "call_group_totals": [sum(1 for sp in out for r in sp["r"] if r[0] == 2 and r[5] == i)
+                              for i in range(len(CALL_GROUPS))],
         "type_totals": [sum(1 for sp in out for r in sp["r"] if r[0] == 0 and r[5] == i)
                         for i in range(len(CRIME_TYPES))],
         "stops": [{"days": d, "label": label, "tick": tick} for d, label, tick in STOPS],

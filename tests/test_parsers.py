@@ -1701,13 +1701,14 @@ def test_digest_counts_police_calls_instead_of_listing_them(tmp_path):
     data = digest.gather(conn, geo.Areas.load(), sources.load())
     assert data["total"] == 1                              # calls do not count as items
     assert [n for n, _ in data["sections"]] == ["Residents' associations"]
-    assert data["calls"]["total"] == 30
-    assert data["calls"]["kinds"][0] == ("Check Address", 20)
-    assert dict(data["calls"]["areas"]) == {"Leaside": 15, "Davisville": 15}
+    # Check Address is in Other (config/call_types.yaml): counted apart, not listed.
+    assert data["calls"]["total"] == 10 and data["calls"]["other"] == 20
+    assert data["calls"]["kinds"][0] == ("Theft", 10)
+    assert sum(dict(data["calls"]["areas"]).values()) == 10
     html_out = digest.render_html(data)
-    assert "Police attended 30 calls" in html_out and "Check Address (20)" in html_out
-    assert "POLICE CALLS: 30 attended" in digest.render_text(data)
-    assert "Leaside 15" in digest.render_text(data)
+    assert "Police attended 10 calls" in html_out and "Theft (10)" in html_out
+    assert "POLICE CALLS: 10 attended" in digest.render_text(data)
+    assert "20 other calls" in digest.render_text(data)
 
 
 def test_digest_subject_when_only_police_calls_are_new():
@@ -1725,15 +1726,15 @@ def test_page_shows_a_police_calls_strip_for_the_last_week(tmp_path, monkeypatch
     now = datetime.now(timezone.utc)
     for i, days in enumerate((0, 1, 3, 20)):
         db.upsert_item(conn, _item(source_id="tps_calls_for_service", category="police_call",
-                                   title="Check Address near BAYVIEW AVE & MILLWOOD RD",
+                                   title="Break & Enter near BAYVIEW AVE & MILLWOOD RD",
                                    url=None, area="leaside", external_id=f"event:{i}",
                                    lat=43.708, lon=-79.364,
                                    published_at=(now - timedelta(days=days)).isoformat()))
     conn.commit()
     monkeypatch.setattr(render, "OUT", tmp_path)
     today = render.run(db_path=tmp_path / "t.db", out_name="t.html").read_text(encoding="utf-8")
-    assert "3 attended this week" in today                 # the 20-day-old one is not this week
-    assert "Check Address 3" in today
+    assert "3 this week" in today                          # the 20-day-old one is not this week
+    assert "Break-ins 3" in today
     assert 'href="map.html?layers=calls&amp;since=7"' in today
     news = (tmp_path / "t-news.html").read_text(encoding="utf-8")
     assert "Nearest intersection on a map" in news
@@ -2429,3 +2430,101 @@ def test_boundary_polygons_are_picked_out_of_city_rows_by_name():
         {"type": "Feature", "properties": {"AREA_NAME": "Rosedale-Moore Park", "AREA_SHORT_CODE": "98"},
          "geometry": {"type": "MultiPolygon", "coordinates": [[[[0, 0], [1, 0], [1, 1], [0, 0]]]]}}]}
     assert list(ckan._polygons_from_geojson(doc, AREAS)) == ["Rosedale-Moore Park"]
+
+
+# ---------------------------------------------------------------- the owner's police call groups
+
+def test_police_calls_fall_into_the_owners_groups():
+    from leaside import calltypes
+    assert calltypes.groups() == ["Accidents", "Disorder", "Incidents", "Driving crime",
+                                  "Violent crime", "Theft", "Break-ins", "Other"]
+    cases = {
+        "PERSONAL INJURY COLLISION": ("Accidents", "Collision"),
+        "FAIL TO REMAIN PERSONAL INJURY COLLISION": ("Accidents", "Fail to remain"),
+        "NOISY PARTY": ("Disorder", "Disorder"),
+        "INDECENT EXPOSURE JUST OCCURRED": ("Incidents", "Indecent exposure"),
+        "DAMAGE IN PROGRESS": ("Incidents", "Damage"),
+        "VEHICLE PURSUIT": ("Driving crime", "Vehicle pursuit"),
+        "FIGHT": ("Violent crime", "Assault"),
+        "SOUND OF GUNSHOTS": ("Violent crime", "Weapon"),
+        "HOLDUP ALARM": ("Theft", "Theft/robbery"),
+        "Fraud": ("Theft", "Theft/robbery"),
+        "THEFT OF VEHICLE": ("Theft", "Theft of a vehicle"),
+        "ATTEMPT BREAK & ENTER": ("Break-ins", "Break and enter"),
+        "Break & Enter In Progress": ("Break-ins", "Break and enter"),
+        # left out on purpose, and anything new
+        "SEE AMBULANCE": ("Other", None), "HAZARD": ("Other", None),
+        "DAMAGE TO AUTO": ("Other", None), "ROBBERY IN PROGRESS": ("Other", None),
+    }
+    for police, expected in cases.items():
+        assert calltypes.classify(police) == expected, police
+    # The stored record wins over the tidied title.
+    assert calltypes.call_type_of({"raw": {"CALL_TYPE": "FIGHT"}, "title": "Something near X"}) == "FIGHT"
+    assert calltypes.call_type_of({"raw": None, "title": "Noisy Party near A & B"}) == "NOISY PARTY"
+
+
+def _calls_db(tmp_path):
+    from leaside import db
+    conn = db.connect(tmp_path / "t.db")
+    calls = [("BREAK & ENTER IN PROGRESS", 3), ("SEE AMBULANCE", 4), ("ASSAULT", 2), ("HAZARD", 1)]
+    n = 0
+    for kind, times in calls:
+        for _ in range(times):
+            n += 1
+            db.upsert_item(conn, _item(source_id="tps_calls_for_service", category="police_call", url=None,
+                                       title=f"{kind.title()} near BAYVIEW AVE - MILLWOOD RD",
+                                       external_id=f"c{n}", area="leaside", lat=43.708, lon=-79.364,
+                                       published_at=_recent(1), raw={"CALL_TYPE": kind}))
+    conn.commit()
+    return conn
+
+
+def test_today_counts_only_grouped_calls_and_says_how_many_it_left_out(tmp_path, monkeypatch):
+    from leaside import briefing, render
+    conn = _calls_db(tmp_path)
+    b = briefing.build(conn, AREAS, CFG)
+    tile = next(t for t in b["tiles"] if t["category"] == "police_call")
+    assert tile["this"] == 5 and b["calls_total"] == 5 and b["calls_other"] == 5
+    assert b["call_kinds"] == [("Violent crime", 2), ("Break-ins", 3)]
+    assert {it["group"] for it in b["calls"]} == {"Break-ins", "Violent crime"}
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    page = render.run(db_path=tmp_path / "t.db", out_name="index.html").read_text(encoding="utf-8")
+    assert "5 this week: Violent crime 2, Break-ins 3." in page
+    assert "5 other calls, such as ambulance assists and welfare checks, left out." in page
+    assert "See Ambulance" not in page.split('id="sources"')[0]
+    # The police's own name is shown only when it adds something.
+    assert '<b class="grp">Assault</b> <span' in page or '<b class="grp">Assault</b><span' in page \
+        or '<b class="grp">Assault</b> near' in page.replace("\n", " ") or "Assault</b>" in page
+
+
+def test_email_counts_grouped_calls_and_names_the_rest(tmp_path):
+    from leaside import digest
+    conn = _calls_db(tmp_path)
+    data = digest.gather(conn, geo.Areas.load(), sources.load(), since="2000-01-01T00:00:00+00:00")
+    assert data["calls"]["total"] == 5 and data["calls"]["other"] == 5
+    assert dict(data["calls"]["kinds"]) == {"Break-ins": 3, "Violent crime": 2}
+    assert "5 other calls, such as ambulance assists, left out." in digest.render_html(data)
+    assert "5 other calls, such as ambulance assists, left out." in digest.render_text(data)
+
+
+def test_map_marks_each_call_with_its_group_and_starts_with_other_off(tmp_path, monkeypatch):
+    from leaside import mapdata, render
+    conn = _calls_db(tmp_path)
+    d = mapdata.build(conn, AREAS, CFG)
+    groups = d["call_groups"]
+    assert groups[-1] == "Other"
+    totals = dict(zip(groups, d["call_group_totals"]))
+    assert totals["Break-ins"] == 3 and totals["Violent crime"] == 2 and totals["Other"] == 5
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    render.run(db_path=tmp_path / "t.db", out_name="index.html")
+    page = (tmp_path / "map.html").read_text(encoding="utf-8")
+    assert "var callOn = CALLS.map(function (g, i) { return i < CALLS.length - 1; });" in page
+
+
+def test_health_report_names_the_call_types_left_in_other(tmp_path):
+    from leaside import doctor
+    conn = _calls_db(tmp_path)
+    out = doctor.render(doctor.gather(conn, AREAS, CFG))
+    assert "## Police call types in Other" in out
+    assert "| SEE AMBULANCE | 4 |" in out and "| HAZARD | 1 |" in out
+    assert "BREAK & ENTER" not in out.split("## Police call types in Other")[1].split("##")[0]

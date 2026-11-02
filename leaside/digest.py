@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
-from . import db, geo, sources, version
+from . import calltypes, db, geo, sources, version
 
 API = "https://api.resend.com/emails"
 SENDER = "Leaside Tracker <onboarding@resend.dev>"
@@ -132,19 +132,32 @@ def gather(conn, areas, cfg, since: str | None = None, limit: int = MAX_ITEMS) -
 
 
 def summarise_calls(calls: list[dict], areas) -> dict | None:
-    """How many police calls, where, and of what kind, for the email's one-liner."""
-    if not calls:
+    """How many police calls, where, and in which of the owner's groups.
+
+    Calls in Other (ambulance assists, welfare checks, hazards) are left out of
+    the count, as on the Today page, and the email says how many.
+    """
+    def raw_of(it):
+        raw = it.get("raw")
+        if isinstance(raw, str):
+            try:
+                return json.loads(raw)
+            except ValueError:
+                return {}
+        return raw or {}
+    kept = [it for it in calls
+            if calltypes.classify(calltypes.call_type_of({"raw": raw_of(it), "title": it["title"]}))[0]
+            != calltypes.other()]
+    if not kept:
         return None
-    kinds: dict[str, int] = {}
     where: dict[str, int] = {}
-    for it in calls:
-        kind = it["title"].split(" near ")[0]
-        kinds[kind] = kinds.get(kind, 0) + 1
+    for it in kept:
         name = it.get("area_name") or areas.name(it.get("area"))
         where[name] = where.get(name, 0) + 1
-    top = sorted(kinds.items(), key=lambda x: (-x[1], x[0]))[:4]
-    return {"total": len(calls),
-            "kinds": top,
+    groups = calltypes.counts([{"raw": raw_of(it), "title": it["title"]} for it in kept])
+    return {"total": len(kept),
+            "kinds": sorted(groups, key=lambda x: (-x[1], x[0]))[:4],
+            "other": len(calls) - len(kept),
             "areas": sorted(where.items(), key=lambda x: (-x[1], x[0]))}
 
 
@@ -171,6 +184,8 @@ def render_text(data: dict) -> str:
         lines.append(f"POLICE CALLS: {c['total']} attended in your areas"
                      + (f" - {kinds}" if kinds else ""))
         lines.append("    " + ", ".join(f"{a} {n}" for a, n in c["areas"]))
+        if c.get("other"):
+            lines.append(f"    {c['other']} other calls, such as ambulance assists, left out.")
         lines.append("")
     for name, items in data["sections"]:
         lines.append(f"{name.upper()} ({len(items)})")
@@ -222,6 +237,8 @@ def render_html(data: dict) -> str:
             f'{"s" if c["total"] != 1 else ""}</strong> in your areas'
             + (f': {kinds}.' if kinds else '.')
             + (f'<br><span style="color:#6f6a63">{where}</span>' if where else '')
+            + (f' {c["other"]} other call{"s" if c["other"] != 1 else ""}, such as ambulance '
+               'assists, left out.' if c.get("other") else '')
             + ' Each is placed at the nearest intersection by the police. '
             + 'The page lists them.</p>')
     if not data["sections"] and not data.get("calls"):

@@ -40,6 +40,7 @@
   .calls li { font-size:13.5px; padding:4px 0; }
   .calls time { color:var(--faint); font-size:12px; margin-right:6px; white-space:nowrap; }
   .calls .w { color:var(--muted); }
+  .calls .grp { font-weight:600; font-size:12px; color:var(--fg); margin-right:4px; }
   .kinds { font-size:13px; color:var(--muted); margin:0 0 6px; }
   .empty { color:var(--muted); font-size:14px; padding:8px 0; }
   .home { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
@@ -116,10 +117,12 @@
 <section>
   <h2>Police calls <a href="map.html?layers=calls&amp;since=7">on the map</a></h2>
   {% if b.calls %}
-  <p class="kinds">{{ b.calls_total }} attended this week: {% for k, n in b.call_kinds %}{{ k }} {{ n }}{{ ', ' if not loop.last }}{% endfor %}.</p>
+  <p class="kinds">{{ b.calls_total }} this week: {% for k, n in b.call_kinds %}{{ k }} {{ n }}{{ ', ' if not loop.last }}{% endfor %}.{% if b.calls_other %}
+    {{ b.calls_other }} other call{{ 's' if b.calls_other != 1 }}, such as ambulance assists and welfare checks, left out.{% endif %}</p>
   <ul class="plain calls">
   {% for it in b.calls %}
-    <li><time data-ts="{{ it.when }}">{{ it.when[5:16] }}</time>{{ it.title.split(' near ')[0] }}{% if ' near ' in it.title %} <span class="w">near {{ it.title.split(' near ', 1)[1] }}</span>{% endif %}</li>
+    {% set police_name = it.title.split(' near ')[0] %}{% set mine = it.kind or it.group %}
+    <li><time data-ts="{{ it.when }}">{{ it.when[5:16] }}</time><b class="grp">{{ mine }}</b>{% if police_name|lower != mine|lower %} {{ police_name }}{% endif %}{% if ' near ' in it.title %} <span class="w">near {{ it.title.split(' near ', 1)[1] }}</span>{% endif %}</li>
   {% endfor %}
   </ul>
   {% if b.calls_total > b.calls|length %}<p class="meta"><a href="news.html?cat=police_call&amp;since=7" style="color:var(--accent)">All {{ b.calls_total }} this week &rarr;</a></p>{% endif %}
