@@ -1,12 +1,16 @@
 name: Live poll
 
-# The police map shows each call for about four hours. Checking it every half
-# hour turns that window into a lasting log of what police attended in the
-# neighbourhood. Nothing else is fetched here; the daily publish does the rest.
+# The police map shows each call for about four hours. Checking it often turns
+# that window into a lasting log of what police attended in the neighbourhood.
+# Nothing else is fetched here; the daily publish does the rest.
 #
-# Cost: about 48 short runs a day. Free on a public repository; on a private one
-# it would use most of the free monthly minutes, so change the schedule to
-# "17 * * * *" (hourly) if the repository is ever made private again.
+# Two things start this run. A Cloudflare Worker presses the "Run workflow"
+# button once an hour (cloudflare/poll-timer.js, docs/CLOUDFLARE-TIMER.md),
+# because GitHub's own timer skipped most runs: about 5 a day instead of 48 in
+# October 2026. GitHub's timer below stays on as a backup.
+#
+# Cost: free on a public repository. On a private one, drop the schedule below
+# to "17 * * * *" or remove it, and let the Cloudflare timer do the work.
 
 on:
   schedule:

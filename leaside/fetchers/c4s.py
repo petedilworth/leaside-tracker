@@ -3,7 +3,7 @@
 The police publish a public map of calls in progress - call type, division and
 nearest intersection - refreshed every twenty minutes, each call shown for about
 four hours and then gone. Medical, sexual assault, suicide and domestic calls are
-withheld by the publisher. Polled every half hour, that four-hour window becomes
+withheld by the publisher. Polled every hour, that four-hour window becomes
 a lasting log of what police did in the neighbourhood, months before the same
 events reach the reported-crime dataset.
 

@@ -56,7 +56,7 @@ That is the whole setting. There is no save button; it applies at once.
 5. Open **https://petedilworth.github.io/leaside-tracker/**
 
 Bookmark that address. The full collection runs every morning around 6am
-Toronto time, and the police-calls strip at the top refreshes every half hour.
+Toronto time, and the police calls refresh about once an hour.
 The trends page is at **https://petedilworth.github.io/leaside-tracker/trends.html**
 and is linked from the top of the main page.
 

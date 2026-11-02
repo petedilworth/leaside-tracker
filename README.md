@@ -56,7 +56,8 @@ To see the site render without any network:
 | `docs/PUBLISH.md` | Putting the page on the web, public but not searchable |
 | `.github/workflows/weekly-digest.yml` | Runs weekly on GitHub and emails the digest |
 | `.github/workflows/publish-site.yml` | Collects daily on GitHub and publishes the page to GitHub Pages |
-| `.github/workflows/live-poll.yml` | Reads the police calls map every half hour and republishes |
+| `.github/workflows/live-poll.yml` | Reads the police calls map and republishes; started hourly from Cloudflare |
+| `cloudflare/poll-timer.js`, `docs/CLOUDFLARE-TIMER.md` | The hourly timer on Cloudflare, and how to set it up |
 | `scripts/state.sh` | Carries the database between GitHub runs on the `state` branch, compressed, never shrinking |
 | `.github/workflows/weekly-backup.yml` | Keeps a dated copy of the log every Monday under Releases |
 | `site/log/everything.csv`, `site/log/changes.csv` | The complete log, rebuilt with the page; opens in Excel |

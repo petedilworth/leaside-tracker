@@ -3,6 +3,7 @@
 ## Now
 - [ ] Add the two Resend secrets on GitHub so the Monday email sends
 - [ ] Re-think the site: separate pages by topic, each with its own neighbourhoods
+- [ ] Set up the Cloudflare timer so police calls are checked every hour
 
 ## Next
 - [ ] Poll the police calls map every 15 minutes from a timer outside GitHub
@@ -19,6 +20,7 @@
 - [ ] Show police call groups on the News page, with Other hidden
 
 ## Done
+- [x] 2026-11-02 – Hourly police poll timer written for Cloudflare, with setup steps
 - [x] 2026-11-02 – Ignore list for police calls; Other now shows new call types
 - [x] 2026-11-02 – Police calls grouped your way; ambulance and welfare calls left out
 - [x] 2026-10-29 – Today briefing front page, fast News reader, one header

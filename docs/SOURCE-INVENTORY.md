@@ -421,12 +421,17 @@ send that file.
   four hours. Keeping them is this project's choice, not theirs. They are at the
   nearest intersection, never an address, and the page says so on every one.
 
-### The half-hourly workflow
+### The poll workflow
 
 `.github/workflows/live-poll.yml` fetches only the police map, rebuilds the page
 and republishes it if Pages is on. It shares the database and the concurrency
-group with the daily publish and the weekly email. About 48 runs a day, free on
-a public repository; switch it to hourly if the repository is made private.
+group with the daily publish and the weekly email. Free on a public repository.
+
+On 2 November 2026 the run history showed GitHub's half-hourly timer ran about
+5 times a day, not 48: a typical gap of 4.7 hours, the longest 10.4, so about
+one call in four left the map unseen. Every run that started succeeded; the rest
+were never started. A Cloudflare Worker now presses the "Run workflow" button
+once an hour, with GitHub's timer kept as a backup. See `docs/CLOUDFLARE-TIMER.md`.
 
 ## The complete log, 6 October 2026
 
