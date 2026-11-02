@@ -165,6 +165,8 @@ def build(conn, areas, cfg) -> dict:
         "layers": LAYERS,
         "crime_types": CRIME_TYPES,
         "call_groups": CALL_GROUPS,
+        "call_other": calltypes.other(),
+        "call_ignored": calltypes.ignored(),
         "call_group_totals": [sum(1 for sp in out for r in sp["r"] if r[0] == 2 and r[5] == i)
                               for i in range(len(CALL_GROUPS))],
         "type_totals": [sum(1 for sp in out for r in sp["r"] if r[0] == 0 and r[5] == i)

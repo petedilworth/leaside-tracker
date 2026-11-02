@@ -134,7 +134,7 @@ def gather(conn, areas, cfg, since: str | None = None, limit: int = MAX_ITEMS) -
 def summarise_calls(calls: list[dict], areas) -> dict | None:
     """How many police calls, where, and in which of the owner's groups.
 
-    Calls in Other (ambulance assists, welfare checks, hazards) are left out of
+    Ignored calls (ambulance assists, welfare checks, hazards) are left out of
     the count, as on the Today page, and the email says how many.
     """
     def raw_of(it):
@@ -147,7 +147,7 @@ def summarise_calls(calls: list[dict], areas) -> dict | None:
         return raw or {}
     kept = [it for it in calls
             if calltypes.classify(calltypes.call_type_of({"raw": raw_of(it), "title": it["title"]}))[0]
-            != calltypes.other()]
+            != calltypes.ignored()]
     if not kept:
         return None
     where: dict[str, int] = {}
@@ -157,7 +157,7 @@ def summarise_calls(calls: list[dict], areas) -> dict | None:
     groups = calltypes.counts([{"raw": raw_of(it), "title": it["title"]} for it in kept])
     return {"total": len(kept),
             "kinds": sorted(groups, key=lambda x: (-x[1], x[0]))[:4],
-            "other": len(calls) - len(kept),
+            "ignored": len(calls) - len(kept),
             "areas": sorted(where.items(), key=lambda x: (-x[1], x[0]))}
 
 
@@ -184,8 +184,8 @@ def render_text(data: dict) -> str:
         lines.append(f"POLICE CALLS: {c['total']} attended in your areas"
                      + (f" - {kinds}" if kinds else ""))
         lines.append("    " + ", ".join(f"{a} {n}" for a, n in c["areas"]))
-        if c.get("other"):
-            lines.append(f"    {c['other']} other calls, such as ambulance assists, left out.")
+        if c.get("ignored"):
+            lines.append(f"    {c['ignored']} ignored calls, such as ambulance assists, left out.")
         lines.append("")
     for name, items in data["sections"]:
         lines.append(f"{name.upper()} ({len(items)})")
@@ -237,8 +237,8 @@ def render_html(data: dict) -> str:
             f'{"s" if c["total"] != 1 else ""}</strong> in your areas'
             + (f': {kinds}.' if kinds else '.')
             + (f'<br><span style="color:#6f6a63">{where}</span>' if where else '')
-            + (f' {c["other"]} other call{"s" if c["other"] != 1 else ""}, such as ambulance '
-               'assists, left out.' if c.get("other") else '')
+            + (f' {c["ignored"]} ignored call{"s" if c["ignored"] != 1 else ""}, such as ambulance '
+               'assists, left out.' if c.get("ignored") else '')
             + ' Each is placed at the nearest intersection by the police. '
             + 'The page lists them.</p>')
     if not data["sections"] and not data.get("calls"):

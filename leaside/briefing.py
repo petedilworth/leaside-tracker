@@ -116,7 +116,7 @@ def build(conn, areas, cfg, now=None) -> dict:
         return rows
 
     def kept_calls(since, until=None):
-        """Police calls in the owner's groups: Other is left out of the Today page."""
+        """Police calls not on the owner's ignore list."""
         sql = (f"SELECT title, raw FROM items WHERE category = 'police_call' AND {db.SHOWN}"
                " AND first_seen_at >= ? AND (published_at IS NULL OR published_at >= ?)")
         params = [since, _iso(_now(now) - timedelta(days=WEEK + 30))]
@@ -126,7 +126,7 @@ def build(conn, areas, cfg, now=None) -> dict:
         n = 0
         for r in conn.execute(sql, params):
             raw = json.loads(r["raw"]) if r["raw"] else {}
-            if calltypes.classify(calltypes.call_type_of({"raw": raw, "title": r["title"]}))[0] != calltypes.other():
+            if calltypes.classify(calltypes.call_type_of({"raw": raw, "title": r["title"]}))[0] != calltypes.ignored():
                 n += 1
         return n
 
@@ -161,14 +161,15 @@ def build(conn, areas, cfg, now=None) -> dict:
     all_calls = decorate(_rows(conn, f"""SELECT * FROM items WHERE category = 'police_call' AND {db.SHOWN}
         AND COALESCE(published_at, first_seen_at) >= ? ORDER BY COALESCE(published_at, first_seen_at) DESC""",
         (week_ago,)))
-    # The owner's groups (config/call_types.yaml). Calls in Other - ambulance
+    # The owner's groups (config/call_types.yaml). Ignored calls - ambulance
     # assists, welfare checks, hazards - are left off this page, and counted
-    # separately so the page says how many it left out.
+    # separately so the page says how many it left out. Other, a type new to
+    # this area, is shown.
     for it in all_calls:
         raw = json.loads(it["raw"]) if it.get("raw") else {}
         it["group"], it["kind"] = calltypes.classify(calltypes.call_type_of({"raw": raw, "title": it["title"]}))
-    calls = [it for it in all_calls if it["group"] != calltypes.other()]
-    calls_other = len(all_calls) - len(calls)
+    calls = [it for it in all_calls if it["group"] != calltypes.ignored()]
+    calls_ignored = len(all_calls) - len(calls)
     call_kinds = calltypes.counts(calls)
 
     marks = ",".join("?" * len(STORY_CATEGORIES))
@@ -214,7 +215,7 @@ def build(conn, areas, cfg, now=None) -> dict:
         if r["category"] != "police_call":
             return False
         raw = json.loads(r["raw"]) if r["raw"] else {}
-        return calltypes.classify(calltypes.call_type_of({"raw": raw, "title": r["title"]}))[0] == calltypes.other()
+        return calltypes.classify(calltypes.call_type_of({"raw": raw, "title": r["title"]}))[0] == calltypes.ignored()
     near = [r for r in near if not _other_call(r)]
     near_payload = [[r["id"], r["category"], r["title"][:90], (r["published_at"] or r["first_seen_at"])[:10],
                      round(r["lat"], 5), round(r["lon"], 5), areas.name(r["area"]), r["url"] or ""]
@@ -224,7 +225,7 @@ def build(conn, areas, cfg, now=None) -> dict:
     return {
         "now": _iso(now), "week_start": (now - timedelta(days=WEEK)).date().isoformat(),
         "tiles": tiles, "calls": calls[:12], "calls_total": len(calls), "call_kinds": call_kinds,
-        "calls_other": calls_other,
+        "calls_ignored": calls_ignored,
         "stories": stories, "permits": big, "permits_total": len(permits),
         "inspections": inspections, "events": events, "lag": lag,
         "latest_run": runs[0] if runs else None,

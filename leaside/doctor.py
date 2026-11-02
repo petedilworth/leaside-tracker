@@ -92,8 +92,8 @@ def gather(conn, areas, cfg) -> dict:
         WHERE ran_at = (SELECT MAX(ran_at) FROM fetch_log f2 WHERE f2.source_id = fetch_log.source_id)
         ORDER BY ok, source_id""").fetchall() if r["source_id"] in runnable]
 
-    # Police call types that landed in Other: the owner places them in
-    # config/call_types.yaml, or leaves them out on purpose.
+    # Police call types in Other: in neither the groups nor the ignore list of
+    # config/call_types.yaml, so new to this area. The owner places or ignores them.
     unplaced: dict[str, int] = {}
     for r in q(f"SELECT title, raw FROM items WHERE category = 'police_call' AND {db.SHOWN}"):
         try:
@@ -186,8 +186,8 @@ def render(d: dict) -> str:
 
     if d.get("unplaced_calls"):
         L += ["", "## Police call types in Other", "",
-              "Left off the Today page, the map and the email unless Other is switched on.",
-              "Most are left out on purpose. To place one, add it to config/call_types.yaml.", "",
+              "Types new to this area: in neither a group nor the ignore list. They are shown.",
+              "Add each to a group or to the ignore list in config/call_types.yaml.", "",
               "| police call type | calls |", "| --- | --- |"]
         for t, n in d["unplaced_calls"]:
             L.append(f"| {t} | {n} |")

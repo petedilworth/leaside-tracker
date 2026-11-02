@@ -1701,14 +1701,13 @@ def test_digest_counts_police_calls_instead_of_listing_them(tmp_path):
     data = digest.gather(conn, geo.Areas.load(), sources.load())
     assert data["total"] == 1                              # calls do not count as items
     assert [n for n, _ in data["sections"]] == ["Residents' associations"]
-    # Check Address is in Other (config/call_types.yaml): counted apart, not listed.
-    assert data["calls"]["total"] == 10 and data["calls"]["other"] == 20
-    assert data["calls"]["kinds"][0] == ("Theft", 10)
-    assert sum(dict(data["calls"]["areas"]).values()) == 10
+    # Check Address is in neither list, so Other: new to this area, and shown.
+    assert data["calls"]["total"] == 30 and data["calls"]["ignored"] == 0
+    assert data["calls"]["kinds"][0] == ("Other", 20)
+    assert dict(data["calls"]["areas"]) == {"Leaside": 15, "Davisville": 15}
     html_out = digest.render_html(data)
-    assert "Police attended 10 calls" in html_out and "Theft (10)" in html_out
-    assert "POLICE CALLS: 10 attended" in digest.render_text(data)
-    assert "20 other calls" in digest.render_text(data)
+    assert "Police attended 30 calls" in html_out and "Other (20)" in html_out and "Theft (10)" in html_out
+    assert "POLICE CALLS: 30 attended" in digest.render_text(data)
 
 
 def test_digest_subject_when_only_police_calls_are_new():
@@ -2437,7 +2436,7 @@ def test_boundary_polygons_are_picked_out_of_city_rows_by_name():
 def test_police_calls_fall_into_the_owners_groups():
     from leaside import calltypes
     assert calltypes.groups() == ["Accidents", "Disorder", "Incidents", "Driving crime",
-                                  "Violent crime", "Theft", "Break-ins", "Other"]
+                                  "Violent crime", "Theft", "Break-ins", "Other", "Ignore"]
     cases = {
         "PERSONAL INJURY COLLISION": ("Accidents", "Collision"),
         "FAIL TO REMAIN PERSONAL INJURY COLLISION": ("Accidents", "Fail to remain"),
@@ -2452,9 +2451,11 @@ def test_police_calls_fall_into_the_owners_groups():
         "THEFT OF VEHICLE": ("Theft", "Theft of a vehicle"),
         "ATTEMPT BREAK & ENTER": ("Break-ins", "Break and enter"),
         "Break & Enter In Progress": ("Break-ins", "Break and enter"),
-        # left out on purpose, and anything new
-        "SEE AMBULANCE": ("Other", None), "HAZARD": ("Other", None),
-        "DAMAGE TO AUTO": ("Other", None), "ROBBERY IN PROGRESS": ("Other", None),
+        # the owner's ignore list
+        "SEE AMBULANCE": ("Ignore", None), "HAZARD": ("Ignore", None),
+        "DAMAGE TO AUTO": ("Ignore", None), "MISSING CHILD": ("Ignore", None),
+        # new to this area: in neither list
+        "ROBBERY IN PROGRESS": ("Other", None),
     }
     for police, expected in cases.items():
         assert calltypes.classify(police) == expected, police
@@ -2466,7 +2467,8 @@ def test_police_calls_fall_into_the_owners_groups():
 def _calls_db(tmp_path):
     from leaside import db
     conn = db.connect(tmp_path / "t.db")
-    calls = [("BREAK & ENTER IN PROGRESS", 3), ("SEE AMBULANCE", 4), ("ASSAULT", 2), ("HAZARD", 1)]
+    calls = [("BREAK & ENTER IN PROGRESS", 3), ("SEE AMBULANCE", 4), ("ASSAULT", 2), ("HAZARD", 1),
+             ("ROBBERY IN PROGRESS", 1)]
     n = 0
     for kind, times in calls:
         for _ in range(times):
@@ -2484,13 +2486,13 @@ def test_today_counts_only_grouped_calls_and_says_how_many_it_left_out(tmp_path,
     conn = _calls_db(tmp_path)
     b = briefing.build(conn, AREAS, CFG)
     tile = next(t for t in b["tiles"] if t["category"] == "police_call")
-    assert tile["this"] == 5 and b["calls_total"] == 5 and b["calls_other"] == 5
-    assert b["call_kinds"] == [("Violent crime", 2), ("Break-ins", 3)]
-    assert {it["group"] for it in b["calls"]} == {"Break-ins", "Violent crime"}
+    assert tile["this"] == 6 and b["calls_total"] == 6 and b["calls_ignored"] == 5
+    assert b["call_kinds"] == [("Violent crime", 2), ("Break-ins", 3), ("Other", 1)]
+    assert {it["group"] for it in b["calls"]} == {"Break-ins", "Violent crime", "Other"}
     monkeypatch.setattr(render, "OUT", tmp_path)
     page = render.run(db_path=tmp_path / "t.db", out_name="index.html").read_text(encoding="utf-8")
-    assert "5 this week: Violent crime 2, Break-ins 3." in page
-    assert "5 other calls, such as ambulance assists and welfare checks, left out." in page
+    assert "6 this week: Violent crime 2, Break-ins 3, Other 1." in page
+    assert "5 ignored calls, such as ambulance assists and welfare checks, left out." in page
     assert "See Ambulance" not in page.split('id="sources"')[0]
     # The police's own name is shown only when it adds something.
     assert '<b class="grp">Assault</b> <span' in page or '<b class="grp">Assault</b><span' in page \
@@ -2501,10 +2503,10 @@ def test_email_counts_grouped_calls_and_names_the_rest(tmp_path):
     from leaside import digest
     conn = _calls_db(tmp_path)
     data = digest.gather(conn, geo.Areas.load(), sources.load(), since="2000-01-01T00:00:00+00:00")
-    assert data["calls"]["total"] == 5 and data["calls"]["other"] == 5
-    assert dict(data["calls"]["kinds"]) == {"Break-ins": 3, "Violent crime": 2}
-    assert "5 other calls, such as ambulance assists, left out." in digest.render_html(data)
-    assert "5 other calls, such as ambulance assists, left out." in digest.render_text(data)
+    assert data["calls"]["total"] == 6 and data["calls"]["ignored"] == 5
+    assert dict(data["calls"]["kinds"]) == {"Break-ins": 3, "Violent crime": 2, "Other": 1}
+    assert "5 ignored calls, such as ambulance assists, left out." in digest.render_html(data)
+    assert "5 ignored calls, such as ambulance assists, left out." in digest.render_text(data)
 
 
 def test_map_marks_each_call_with_its_group_and_starts_with_other_off(tmp_path, monkeypatch):
@@ -2512,13 +2514,14 @@ def test_map_marks_each_call_with_its_group_and_starts_with_other_off(tmp_path, 
     conn = _calls_db(tmp_path)
     d = mapdata.build(conn, AREAS, CFG)
     groups = d["call_groups"]
-    assert groups[-1] == "Other"
+    assert groups[-2:] == ["Other", "Ignore"] and d["call_ignored"] == "Ignore"
     totals = dict(zip(groups, d["call_group_totals"]))
-    assert totals["Break-ins"] == 3 and totals["Violent crime"] == 2 and totals["Other"] == 5
+    assert totals["Break-ins"] == 3 and totals["Violent crime"] == 2
+    assert totals["Other"] == 1 and totals["Ignore"] == 5
     monkeypatch.setattr(render, "OUT", tmp_path)
     render.run(db_path=tmp_path / "t.db", out_name="index.html")
     page = (tmp_path / "map.html").read_text(encoding="utf-8")
-    assert "var callOn = CALLS.map(function (g, i) { return i < CALLS.length - 1; });" in page
+    assert "var callOn = CALLS.map(function (g) { return g !== D.call_ignored; });" in page
 
 
 def test_health_report_names_the_call_types_left_in_other(tmp_path):
@@ -2526,5 +2529,7 @@ def test_health_report_names_the_call_types_left_in_other(tmp_path):
     conn = _calls_db(tmp_path)
     out = doctor.render(doctor.gather(conn, AREAS, CFG))
     assert "## Police call types in Other" in out
-    assert "| SEE AMBULANCE | 4 |" in out and "| HAZARD | 1 |" in out
-    assert "BREAK & ENTER" not in out.split("## Police call types in Other")[1].split("##")[0]
+    section = out.split("## Police call types in Other")[1].split("##")[0]
+    assert "| ROBBERY IN PROGRESS | 1 |" in section             # new: needs placing
+    assert "SEE AMBULANCE" not in section and "HAZARD" not in section   # ignored on purpose
+    assert "BREAK & ENTER" not in section

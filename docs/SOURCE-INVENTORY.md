@@ -660,3 +660,11 @@ it ever appears: it is not in the owner's list.
 On the live log that day: 49 grouped calls this week (Accidents 20, Disorder 8,
 Incidents 2, Driving crime 2, Violent crime 6, Theft 8, Break-ins 3) and 19 left
 in Other. The News page is the complete reader and still shows every call.
+
+**Same day: Ignore and Other split.** The owner moved the sixteen left-out types
+into an `ignore:` list of their own. Ignore is what was hidden; it stays hidden
+by default on Today, the map and the email, which say how many they left out.
+Other now means only a call type in neither the groups nor the ignore list, so a
+type the police have not used here before. It is shown by default, because a
+new type may matter, and the health report names it so it can be placed. On the
+live log that day Other was empty: all 48 types seen were placed or ignored.

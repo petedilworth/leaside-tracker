@@ -163,8 +163,9 @@
   function colour(i) { return css.getPropertyValue('--s' + i).trim(); }
   var ring = css.getPropertyValue('--ring').trim();
   var STOPS = D.stops, TYPES = D.crime_types, CALLS = D.call_groups;
-  // Other (ambulance assists, welfare checks, hazards) starts switched off.
-  var callOn = CALLS.map(function (g, i) { return i < CALLS.length - 1; });
+  // Ignore (ambulance assists, welfare checks, hazards) starts switched off.
+  // Other, a call type new to this area, starts on.
+  var callOn = CALLS.map(function (g) { return g !== D.call_ignored; });
   var on = [true, true, true];
   var typeOn = TYPES.map(function () { return true; });
   var stop = D.default_stop;
@@ -257,7 +258,8 @@
     b.setAttribute('aria-pressed', callOn[i] ? 'true' : 'false');
     b.appendChild(document.createTextNode(g + ' '));
     b.appendChild(el('small'));
-    if (i === CALLS.length - 1) b.title = 'Ambulance assists, welfare checks, hazards and other calls left out by default';
+    if (g === D.call_ignored) b.title = 'Ambulance assists, welfare checks, hazards and the other types you chose to ignore';
+    if (g === D.call_other) b.title = 'Call types not in your groups or your ignore list: new to this area';
     b.addEventListener('click', function () {
       callOn[i] = !callOn[i]; b.setAttribute('aria-pressed', callOn[i]); save(); draw();
     });

@@ -1,7 +1,8 @@
 """Police call types in the owner's groups, from config/call_types.yaml.
 
 classify("BREAK & ENTER IN PROGRESS") -> ("Break-ins", "Break and enter").
-Anything not listed is ("Other", None). Other is shown only when asked for.
+A type on the ignore list is ("Ignore", None): hidden unless asked for.
+Anything else not listed is ("Other", None): a type new to this area, shown.
 """
 from __future__ import annotations
 
@@ -28,16 +29,27 @@ def _load(path: str):
             for t in types:
                 lookup[_norm(t)] = (g["name"], kind)
     other = raw.get("other", "Other")
-    return groups + [other], lookup, other
+    ignored = raw.get("ignored", "Ignore")
+    for t in raw.get("ignore") or []:
+        lookup[_norm(t)] = (ignored, None)
+    return groups + [other, ignored], lookup, other, ignored
 
 
 def groups(path: Path | str = CONFIG) -> list[str]:
-    """Every group in the owner's order, Other last."""
+    """Every group in the owner's order, then Other, then Ignore."""
     return list(_load(str(path))[0])
 
 
 def other(path: Path | str = CONFIG) -> str:
     return _load(str(path))[2]
+
+
+def ignored(path: Path | str = CONFIG) -> str:
+    return _load(str(path))[3]
+
+
+def is_ignored(item: dict, path: Path | str = CONFIG) -> bool:
+    return classify(call_type_of(item), path)[0] == ignored(path)
 
 
 def call_type_of(item: dict) -> str:
@@ -49,17 +61,18 @@ def call_type_of(item: dict) -> str:
 
 
 def classify(call_type: str, path: Path | str = CONFIG) -> tuple[str, str | None]:
-    _, lookup, other_name = _load(str(path))
+    _, lookup, other_name, _ = _load(str(path))
     return lookup.get(_norm(call_type), (other_name, None))
 
 
-def counts(items, path: Path | str = CONFIG, include_other: bool = False) -> list[tuple[str, int]]:
-    """[(group, n)] in the owner's order, groups with no calls left out."""
+def counts(items, path: Path | str = CONFIG, include_ignored: bool = False) -> list[tuple[str, int]]:
+    """[(group, n)] in the owner's order, groups with no calls left out.
+    Other is counted; Ignore only when asked."""
     n: dict[str, int] = {}
     for it in items:
         g, _ = classify(call_type_of(it), path)
         n[g] = n.get(g, 0) + 1
     order = groups(path)
-    if not include_other:
+    if not include_ignored:
         order = order[:-1]
     return [(g, n[g]) for g in order if n.get(g)]

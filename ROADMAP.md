@@ -19,6 +19,7 @@
 - [ ] Show police call groups on the News page, with Other hidden
 
 ## Done
+- [x] 2026-11-02 – Ignore list for police calls; Other now shows new call types
 - [x] 2026-11-02 – Police calls grouped your way; ambulance and welfare calls left out
 - [x] 2026-10-29 – Today briefing front page, fast News reader, one header
 - [x] 2026-10-29 – City neighbourhood boundaries gate every located record

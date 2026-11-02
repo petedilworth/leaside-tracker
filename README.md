@@ -44,7 +44,7 @@ To see the site render without any network:
 | Path | Purpose |
 | --- | --- |
 | `config/sources.yaml` | Every source, its kind, and an honest status |
-| `config/call_types.yaml` | Police call types in the owner's groups; anything not listed goes to Other, off by default |
+| `config/call_types.yaml` | Police call types in the owner's groups, an ignore list hidden by default, and Other for new types |
 | `config/areas.geojson` | Placeholder rectangles for each neighbourhood |
 | `leaside/fetchers/` | One module per source kind: RSS, JSON, ArcGIS, CKAN, HTML |
 | `leaside/briefing.py` | The Today page's numbers, stories and dated events |
