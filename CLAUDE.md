@@ -13,6 +13,7 @@ This repo reports to my Build Pipeline dashboard through ROADMAP.md.
 - One line per item, under 90 characters, plain words.
 - Never reword or reorder existing items. The dashboard matches items
   by their exact text, and I set priority there.
+- Delete items I've dropped; say so in the reply.
 
 ## Git
 - When the work is done, commit and push to main. Never leave a branch

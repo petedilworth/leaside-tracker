@@ -6,7 +6,6 @@
 - [ ] Set up the Cloudflare timer so police calls are checked every hour
 
 ## Next
-- [ ] Poll the police calls map every 15 minutes from a timer outside GitHub
 - [ ] Keep police calls in full for 30 days, then weekly counts only
 
 ## Later
