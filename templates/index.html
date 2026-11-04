@@ -115,7 +115,7 @@
 
 <div class="cols">
 <section>
-  <h2>Police calls <a href="map.html?layers=calls&amp;since=7">on the map</a></h2>
+  <h2>Police calls <a href="calls.html">all calls</a> <a href="map.html?layers=calls&amp;since=7">on the map</a></h2>
   {% if b.calls %}
   <p class="kinds">{{ b.calls_total }} this week: {% for k, n in b.call_kinds %}{{ k }} {{ n }}{{ ', ' if not loop.last }}{% endfor %}.{% if b.calls_ignored %}
     {{ b.calls_ignored }} ignored call{{ 's' if b.calls_ignored != 1 }}, such as ambulance assists and welfare checks, left out.{% endif %}</p>

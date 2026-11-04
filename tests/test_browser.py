@@ -270,7 +270,7 @@ def test_pages_fit_a_phone_and_show_their_sources(tmp_path, monkeypatch):
     render.run(db_path=tmp_path / "t.db", out_name="index.html")
     with playwright.sync_playwright() as p:
         b = p.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
-        for page in ("index.html", "trends.html"):
+        for page in ("index.html", "trends.html", "calls.html"):
             pg = b.new_page(viewport={"width": 390, "height": 800})
             pg.goto((tmp_path / page).as_uri())
             assert pg.evaluate("document.documentElement.scrollWidth") <= 390, page
@@ -336,4 +336,91 @@ def test_the_police_map_draws_filters_and_explains_a_place(tmp_path, monkeypatch
         phone = b.new_page(viewport={"width": 390, "height": 800})
         phone.goto((tmp_path / "map.html").as_uri())
         assert phone.evaluate("document.documentElement.scrollWidth") <= 390
+        b.close()
+
+
+def test_the_police_calls_page_counts_filters_and_charts(tmp_path, monkeypatch):
+    """Cards, the month table, the list and the yearly charts follow the area and
+    ignored switch; the list filters by group and text; the charts answer hover
+    and the keyboard; and it all fits a phone."""
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+    from datetime import datetime, timedelta, timezone
+    from leaside import db, render
+    conn = db.connect(tmp_path / "t.db")
+    now = datetime.now(timezone.utc)
+    calls = [("BREAK & ENTER", "leaside", 1), ("BREAK & ENTER", "davisville", 2),
+             ("ASSAULT", "leaside", 3), ("SEE AMBULANCE", "leaside", 4),
+             ("PROPERTY DAMAGE COLLISION", "moore_park", 40)]
+    calls += [("DISPUTE", "lawrence_park", 5 + n % 20) for n in range(70)]
+    for n, (kind, area, days) in enumerate(calls):
+        db.upsert_item(conn, {
+            "source_id": "tps_calls_for_service", "category": "police_call",
+            "title": f"{kind.title()} near YONGE ST - MAIN ST {n}", "url": None,
+            "external_id": f"c{n}", "area": area, "lat": 43.7, "lon": -79.37,
+            "published_at": (now - timedelta(days=days)).isoformat(timespec="seconds"),
+            "raw": {"CALL_TYPE": kind, "DIVISION": "D53"}})
+    for year, n in ((2015, 1569), (2020, 1123), (2025, 975)):
+        db.upsert_item(conn, {
+            "source_id": "tps_calls_attended", "category": "calls_yearly", "routine": True,
+            "title": f"Police calls attended in Leaside-Bennington, {year}: {n}", "url": None,
+            "external_id": f"Leaside-Bennington|{year}", "area": "leaside",
+            "published_at": f"{year}-12-31T12:00:00+00:00",
+            "raw": {"neighbourhood": "Leaside-Bennington", "year": year, "calls": n}})
+    conn.commit()
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    render.run(db_path=tmp_path / "t.db", out_name="index.html")
+    with playwright.sync_playwright() as p:
+        b = p.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
+        pg = b.new_page(viewport={"width": 390, "height": 800})
+        errors = []
+        pg.on("pageerror", lambda e: errors.append(str(e)))
+        pg.goto((tmp_path / "calls.html").as_uri())
+        assert not errors, errors
+        assert pg.evaluate("document.documentElement.scrollWidth") <= 390
+        # 30 days: 2 break-ins, 1 assault, 70 disputes; the ambulance call is ignored,
+        # the 40-day-old collision is outside the window.
+        assert pg.locator("#hero-n").inner_text() == "73"
+        tiles = pg.locator("#tiles").inner_text()
+        assert "Break-ins\n2" in tiles and "Ignore" not in tiles
+        assert "Lawrence Ave" not in tiles and "Busiest place" in tiles
+        months = pg.locator("#months-t").inner_text()
+        assert "Total" in months and "Ignore" not in months
+        # The ignored switch brings the ambulance call into every part of the page.
+        pg.locator("#ign").check()
+        assert pg.locator("#hero-n").inner_text() == "74"
+        assert "Ignore" in pg.locator("#tiles").inner_text()
+        pg.locator("#ign").uncheck()
+        # The area applies to the whole page.
+        pg.select_option("#area", "leaside")
+        assert pg.locator("#hero-n").inner_text() == "2"
+        pg.select_option("#area", "")
+        # The list: newest first, 60 at a time, filtered by group chip and by text.
+        assert pg.locator("#calls li.call").count() == 60
+        pg.locator("#more").click()
+        assert pg.locator("#calls li.call").count() == 73
+        first = pg.locator("#calls li.call").first.inner_text()
+        assert first.startswith(pg.locator("#calls li.call time").first.inner_text())
+        assert "Break and enter" in first and "Break & Enter" in first
+        pg.locator("#chips .chip", has_text="Disorder").click()
+        assert pg.locator("#calls li.call").count() == 3
+        pg.fill("#q", "assault")
+        assert pg.locator("#calls li.call").count() == 1
+        pg.fill("#q", "")
+        pg.select_option("#since", "0")
+        assert pg.locator("#calls li.call").count() == 4        # the old collision too
+        # The yearly chart: hover and keyboard both name a year and its count.
+        svg = pg.locator("#panels svg").first
+        svg.scroll_into_view_if_needed()
+        box = svg.bounding_box()
+        pg.mouse.move(box["x"] + 4, box["y"] + box["height"] / 2)
+        assert "2015" in pg.locator("#tip").inner_text() and "1,569" in pg.locator("#tip").inner_text()
+        svg.focus()                                     # keeps the year last pointed at
+        pg.keyboard.press("ArrowRight")
+        assert "2020" in pg.locator("#tip").inner_text()
+        assert "1,569" in pg.locator("#years table").text_content()   # inside a closed details
+        # A link from elsewhere can open the list on one group.
+        pg.goto((tmp_path / "calls.html").as_uri() + "?group=Break-ins&since=0")
+        assert pg.locator("#calls li.call").count() == 2
+        assert pg.evaluate("document.documentElement.scrollWidth") <= 390
+        assert pg.locator("#sources").is_visible()
         b.close()

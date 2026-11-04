@@ -494,10 +494,31 @@ sources:
       assault, suicide and domestic calls are withheld by the police. The layer
       address behind the map is unconfirmed, so the fetcher tries the candidates
       above and then walks the publisher's ArcGIS directory for anything named like
-      calls-for-service, printing whatever answers. Polled every 30 minutes by
-      .github/workflows/live-poll.yml so the four-hour window becomes a lasting log.
+      calls-for-service, printing whatever answers. Polled by
+      .github/workflows/live-poll.yml, started hourly from Cloudflare, so the
+      four-hour window becomes a lasting log.
       Points are the nearest intersection, never the address. Calls are kept after
       they leave the map, like everything else collected.
+
+  - id: tps_calls_attended
+    name: Calls for Service Attended (ASR-CS-TBL-003)
+    publisher: Toronto Police Service, Public Safety Data Portal
+    licence: tps_open_data
+    category: calls_yearly
+    area: null
+    kind: tps_calls_yearly
+    url: https://services.arcgis.com/S9th0jAJ7bqgIRjw/arcgis/rest/services/Calls_for_Service_Attended_(ASR_CS_TBL_003)/FeatureServer/0
+    home_url: https://data.tps.ca/
+    timeout: 60
+    retries: 2
+    status: documented
+    notes: |
+      One number per City neighbourhood per year, 2015 onward: every call officers
+      attended, all types together. No months and no call types. It is the only
+      history of calls before our own log began on 3 October 2026, so the Police
+      calls page shows it as the long view. Checked 4 November 2026: Leaside-Bennington
+      went from 1,569 calls in 2015 to 975 in 2025. Kept as routine rows: on the
+      Police calls page, not in the news list or the email.
 
   - id: city_building_permits
     name: Building permits (active)

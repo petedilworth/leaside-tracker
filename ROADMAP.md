@@ -16,8 +16,12 @@
 - [ ] Publish only the pages, not the downloads, if the log feels too public
 - [ ] Building permits with map points, so they count as near home
 - [ ] Show police call groups on the News page, with Other hidden
+- [ ] Police calls per 1,000 residents, so neighbourhoods compare fairly
+- [ ] Police calls by hour and weekday, once three months are logged
+- [ ] Compare break-in calls with break-in reports a few months later
 
 ## Done
+- [x] 2026-11-04 – Police calls page: cards, filters, months and yearly counts since 2015
 - [x] 2026-11-03 – Set up the Cloudflare timer so police calls are checked every hour
 - [x] 2026-11-02 – Hourly police poll timer written for Cloudflare, with setup steps
 - [x] 2026-11-02 – Ignore list for police calls; Other now shows new call types

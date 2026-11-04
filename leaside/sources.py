@@ -10,7 +10,7 @@ DEFAULT_CONFIG = Path("config/sources.yaml")
 
 RUNNABLE_KINDS = {"rss", "json_api", "arcgis_dcat", "arcgis_feature",
                   "arcgis_multi", "ckan_dataset", "ckan_permits", "ckan_dinesafe",
-                  "ckan_boundaries", "html_list", "tps_calls"}
+                  "ckan_boundaries", "html_list", "tps_calls", "tps_calls_yearly"}
 
 
 # What each category is, in words a reader uses. Shared by the page, the
@@ -19,6 +19,7 @@ CATEGORY_NAMES = {
     "city_notice": "City notices", "planning": "Planning", "permit": "Building permits",
     "ra_news": "Residents' association news", "media": "Local news",
     "police_news": "Police news", "police_call": "Police calls",
+    "calls_yearly": "Police calls attended, yearly",
     "inspection": "Restaurant inspections", "business": "Business news",
     "community": "Community news", "councillor": "Councillor", "transit": "Transit",
     "crime": "Reported crime", "collision": "Collisions", "registry": "Dataset catalogue",

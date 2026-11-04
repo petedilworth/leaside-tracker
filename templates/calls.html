@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Leaside Tracker · Police calls</title>
+{% include "_shell_head.html" %}
+<style>
+  :root { --grid:#e4e0d8; --axis:#c9c3b8; }
+  @media (prefers-color-scheme: dark) { :root { --grid:#2c2925; --axis:#3d3934; } }
+  .jump { font-size:13.5px; color:var(--muted); margin:0 0 14px; }
+  .jump a { color:var(--accent); margin-right:10px; }
+  .caveat { font-size:13.5px; color:var(--muted); border-left:3px solid var(--line);
+            padding:6px 12px; margin:10px 0 18px; }
+  h2 { font-size:12.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);
+       margin:30px 0 10px; }
+  .scope { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; font-size:14px;
+           background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .scope select, .filters select, .filters input[type=search] {
+    font:inherit; font-size:14px; padding:5px 8px; border:1px solid var(--line); border-radius:8px;
+    background:var(--bg); color:var(--fg); max-width:100%; }
+  .scope label, .filters label { display:inline-flex; align-items:center; gap:6px; }
+  .note { font-size:12.5px; color:var(--muted); margin:6px 0 0; }
+
+  .hero { display:flex; align-items:baseline; gap:6px 14px; flex-wrap:wrap; margin:0 0 10px; }
+  .hero b { font-size:44px; line-height:1; font-weight:600; font-variant-numeric:tabular-nums; }
+  .hero span { font-size:15px; color:var(--muted); }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+  .tile { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+          min-width:0; }
+  .tile .l { font-size:12.5px; color:var(--muted); }
+  .tile .v { font-size:22px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums;
+             overflow-wrap:anywhere; }
+  .tile .v.small { font-size:15px; }
+  .tile .d { font-size:12.5px; color:var(--muted); margin-top:2px; }
+  .tile a { color:var(--accent); }
+  .tile.fact { background:transparent; border-style:dashed; }
+
+  .scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line);
+            border-radius:10px; background:var(--card); }
+  table.months { border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums;
+                 min-width:100%; }
+  .months th, .months td { padding:6px 10px; text-align:right; border-bottom:1px solid var(--line);
+                           white-space:nowrap; }
+  .months th:first-child, .months td:first-child { text-align:left; position:sticky; left:0;
+                                                   background:var(--card); }
+  .months thead th { font-weight:600; color:var(--muted); font-size:12px; }
+  .months thead th small { display:block; font-weight:400; }
+  .months tr.total td { font-weight:600; border-bottom:0; }
+  .months td.zero { color:var(--faint); }
+
+  .filters { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; margin:0 0 10px; font-size:14px; }
+  .filters input[type=search] { flex:1 1 180px; min-width:0; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
+  .chip { font:inherit; font-size:13px; padding:4px 10px; border-radius:999px; cursor:pointer;
+          border:1px solid var(--line); background:var(--bg); color:var(--muted); }
+  .chip[aria-pressed="true"] { background:var(--card); color:var(--fg); border-color:var(--fg); }
+  .chip .n { color:var(--faint); margin-left:4px; font-variant-numeric:tabular-nums; }
+  .count { font-size:13px; color:var(--muted); margin:0 0 6px; }
+  ul.list { list-style:none; margin:0; padding:0; }
+  .call { padding:8px 0; border-bottom:1px solid var(--line); font-size:14.5px; overflow-wrap:anywhere; }
+  .call time { display:block; color:var(--faint); font-size:12px; font-variant-numeric:tabular-nums; }
+  .call .pw { color:var(--muted); }
+  .call .grp { font-size:11.5px; color:var(--muted); border:1px solid var(--line); border-radius:999px;
+               padding:0 7px; margin-left:4px; white-space:nowrap; }
+  .call .w { display:block; color:var(--muted); font-size:13px; }
+  .more { font:inherit; font-size:14px; margin:12px 0 0; padding:7px 14px; border-radius:8px;
+          border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+  .empty { border:1px dashed var(--line); border-radius:10px; padding:16px; color:var(--muted); font-size:14px; }
+
+  .panels { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px 6px;
+           min-width:0; }
+  .panel h3 { font-size:14px; margin:0; font-weight:600; }
+  .panel .sub { font-size:12px; color:var(--muted); margin:0 0 4px; }
+  .panel svg { width:100%; height:auto; display:block; touch-action:pan-y; }
+  .panel svg:focus { outline:2px solid var(--accent); outline-offset:2px; border-radius:6px; }
+  .gl { stroke:var(--grid); stroke-width:1; }
+  .ax { stroke:var(--axis); stroke-width:1; }
+  .lbl { font-size:10.5px; fill:var(--muted); font-variant-numeric:tabular-nums; }
+  .ln { fill:none; stroke:var(--s0); stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
+  .pt { fill:var(--s0); stroke:var(--card); stroke-width:2; }
+  .endl { font-size:11px; fill:var(--fg); font-weight:600; font-variant-numeric:tabular-nums; }
+  .xh { stroke:var(--axis); stroke-width:1; }
+  .tip { position:fixed; pointer-events:none; background:var(--card); color:var(--fg); z-index:9;
+         border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:12.5px;
+         box-shadow:0 4px 14px rgba(0,0,0,.10); }
+  details.tbl { margin-top:10px; font-size:13px; }
+  details.tbl summary { color:var(--muted); cursor:pointer; }
+  details.tbl table { border-collapse:collapse; font-size:12.5px; font-variant-numeric:tabular-nums; }
+  details.tbl th, details.tbl td { padding:3px 8px; text-align:right; border-bottom:1px solid var(--line);
+                                   white-space:nowrap; }
+  details.tbl th:first-child, details.tbl td:first-child { text-align:left; }
+</style>
+</head>
+<body>
+<div class="wrap">
+{% set page = 'calls' %}{% include "_shell_nav.html" %}
+<h1>Police calls</h1>
+<p class="stamp">Calls on the Toronto Police public map in your areas{% if data.first %}, logged since
+  <time data-day="{{ data.first }}">{{ data.first[:10] }}</time>{% endif %}. Updated every hour.</p>
+<p class="jump"><a href="#cards">Last 30 days</a><a href="#months">By month</a><a href="#list">Every call</a><a href="#years">Since 2015</a></p>
+<p class="caveat">The public map leaves out medical, domestic, sexual assault and suicide calls, and
+  shows each call for about four hours. The police place each call at the nearest intersection, not
+  the address. Before 3 November 2026 the tracker checked the map less often and missed some calls.</p>
+
+<div class="scope" role="group" aria-label="Which calls this page counts">
+  <label>Area <select id="area"><option value="">All six areas</option>
+    {% for a in data.areas %}<option value="{{ a.key }}">{{ a.name }}</option>{% endfor %}</select></label>
+  <label><input type="checkbox" id="ign"> Show ignored calls <span id="ign-n" class="note" style="margin:0"></span></label>
+</div>
+<p class="note">Ignored calls are the types you chose to leave out, such as ambulance assists and
+  welfare checks. The area and this switch apply to the whole page.</p>
+
+<section id="cards" aria-labelledby="cards-h">
+  <h2 id="cards-h">Last 30 days</h2>
+  <div class="hero"><b id="hero-n">–</b><span id="hero-d"></span></div>
+  <div class="tiles" id="tiles"></div>
+  <p class="note" id="cards-note"></p>
+</section>
+
+<section id="months" aria-labelledby="months-h">
+  <h2 id="months-h">By month</h2>
+  <div class="scroll" id="months-wrap"><table class="months" id="months-t"></table></div>
+  <p class="note">Counts by the month the police logged each call, Toronto time. Darker cells hold more calls.</p>
+</section>
+
+<section id="list" aria-labelledby="list-h">
+  <h2 id="list-h">Every call, newest first</h2>
+  <div class="chips" id="chips" role="group" aria-label="Call groups"></div>
+  <div class="filters">
+    <label>Since <select id="since">
+      <option value="7">1 week</option><option value="30" selected>30 days</option>
+      <option value="90">3 months</option><option value="365">1 year</option><option value="0">Everything</option>
+    </select></label>
+    <input type="search" id="q" placeholder="Street or call type" aria-label="Search street or call type">
+    <label id="near-l" hidden><input type="checkbox" id="near"> <span id="near-t">Near home</span></label>
+  </div>
+  <p class="count" id="count" aria-live="polite"></p>
+  <ul class="list" id="calls"></ul>
+  <button class="more" id="more" hidden>Show more</button>
+</section>
+
+<section id="years" aria-labelledby="years-h">
+  <h2 id="years-h">Since 2015: every call police attended</h2>
+  {% if data.yearly %}
+  <p class="note" id="cover" style="margin:0 0 10px"></p>
+  <div class="panels" id="panels"></div>
+  <details class="tbl"><summary>Show as a table</summary>
+    <div class="scroll" style="border:0;background:none"><table>
+      <tr><th>Year</th>{% for p in data.yearly %}<th>{{ p.name }}</th>{% endfor %}</tr>
+      {% for y in data.yearly[0].years %}<tr><td>{{ y }}</td>
+        {% for p in data.yearly %}<td>{{ "{:,}".format(p.counts[p.years.index(y)]) if y in p.years else '' }}</td>{% endfor %}</tr>{% endfor %}
+    </table></div>
+  </details>
+  <p class="note">The police's own yearly count for each City neighbourhood: every call officers
+    attended, all types together, including the ones the public map leaves out. The police publish
+    no months or call types for these years. Each chart has its own scale. City neighbourhoods are larger than some of your areas:
+    Rosedale-Moore Park holds North Rosedale, South Rosedale and Moore Park.</p>
+  {% else %}
+  <p class="empty">The police's yearly counts have not been collected yet. They arrive with the next daily run.</p>
+  {% endif %}
+</section>
+
+{% include "_sources.html" %}
+<p class="foot">Built <time data-ts="{{ data.generated }}">{{ data.generated[:16] }} UTC</time>. Nothing collected is ever deleted; see the downloads on the <a href="news.html">News</a> page.</p>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script type="application/json" id="calls-data">{{ payload|safe }}</script>
+<script>
+(function () {
+  var D = JSON.parse(document.getElementById('calls-data').textContent);
+  var G = D.groups, IGN = G.indexOf(D.ignored), OTH = G.indexOf(D.other);
+  var DAY = 864e5, NOW = Date.now(), NEAR_M = 500, PAGE = 60;
+  var TZ = 'America/Toronto';
+  var AREA = {}; D.areas.forEach(function (a) { AREA[a.key] = a.name; });
+  D.calls.forEach(function (c) { c.ms = Date.parse(c.t); });
+  var fmtWhen = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, weekday: 'short', day: 'numeric',
+    month: 'short', hour: 'numeric', minute: '2-digit' });
+  var fmtDay = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, day: 'numeric', month: 'short', year: 'numeric' });
+  var fmtHour = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, hour: 'numeric', hourCycle: 'h23' });
+  var fmtYM = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit' });
+  var fmtMon = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', month: 'short', year: 'numeric' });
+  function ym(ms) { return fmtYM.format(new Date(ms)).slice(0, 7); }      // "2026-10"
+  function num(n) { return n.toLocaleString('en-CA'); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (ch) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]; }); }
+  document.querySelectorAll('time[data-day]').forEach(function (t) {
+    t.textContent = fmtDay.format(new Date(t.getAttribute('data-day'))); });
+  document.querySelectorAll('time[data-ts]').forEach(function (t) {
+    t.textContent = fmtWhen.format(new Date(t.getAttribute('data-ts'))); });
+
+  // The home pin is set on the map page and never leaves this browser.
+  var home = null;
+  try { home = JSON.parse(localStorage.getItem('leaside.home.v1') || 'null'); } catch (e) {}
+  if (!home || typeof home.lat !== 'number') home = null;
+  var nearM = home ? (home.radius || NEAR_M) : NEAR_M;
+  function metres(c) {
+    if (!home || c.lat == null) return Infinity;
+    var dy = (c.lat - home.lat) * 111320, dx = (c.lon - home.lon) * 111320 * Math.cos(home.lat * Math.PI / 180);
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // What the reader chose. Remembered in this browser only.
+  var KEY = 'leaside.calls.v1';
+  var st = { area: '', ign: false, since: 30, q: '', near: false, off: [] };
+  try { var saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+        if (saved) { st.area = saved.area || ''; st.ign = !!saved.ign; st.since = +saved.since || 0;
+                     if (saved.since === undefined) st.since = 30; } } catch (e) {}
+  var U = new URLSearchParams(location.search);
+  if (U.has('area')) st.area = U.get('area');
+  if (U.has('since')) st.since = +U.get('since') || 0;
+  if (U.has('q')) st.q = U.get('q');
+  if (U.has('group')) { var want = U.get('group'); st.off = G.map(function (g, i) { return i; })
+      .filter(function (i) { return G[i] !== want; }); if (want === D.ignored) st.ign = true; }
+  if (!AREA[st.area]) st.area = '';
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(
+    { area: st.area, ign: st.ign, since: st.since })); } catch (e) {} }
+
+  var $ = function (id) { return document.getElementById(id); };
+  $('area').value = st.area; $('ign').checked = st.ign; $('since').value = String(st.since); $('q').value = st.q;
+  if (home) { $('near-l').hidden = false; $('near-t').textContent = 'Within ' + nearM + ' m of home'; }
+
+  function inScope(c) { return (!st.area || c.a === st.area) && (st.ign || c.g !== IGN); }
+  function shownGroups(pool) {
+    return G.map(function (g, i) { return i; }).filter(function (i) {
+      if (i === IGN) return st.ign;
+      if (i === OTH) return pool.some(function (c) { return c.g === OTH; });
+      return true; });
+  }
+
+  // ---- cards ----
+  var BLOCKS = [['Overnight', 'midnight to 6 am'], ['Morning', '6 am to noon'],
+                ['Afternoon', 'noon to 6 pm'], ['Evening', '6 pm to midnight']];
+  function tile(label, value, sub, cls) {
+    return '<div class="tile' + (cls ? ' ' + cls : '') + '"><div class="l">' + esc(label) +
+      '</div><div class="v' + (String(value).length > 9 ? ' small' : '') + '">' + value + '</div>' +
+      (sub ? '<div class="d">' + sub + '</div>' : '') + '</div>';
+  }
+  function cards(pool) {
+    var cur = pool.filter(function (c) { return c.ms >= NOW - 30 * DAY; });
+    var prev = pool.filter(function (c) { return c.ms >= NOW - 60 * DAY && c.ms < NOW - 30 * DAY; });
+    // How much of the previous 30 days the log covers. Comparing with a few
+    // logged days would make every number look like a jump.
+    var covered = D.first ? Math.max(0, Math.min(30, (NOW - 30 * DAY - Date.parse(D.first)) / DAY)) : 0;
+    function before(n) {
+      return covered >= 29 ? 'previous 30 days: ' + num(n)
+        : covered >= 1 ? 'previous 30 days: only ' + Math.round(covered) + ' day' + (Math.round(covered) === 1 ? '' : 's') + ' logged'
+        : 'nothing logged before';
+    }
+    $('hero-n').textContent = num(cur.length);
+    $('hero-d').textContent = 'calls in the last 30 days · about ' + (cur.length / 30).toFixed(1) +
+      ' a day · ' + before(prev.length);
+    var html = '';
+    shownGroups(pool).forEach(function (i) {
+      var n = cur.filter(function (c) { return c.g === i; }).length;
+      var p = prev.filter(function (c) { return c.g === i; }).length;
+      html += tile(G[i], num(n), covered >= 29 ? 'previous 30 days: ' + num(p) : '');
+    });
+    var spots = {}; cur.forEach(function (c) { if (c.s) spots[c.s] = (spots[c.s] || 0) + 1; });
+    var top = Object.keys(spots).sort(function (a, b) { return spots[b] - spots[a]; })[0];
+    html += top && spots[top] > 1
+      ? tile('Busiest place', esc(top), num(spots[top]) + ' calls nearby', 'fact')
+      : tile('Busiest place', 'None twice', 'no intersection had two calls', 'fact');
+    var blocks = [0, 0, 0, 0];
+    cur.forEach(function (c) { blocks[Math.floor(+fmtHour.format(new Date(c.ms)) % 24 / 6)]++; });
+    var b = blocks.indexOf(Math.max.apply(null, blocks));
+    html += cur.length ? tile('Busiest time', BLOCKS[b][0], Math.round(100 * blocks[b] / cur.length) +
+      '% of calls, ' + BLOCKS[b][1], 'fact') : '';
+    html += home
+      ? tile('Near home', num(cur.filter(function (c) { return metres(c) <= nearM; }).length),
+             'within ' + nearM + ' m in 30 days', 'fact')
+      : tile('Near home', '<a href="map.html">Set it</a>', 'pin your home on the map; it stays in this browser', 'fact');
+    $('tiles').innerHTML = html;
+    $('cards-note').textContent = (covered < 29 && D.first ? 'The log began on ' +
+      fmtDay.format(new Date(D.first)) + ', so the cards compare with the previous 30 days from ' +
+      fmtDay.format(new Date(Date.parse(D.first) + 60 * DAY)) + '. ' : '') +
+      'Small numbers move a lot by chance: 2 one month and 4 the next is not a trend.';
+  }
+
+  // ---- months ----
+  function months(pool) {
+    var t = $('months-t');
+    if (!D.first) { t.innerHTML = '<tr><td>No calls logged yet.</td></tr>'; return; }
+    var keys = [], k = ym(Date.parse(D.first)), last = ym(NOW);
+    while (k <= last) { keys.push(k); var y = +k.slice(0, 4), m = +k.slice(5, 7) + 1;
+      if (m > 12) { m = 1; y++; } k = y + '-' + (m < 10 ? '0' : '') + m; }
+    var rows = shownGroups(pool), cells = {}, max = 1;
+    pool.forEach(function (c) { var key = c.g + '|' + ym(c.ms); cells[key] = (cells[key] || 0) + 1; });
+    rows.forEach(function (g) { keys.forEach(function (mk) { max = Math.max(max, cells[g + '|' + mk] || 0); }); });
+    var firstDay = +new Intl.DateTimeFormat('en-CA', { timeZone: TZ, day: 'numeric' }).format(new Date(D.first));
+    var h = '<thead><tr><th>Group</th>' + keys.map(function (mk, i) {
+      var note = i === keys.length - 1 ? 'so far' : (i === 0 && firstDay > 1 ? 'from the ' + firstDay + (
+        firstDay % 10 === 1 && firstDay !== 11 ? 'st' : firstDay % 10 === 2 && firstDay !== 12 ? 'nd' :
+        firstDay % 10 === 3 && firstDay !== 13 ? 'rd' : 'th') : '');
+      return '<th>' + fmtMon.format(new Date(mk + '-15T12:00:00Z')) + (note ? '<small>' + note + '</small>' : '') + '</th>';
+    }).join('') + '</tr></thead><tbody>';
+    rows.forEach(function (g) {
+      h += '<tr><td>' + esc(G[g]) + '</td>' + keys.map(function (mk) {
+        var n = cells[g + '|' + mk] || 0;
+        var pct = Math.round(8 + 42 * n / max);
+        return n ? '<td style="background:color-mix(in srgb, var(--s0) ' + pct + '%, transparent)">' + n + '</td>'
+                 : '<td class="zero">0</td>';
+      }).join('') + '</tr>';
+    });
+    h += '<tr class="total"><td>Total</td>' + keys.map(function (mk) {
+      return '<td>' + num(rows.reduce(function (s, g) { return s + (cells[g + '|' + mk] || 0); }, 0)) + '</td>';
+    }).join('') + '</tr></tbody>';
+    t.innerHTML = h;
+    var w = $('months-wrap'); w.scrollLeft = w.scrollWidth;            // newest month in view
+  }
+
+  // ---- the list ----
+  var shownN = PAGE, matches = [];
+  function chips(pool) {
+    var since = st.since ? NOW - st.since * DAY : -Infinity;
+    $('chips').innerHTML = shownGroups(pool).map(function (i) {
+      var n = pool.filter(function (c) { return c.g === i && c.ms >= since; }).length;
+      return '<button type="button" class="chip" data-g="' + i + '" aria-pressed="' +
+        (st.off.indexOf(i) < 0) + '">' + esc(G[i]) + '<span class="n">' + n + '</span></button>';
+    }).join('');
+  }
+  function list(pool) {
+    var since = st.since ? NOW - st.since * DAY : -Infinity, q = st.q.trim().toLowerCase();
+    matches = pool.filter(function (c) {
+      if (c.ms < since || st.off.indexOf(c.g) >= 0) return false;
+      if (st.near && metres(c) > nearM) return false;
+      if (q && (c.p + ' ' + c.k + ' ' + (c.s || '') + ' ' + G[c.g]).toLowerCase().indexOf(q) < 0) return false;
+      return true; });
+    $('count').textContent = matches.length ? 'Showing ' + num(Math.min(shownN, matches.length)) + ' of ' +
+      num(matches.length) + ' call' + (matches.length === 1 ? '' : 's') : '';
+    $('calls').innerHTML = matches.length ? matches.slice(0, shownN).map(function (c) {
+      var mine = c.k || c.p, d = metres(c);
+      return '<li class="call"><time datetime="' + esc(c.t) + '">' + esc(fmtWhen.format(new Date(c.ms))) +
+        '</time><b>' + esc(mine) + '</b>' + (c.p.toLowerCase() !== mine.toLowerCase()
+          ? ' <span class="pw">' + esc(c.p) + '</span>' : '') +
+        (G[c.g].toLowerCase() !== mine.toLowerCase() ? '<span class="grp">' + esc(G[c.g]) + '</span>' : '') +
+        '<span class="w">' + (c.s ? 'near ' + esc(c.s) + ' · ' : '') + esc(AREA[c.a] || 'Unmatched') +
+        (d < Infinity ? ' · ' + (d < 1000 ? Math.round(d / 10) * 10 + ' m' : (d / 1000).toFixed(1) + ' km') +
+          ' from home' : '') + '</span></li>';
+    }).join('') : '<li class="empty">No calls match these filters.</li>';
+    $('more').hidden = matches.length <= shownN;
+    $('more').textContent = 'Show ' + Math.min(PAGE, matches.length - shownN) + ' more';
+  }
+
+  function render() {
+    var pool = D.calls.filter(inScope);
+    $('ign-n').textContent = '(' + D.calls.filter(function (c) {
+      return c.g === IGN && (!st.area || c.a === st.area); }).length + ' logged)';
+    cards(pool); months(pool); chips(pool); list(pool);
+  }
+  $('area').onchange = function () { st.area = this.value; shownN = PAGE; save(); render(); };
+  $('ign').onchange = function () { st.ign = this.checked; shownN = PAGE; save(); render(); };
+  $('since').onchange = function () { st.since = +this.value; shownN = PAGE; save(); render(); };
+  $('near').onchange = function () { st.near = this.checked; shownN = PAGE; render(); };
+  $('q').oninput = function () { st.q = this.value; shownN = PAGE; render(); };
+  $('more').onclick = function () { shownN += PAGE; render(); };
+  $('chips').onclick = function (e) {
+    var b = e.target.closest('.chip'); if (!b) return;
+    var g = +b.getAttribute('data-g'), at = st.off.indexOf(g);
+    if (at >= 0) st.off.splice(at, 1); else st.off.push(g);
+    shownN = PAGE; render();
+  };
+  render();
+
+  // ---- since 2015: small multiples, one scale for all ----
+  var P = D.yearly || [];
+  if (P.length) {
+    var latest = Math.max.apply(null, P.map(function (p) { return p.years[p.years.length - 1]; }));
+    var total = P.reduce(function (s, p) { var i = p.years.indexOf(latest); return s + (i < 0 ? 0 : p.counts[i]); }, 0);
+    var mapped = D.calls.filter(function (c) { return c.ms >= NOW - 30 * DAY; }).length;
+    var share = Math.round(100 * mapped / (total / 12));
+    $('cover').textContent = 'In ' + latest + ' the police attended ' + num(total) + ' calls across these ' +
+      P.length + ' City neighbourhoods, about ' + num(Math.round(total / 12)) + ' a month. In the last 30 days ' +
+      'the public map showed ' + num(mapped) + ' in your areas, ignored types included: about ' + share +
+      '% of that monthly figure. The map leaves several call types out, so it shows only part of what police do.';
+    var W = 300, H = 120, L = 6, R = 40, T = 14, B = 18;
+    // Each chart has its own scale, from zero, so a quiet neighbourhood's change
+    // is visible. Rosedale-Moore Park's bigger numbers would flatten the rest.
+    var ymax, step;
+    function scale(p) {
+      var top = Math.max.apply(null, p.counts);
+      step = top > 3000 ? 1000 : 500; ymax = Math.ceil(top * 1.1 / step) * step;
+    }
+    var y0 = Math.min.apply(null, P.map(function (p) { return p.years[0]; })), y1 = latest;
+    function X(y) { return L + (W - L - R) * (y - y0) / Math.max(1, y1 - y0); }
+    function Y(v) { return T + (H - T - B) * (1 - v / ymax); }
+    var tip = $('tip');
+    $('panels').innerHTML = P.map(function (p, n) {
+      scale(p);
+      var f = p.counts[0], l = p.counts[p.counts.length - 1], ch = Math.round(100 * (l - f) / f);
+      var g = '';
+      for (var v = 0; v <= ymax; v += step) {
+        g += '<line class="' + (v ? 'gl' : 'ax') + '" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(v) + '" y2="' + Y(v) + '"/>' +
+             '<text class="lbl" x="' + (W - R + 4) + '" y="' + (Y(v) + 3.5) + '">' + num(v) + '</text>';
+      }
+      g += '<text class="lbl" x="' + X(y0) + '" y="' + (H - 4) + '">' + y0 + '</text>' +
+           '<text class="lbl" x="' + X(y1) + '" y="' + (H - 4) + '" text-anchor="end">' + y1 + '</text>';
+      var d = p.years.map(function (y, i) { return (i ? 'L' : 'M') + X(y).toFixed(1) + ',' + Y(p.counts[i]).toFixed(1); }).join('');
+      var lx = X(p.years[p.years.length - 1]), ly = Y(l);
+      return '<div class="panel"><h3>' + esc(p.name) + '</h3><p class="sub">Your ' + esc(p.covers.join(', ')) +
+        ' · ' + p.years[0] + ' to ' + p.years[p.years.length - 1] + ': ' + num(f) + ' to ' + num(l) +
+        ' (' + (ch > 0 ? '+' : ch < 0 ? '−' : '') + Math.abs(ch) + '%)</p>' +
+        '<svg viewBox="0 0 ' + W + ' ' + H + '" tabindex="0" data-p="' + n + '" role="img" aria-label="' +
+        esc(p.name) + ': calls attended each year, ' + p.years[0] + ' to ' + p.years[p.years.length - 1] + '">' + g +
+        '<path class="ln" d="' + d + '"/>' +
+        '<circle class="pt" cx="' + X(p.years[0]) + '" cy="' + Y(f) + '" r="4"/>' +
+        '<circle class="pt" cx="' + lx + '" cy="' + ly + '" r="4"/>' +
+        '<text class="endl" x="' + (X(p.years[0]) + 2) + '" y="' + (Y(f) - 8) + '">' + num(f) + '</text>' +
+        '<text class="endl" x="' + (lx - 2) + '" y="' + (ly - 8) + '" text-anchor="end">' + num(l) + '</text>' +
+        '<line class="xh" y1="' + T + '" y2="' + (H - B) + '" hidden/>' +
+        '<circle class="pt hov" r="4" hidden/></svg></div>';
+    }).join('');
+    document.querySelectorAll('#panels svg').forEach(function (svg) {
+      var p = P[+svg.getAttribute('data-p')], at = p.years.length - 1;
+      var xh = svg.querySelector('.xh'), dot = svg.querySelector('.hov');
+      function show(i, clientX, clientY) {
+        scale(p);
+        at = Math.max(0, Math.min(p.years.length - 1, i));
+        var x = X(p.years[at]), y = Y(p.counts[at]);
+        xh.setAttribute('x1', x); xh.setAttribute('x2', x); xh.hidden = false;
+        dot.setAttribute('cx', x); dot.setAttribute('cy', y); dot.hidden = false;
+        tip.innerHTML = '<b>' + p.years[at] + '</b> · ' + num(p.counts[at]) + ' calls attended';
+        tip.hidden = false;
+        var r = svg.getBoundingClientRect();
+        var px = clientX == null ? r.left + r.width * x / W : clientX, py = clientY == null ? r.top + r.height * y / H : clientY;
+        tip.style.left = Math.min(window.innerWidth - tip.offsetWidth - 8, Math.max(8, px + 12)) + 'px';
+        tip.style.top = Math.max(8, py - tip.offsetHeight - 10) + 'px';
+      }
+      function hide() { xh.hidden = true; dot.hidden = true; tip.hidden = true; }
+      svg.addEventListener('pointermove', function (e) {
+        scale(p);
+        var r = svg.getBoundingClientRect(), vx = (e.clientX - r.left) * W / r.width;
+        var best = 0; p.years.forEach(function (y, i) { if (Math.abs(X(y) - vx) < Math.abs(X(p.years[best]) - vx)) best = i; });
+        show(best, e.clientX, e.clientY);
+      });
+      svg.addEventListener('pointerleave', hide);
+      svg.addEventListener('blur', hide);
+      svg.addEventListener('focus', function () { show(at); });
+      svg.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); show(at + (e.key === 'ArrowRight' ? 1 : -1)); }
+        if (e.key === 'Escape') hide();
+      });
+    });
+  }
+})();
+</script>
+</body>
+</html>

@@ -14,7 +14,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 import json
 
-from . import attribution, briefing, db, export, geo, mapdata, sources, trends, version
+from . import attribution, briefing, callspage, db, export, geo, mapdata, sources, trends, version
 
 OUT = Path("site")
 
@@ -164,6 +164,7 @@ def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml",
     news.write_text(env.get_template("news.html").render(**data), encoding="utf-8")
     render_trends(conn, areas, env, out_name)
     render_map(conn, areas, env, cfg, out_name)
+    render_calls(conn, areas, env, cfg, out_name)
     if out_name == "index.html":          # never let the demo overwrite the real log
         export.write(conn, areas, cfg, OUT / "log")
     return target
@@ -221,4 +222,18 @@ def render_map(conn, areas, env, cfg, out_name: str = "index.html") -> Path:
     target.write_text(env.get_template("map.html").render(
         data=data, payload=mapdata.payload(data), attrib=attrib,
         generated=db.utcnow(), radius=mapdata.NAME_RADIUS_M), encoding="utf-8")
+    return target
+
+
+def render_calls(conn, areas, env, cfg, out_name: str = "index.html") -> Path:
+    """Every police call we logged, with cards, months and the police's yearly counts."""
+    data = callspage.build(conn, areas, cfg)
+    used = [r[0] for r in conn.execute(
+        "SELECT DISTINCT source_id FROM items WHERE (category = 'police_call' AND "
+        f"{db.SHOWN}) OR (source_id = ? AND hidden_at IS NULL) ORDER BY source_id",
+        (callspage.YEARLY_SOURCE,))]
+    attrib = attribution.for_sources(conn, cfg, used, where="AND hidden_at IS NULL")
+    target = OUT / _companion(out_name, "calls")
+    target.write_text(env.get_template("calls.html").render(
+        data=data, payload=callspage.payload(data), attrib=attrib), encoding="utf-8")
     return target

@@ -2533,3 +2533,74 @@ def test_health_report_names_the_call_types_left_in_other(tmp_path):
     assert "| ROBBERY IN PROGRESS | 1 |" in section             # new: needs placing
     assert "SEE AMBULANCE" not in section and "HAZARD" not in section   # ignored on purpose
     assert "BREAK & ENTER" not in section
+
+
+# ---- the Police calls page ----
+
+YEARLY = {"features": [
+    {"attributes": {"NEIGHBOURHOOD_158": "Leaside-Bennington", "EVENT_YEAR": 2015, "calls": 1569.0}},
+    {"attributes": {"NEIGHBOURHOOD_158": "Leaside-Bennington", "EVENT_YEAR": 2025, "calls": 975.0}},
+    {"attributes": {"NEIGHBOURHOOD_158": "Rosedale-Moore Park", "EVENT_YEAR": 2025, "calls": 3225.0}},
+    {"attributes": {"NEIGHBOURHOOD_158": "Church-Wellesley", "EVENT_YEAR": 2025, "calls": 9999.0}},
+    {"attributes": {"NEIGHBOURHOOD_158": "Leaside-Bennington", "EVENT_YEAR": None, "calls": 5.0}},
+]}
+
+
+def test_yearly_police_counts_keep_only_our_neighbourhoods_as_routine_rows():
+    from leaside.fetchers import tps_yearly
+    src = _src(id="tps_calls_attended", category="calls_yearly", home_url="https://data.tps.ca/")
+    items = tps_yearly.parse_yearly(json.dumps(YEARLY), src, AREAS)
+    assert [it["external_id"] for it in items] == [
+        "Leaside-Bennington|2015", "Leaside-Bennington|2025", "Rosedale-Moore Park|2025"]
+    first = items[0]
+    assert first["routine"] is True                      # on the calls page, not in the news or email
+    assert first["raw"] == {"neighbourhood": "Leaside-Bennington", "year": 2015, "calls": 1569}
+    assert first["title"] == "Police calls attended in Leaside-Bennington, 2015: 1,569"
+    assert "area" not in first                           # ingest names it, as refresh does
+    assert tps_yearly.our_neighbourhoods(AREAS) == [
+        "Leaside-Bennington", "Rosedale-Moore Park", "Mount Pleasant East",
+        "South Eglinton-Davisville", "Lawrence Park South", "Lawrence Park North"]
+    with pytest.raises(RuntimeError):
+        tps_yearly.parse_yearly(json.dumps({"error": {"code": 400}}), src, AREAS)
+
+
+def test_yearly_counts_are_a_configured_runnable_source():
+    cfg = sources.load()
+    src = cfg.by_id("tps_calls_attended")
+    assert src.runnable and src.kind == "tps_calls_yearly"
+    assert cfg.licence_of(src).key == "tps_open_data"
+
+
+def test_calls_page_data_classifies_calls_and_builds_yearly_panels(tmp_path):
+    from leaside import callspage, calltypes
+    from leaside.fetchers import tps_yearly
+    conn = db.connect(tmp_path / "t.db")
+    for n, (kind, street) in enumerate([("BREAK & ENTER", "YONGE ST - DAVISVILLE AVE"),
+                                        ("SEE AMBULANCE", "BAYVIEW AVE - EGLINTON AVE E"),
+                                        ("BRAND NEW TYPE", None)]):
+        db.upsert_item(conn, {
+            "source_id": "tps_calls_for_service", "category": "police_call",
+            "title": kind.title() + (f" near {street}" if street else ""), "url": None,
+            "external_id": f"c{n}", "area": "leaside", "lat": 43.7, "lon": -79.37,
+            "published_at": f"2026-10-0{n + 2}T12:00:00+00:00",
+            "raw": {"CALL_TYPE": kind, "DIVISION": "D53"}})
+    src = _src(id="tps_calls_attended", category="calls_yearly")
+    for it in tps_yearly.parse_yearly(json.dumps(YEARLY), src, AREAS):
+        db.upsert_item(conn, it)
+    conn.commit()
+    data = callspage.build(conn, AREAS, sources.load())
+    g = data["groups"]
+    by_type = {c["p"]: c for c in data["calls"]}
+    bne = by_type["Break & Enter"]
+    assert g[bne["g"]] == "Break-ins" and bne["k"] == "Break and enter"
+    assert bne["s"] == "Yonge St & Davisville Ave" and bne["d"] == "D53"
+    assert g[by_type["See Ambulance"]["g"]] == calltypes.ignored()   # kept, hidden behind the switch
+    assert g[by_type["Brand New Type"]["g"]] == calltypes.other()
+    assert data["calls"][0]["t"] > data["calls"][-1]["t"]             # newest first
+    assert data["first"].startswith("2026-10-02")
+    leaside = data["yearly"][0]
+    assert leaside["name"] == "Leaside-Bennington"
+    assert leaside["years"] == [2015, 2025] and leaside["counts"] == [1569, 975]
+    assert leaside["covers"] == ["Leaside", "Bennington Heights"]
+    assert [p["name"] for p in data["yearly"]] == ["Leaside-Bennington", "Rosedale-Moore Park"]
+    assert "</" not in callspage.payload(data)

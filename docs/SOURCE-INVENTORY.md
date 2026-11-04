@@ -673,3 +673,38 @@ Other now means only a call type in neither the groups nor the ignore list, so a
 type the police have not used here before. It is shown by default, because a
 new type may matter, and the health report names it so it can be placed. On the
 live log that day Other was empty: all 48 types seen were placed or ignored.
+
+## The Police calls page, 4 November 2026
+
+The owner asked for a page of police calls, newest first, with filters, cards
+for the last 30 days, and a monthly series going back in time.
+
+**What history exists.** Our own log of the public calls map starts on
+2 October 2026, so months by call type fill in from there. Before that, the only
+call history the police publish is `Calls_for_Service_Attended_(ASR_CS_TBL_003)`:
+one count per City neighbourhood per year, 2015 onward, all call types together.
+No months, no types. It is collected as source `tps_calls_attended`, one routine
+row per neighbourhood and year: kept in the log, on the Police calls page, not
+in the news list or the email.
+
+**How much of police work the map shows.** In 2025 the police attended 8,561
+calls across our six City neighbourhoods, about 713 a month. In the 30 days to
+4 November 2026 the public map showed 194 in our areas, ignored types included:
+about a quarter. The map leaves out medical, domestic, sexual assault and suicide
+calls, and the poll missed some calls before the hourly timer. So the page says
+"calls on the public map", never "police calls" as if it were all of them.
+
+**Leaside-Bennington is quieter than it was.** 1,569 calls attended in 2015,
+975 in 2025, down 38%. Every one of our six neighbourhoods fell except South
+Eglinton-Davisville (1,539 to 1,725).
+
+**Choices on the page.**
+- The area and the "show ignored calls" switch apply to the whole page; group,
+  time, text and near-home filters apply to the list.
+- Cards compare with the previous 30 days only once the log covers them; until
+  then they say how few days are logged instead of showing a false jump.
+- No percentages or arrows on the cards: at about 5 calls a day, single digits
+  move by chance.
+- The yearly charts give each neighbourhood its own scale from zero, because
+  Rosedale-Moore Park's counts (about 3,200) flatten the others (about 1,000).
+
