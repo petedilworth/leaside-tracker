@@ -19,8 +19,12 @@
 - [ ] Police calls per 1,000 residents, so neighbourhoods compare fairly
 - [ ] Police calls by hour and weekday, once three months are logged
 - [ ] Compare break-in calls with break-in reports a few months later
+- [ ] Committee of Adjustment names and variances, if the City grants access
+- [ ] Link each Committee of Adjustment file to later permits at that address
 
 ## Done
+- [x] 2026-11-05 – Tabs for permits, restaurants and variances; all three out of News
+- [x] 2026-11-05 – Committee of Adjustment files for Leaside and Bennington, back to 2000
 - [x] 2026-11-04 – Police calls page: cards, filters, months and yearly counts since 2015
 - [x] 2026-11-03 – Set up the Cloudflare timer so police calls are checked every hour
 - [x] 2026-11-02 – Hourly police poll timer written for Cloudflare, with setup steps

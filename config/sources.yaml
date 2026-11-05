@@ -273,16 +273,39 @@ sources:
       sits under NORTH YORK Community Council, which is the meeting to watch. Scraping it
       is real work - do it after the email mailbox, not before.
 
+  - id: city_coa_applications
+    name: Committee of Adjustment Applications
+    publisher: City of Toronto, Committee of Adjustment
+    licence: ogl_toronto
+    category: coa
+    area: null
+    kind: ckan_coa
+    dataset: committee-of-adjustment-applications
+    home_url: https://open.toronto.ca/dataset/committee-of-adjustment-applications/
+    timeout: 180
+    retries: 2
+    status: verified
+    notes: |
+      Every minor variance and consent application, refreshed daily: active ones in
+      the datastore, closed ones by year from 2001 (hearings from January 2000), and
+      closed since 2017 as one 15 MB CSV. Kept only for Leaside and Bennington
+      Heights, which share postal area M4G and the North York panel; the owner
+      asked for those two alone. No owner, applicant or agent names and no itemised
+      variances: those are only in the Application Information Centre, which
+      refuses automated requests. Replaces the plan to read hearing notices out of
+      city_public_notices, which carried none (checked 5 November 2026).
+
   - id: committee_of_adjustment_ny
-    name: Committee of Adjustment - North York panel
+    name: Committee of Adjustment - North York panel agendas
     category: planning
     area: null
     kind: manual
     url: https://www.toronto.ca/city-government/planning-development/committee-of-adjustment/north-york-schedule/
     status: manual
     notes: >
-      Probe found a plain HTML page listing PDF agendas. Do not build a scraper for this.
-      The same hearings appear in city_public_notices above, in JSON, for free.
+      PDF agendas, one per hearing, every two weeks. Checked 5 November 2026: each
+      lists only item numbers, file numbers, addresses and wards, all of which the
+      open data above already has. Not collected.
 
   - id: aic_applications
     name: Application Information Centre (development + CofA + TLAB applications)

@@ -60,7 +60,8 @@
 
 <div class="tiles">
 {% for t in b.tiles %}
-  <a class="tile" href="news.html?cat={{ t.category }}&amp;since=7">
+  {% set tab = {'police_call': 'calls.html', 'permit': 'permits.html?since=30', 'inspection': 'restaurants.html?since=30'} %}
+  <a class="tile" href="{{ tab[t.category] if t.category in tab else 'news.html?cat=' ~ t.category ~ '&since=7' }}">
     <b>{{ t.this }}</b>
     <span class="lbl">{{ t.label }}</span>
     <span class="note">{{ t.note }}</span>
@@ -125,12 +126,12 @@
     <li><time data-ts="{{ it.when }}">{{ it.when[5:16] }}</time><b class="grp">{{ mine }}</b>{% if police_name|lower != mine|lower %} {{ police_name }}{% endif %}{% if ' near ' in it.title %} <span class="w">near {{ it.title.split(' near ', 1)[1] }}</span>{% endif %}</li>
   {% endfor %}
   </ul>
-  {% if b.calls_total > b.calls|length %}<p class="meta"><a href="news.html?cat=police_call&amp;since=7" style="color:var(--accent)">All {{ b.calls_total }} this week &rarr;</a></p>{% endif %}
+  {% if b.calls_total > b.calls|length %}<p class="meta"><a href="calls.html?since=7" style="color:var(--accent)">All {{ b.calls_total }} this week &rarr;</a></p>{% endif %}
   {% else %}<p class="empty">No police calls seen this week.</p>{% endif %}
 </section>
 
 <section>
-  <h2>Being built <a href="news.html?cat=permit&amp;since=30">all permits</a></h2>
+  <h2>Being built <a href="permits.html">all permits</a></h2>
   {% if b.permits %}
   <ul class="plain">
   {% for it in b.permits %}
@@ -140,7 +141,7 @@
   {% if b.permits_total > b.permits|length %}<p class="meta">{{ b.permits_total }} permits were new this week; these are the largest.</p>{% endif %}
   {% else %}<p class="empty">No new building permits this week.</p>{% endif %}
 
-  <h2 style="margin-top:22px">Eating out <a href="news.html?cat=inspection&amp;since=90">all inspections</a></h2>
+  <h2 style="margin-top:22px">Eating out <a href="restaurants.html">all inspections</a></h2>
   {% if b.inspections %}
   <ul class="plain">
   {% for it in b.inspections %}

@@ -419,6 +419,13 @@ def refresh_all(conn: sqlite3.Connection, areas, cfg) -> dict:
             # however a rectangle once read it. Hidden with the reason, never deleted.
             outside = area is None and areas.official_gate
             area = area or row["area"]
+        elif src and src.kind == "ckan_coa" and row["raw"]:
+            # The file's own postal area and street decide, never words in its
+            # description: "next to Moore Park" does not move a Leaside house.
+            from .fetchers import coa
+            area = coa.area_of(coa.normalise(json.loads(row["raw"])), areas)
+            outside = area is None
+            area = area or row["area"]
         elif src and src.kind == "ckan_permits" and row["raw"]:
             area = _permit_area(json.loads(row["raw"]), areas)
             outside = area is None

@@ -270,7 +270,8 @@ def test_pages_fit_a_phone_and_show_their_sources(tmp_path, monkeypatch):
     render.run(db_path=tmp_path / "t.db", out_name="index.html")
     with playwright.sync_playwright() as p:
         b = p.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
-        for page in ("index.html", "trends.html", "calls.html"):
+        for page in ("index.html", "trends.html", "calls.html", "permits.html",
+                     "restaurants.html", "variances.html"):
             pg = b.new_page(viewport={"width": 390, "height": 800})
             pg.goto((tmp_path / page).as_uri())
             assert pg.evaluate("document.documentElement.scrollWidth") <= 390, page
@@ -423,4 +424,74 @@ def test_the_police_calls_page_counts_filters_and_charts(tmp_path, monkeypatch):
         assert pg.locator("#calls li.call").count() == 2
         assert pg.evaluate("document.documentElement.scrollWidth") <= 390
         assert pg.locator("#sources").is_visible()
+        b.close()
+
+
+def test_topic_tabs_filter_search_and_show_the_next_hearing(tmp_path, monkeypatch):
+    """The Committee of Adjustment tab lists the next hearing, filters by outcome,
+    searches by street, opens a file's details and counts by year; empty tabs
+    still draw; and the News list no longer carries permits."""
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+    from datetime import date, timedelta
+    from leaside import db, geo, render, sources
+    from leaside.fetchers import coa
+    conn = db.connect(tmp_path / "t.db")
+    soon = (date.today() + timedelta(days=9)).isoformat()
+    rows = [
+        {"REFERENCE_FILE#": "A0001/26NY", "STREET_NUM": "10", "STREET_NAME": "RUMSEY", "STREET_TYPE": "RD",
+         "HEARING_DATE": soon, "STATUSDESC": "Hearing Scheduled", "C_OF_A_DESCISION": None,
+         "DESCRIPTION": "To build a rear deck."},
+        {"REFERENCE_FILE#": "A0002/24NY", "STREET_NUM": "5", "STREET_NAME": "MCRAE", "STREET_TYPE": "DR",
+         "HEARING_DATE": "2024-03-07", "STATUSDESC": "Closed", "C_OF_A_DESCISION": "Refused",
+         "OMB_DESCISION": "OMB Approved", "DESCRIPTION": "To build a second storey."},
+        {"REFERENCE_FILE": "A2001E00001", "STREET_NUM": "7", "STREET_NAME": "BENNINGTON HEIGHTS",
+         "STREET_TYPE": "DR", "HEARING_DATE": "Mar 6, 2001", "STATUSDESC": "Closed",
+         "C_OF_A_DESCISION": "Approved", "DESCRIPTION": "Garage."},
+    ]
+    base = {"APPLICATION_TYPE": "MV", "PLANNING_DISTRICT": "North York", "WARD": "15", "POSTAL": "M4G",
+            "STREET_DIRECTION": " ", "IN_DATE": "2024-01-01"}
+    src = sources.load().by_id("city_coa_applications")
+    for it in coa.rows_to_items([{**base, **r} for r in rows], src, geo.Areas.load()):
+        db.upsert_item(conn, it)
+    db.upsert_item(conn, {"source_id": "city_building_permits", "category": "permit",
+                          "title": "New Building: 1 Rumsey Rd", "url": None, "external_id": "p1",
+                          "area": "leaside", "published_at": date.today().isoformat(),
+                          "raw": {"PERMIT_TYPE": "New Houses", "WORK": "New Building", "STREET_NUM": "1",
+                                  "STREET_NAME": "RUMSEY", "STREET_TYPE": "RD"}})
+    conn.commit()
+    monkeypatch.setattr(render, "OUT", tmp_path)
+    render.run(db_path=tmp_path / "t.db", out_name="index.html")
+    with playwright.sync_playwright() as p:
+        b = p.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
+        pg = b.new_page(viewport={"width": 390, "height": 800})
+        errors = []
+        pg.on("pageerror", lambda e: errors.append(str(e)))
+        pg.goto((tmp_path / "variances.html").as_uri())
+        assert pg.evaluate("document.documentElement.scrollWidth") <= 390
+        hear = pg.locator("#hear").inner_text()
+        assert "10 Rumsey Rd" in hear and "5 Mcrae" not in hear
+        assert "Next hearing" in pg.locator("#tiles").inner_text()
+        rows = pg.locator("#rows li.row")
+        assert rows.count() == 3
+        assert "10 Rumsey Rd" in rows.first.inner_text()                  # newest first: the coming hearing
+        assert "Appealed" in rows.nth(1).inner_text()
+        pg.locator("#chips .chip", has_text="Refused").click()            # hide refused files
+        assert rows.count() == 2
+        pg.locator("#chips .chip", has_text="Refused").click()
+        pg.fill("#q", "bennington")
+        assert rows.count() == 1 and "Bennington Heights" in rows.first.inner_text()
+        pg.fill("#q", "A0002/24NY")                                        # search reaches the details
+        assert rows.count() == 1
+        rows.first.locator("summary").click()
+        assert "OMB Approved" in rows.first.locator("dl").inner_text()
+        assert "2001" in pg.locator("#yrs").inner_text()
+        pg.select_option("#area", "bennington")
+        assert pg.locator("#hero-n").inner_text() == "0"
+        for page in ("restaurants.html", "permits.html"):
+            pg.goto((tmp_path / page).as_uri())
+            assert pg.evaluate("document.documentElement.scrollWidth") <= 390, page
+        assert "1 Rumsey Rd" in pg.locator("#rows").inner_text()
+        assert not errors, errors
+        pg.goto((tmp_path / "news.html").as_uri())
+        assert "Rumsey" not in pg.locator("body").inner_text()
         b.close()

@@ -2131,11 +2131,18 @@ def test_the_news_page_cites_every_source_it_shows(tmp_path, monkeypatch):
     today = render.run(db_path=tmp_path / "t.db", out_name="index.html").read_text(encoding="utf-8")
     page = (tmp_path / "news.html").read_text(encoding="utf-8")
     section = page[page.index('id="sources"'):]
-    for sid in ("city_building_permits", "ra_leaside", "tps_reported_crime", "tps_calls_for_service"):
+    for sid in ("ra_leaside", "tps_reported_crime"):
         s = CFG.by_id(sid)
         assert s.name in section and f'href="{s.home}"' in section, sid
-    assert "Building permits" in section and "Open Government Licence – Toronto" in section
-    assert OGL in section
+    # Permits and police calls left News for tabs of their own, and their
+    # sources went with them: each tab cites what it shows.
+    for sid, tab in (("city_building_permits", "permits.html"), ("tps_calls_for_service", "calls.html")):
+        s = CFG.by_id(sid)
+        assert s.name not in section, sid
+        own = (tmp_path / tab).read_text(encoding="utf-8")
+        assert s.name in own[own.index('id="sources"'):], sid
+    permits_page = (tmp_path / "permits.html").read_text(encoding="utf-8")
+    assert OGL in permits_page[permits_page.index('id="sources"'):]
     assert "Headlines and short excerpts belong to their publishers" in section
     # Sources with nothing on the page are not cited.
     assert CFG.by_id("city_dinesafe").name not in section
@@ -2310,7 +2317,7 @@ def test_the_front_page_is_a_briefing_and_the_reader_is_news(tmp_path, monkeypat
     render.run(db_path=tmp_path / "t.db", out_name="index.html")
     today = (tmp_path / "index.html").read_text(encoding="utf-8")
     news = (tmp_path / "news.html").read_text(encoding="utf-8")
-    assert "This week in the neighbourhood" in today and 'href="news.html?cat=police_call&amp;since=7"' in today
+    assert "This week in the neighbourhood" in today and 'href="calls.html' in today
     assert "Everything collected" in news and 'id="q"' in news
     for page in (today, news, (tmp_path / "map.html").read_text(encoding="utf-8"),
                  (tmp_path / "trends.html").read_text(encoding="utf-8")):
@@ -2604,3 +2611,95 @@ def test_calls_page_data_classifies_calls_and_builds_yearly_panels(tmp_path):
     assert leaside["covers"] == ["Leaside", "Bennington Heights"]
     assert [p["name"] for p in data["yearly"]] == ["Leaside-Bennington", "Rosedale-Moore Park"]
     assert "</" not in callspage.payload(data)
+
+
+# ---- Committee of Adjustment ----
+
+def _coa_row(**over):
+    row = {"_id": 1, "SYS_ID": "1", "APPLICATION_TYPE": "MV", "IN_DATE": "2025-10-01T00:00:00",
+           "PLANNING_DISTRICT": "North York", "WARD": "15", "STREET_NUM": "34",
+           "STREET_NAME": "RUMSEY", "STREET_TYPE": "RD", "STREET_DIRECTION": " ", "POSTAL": "M4G",
+           "REFERENCE_FILE#": "A0689/25NY", "WORK_TYPE": "R Addition", "DESCRIPTION": "Rear addition.",
+           "HEARING_DATE": "2025-11-27", "C_OF_A_DESCISION": "Approved", "STATUSDESC": "Closed",
+           "OMB_DESCISION": None, "ANYONE_OBJECT_AT_MEETING": "Yes"}
+    row.update(over)
+    return row
+
+
+def test_coa_rows_keep_leaside_and_bennington_only():
+    from leaside.fetchers import coa
+    src = _src(id="city_coa_applications", category="coa")
+    rows = [
+        _coa_row(),                                                         # Leaside, by postal area
+        _coa_row(**{"REFERENCE_FILE#": "A1/25NY", "STREET_NAME": "BENNINGTON HEIGHTS", "STREET_TYPE": "DR"}),
+        _coa_row(**{"REFERENCE_FILE#": "A2/25NY", "POSTAL": "M4N", "STREET_NAME": "BAYVIEW",
+                    "STREET_TYPE": "AVE"}),                                 # Bayview in Lawrence Park
+        _coa_row(**{"REFERENCE_FILE#": "A3/25NY", "POSTAL": "   ", "STREET_NAME": "MCRAE",
+                    "STREET_TYPE": "DR"}),                                  # no postal, Leaside street, ward 15
+        _coa_row(**{"REFERENCE_FILE#": "A4/25NY", "POSTAL": "   ", "WARD": "08",
+                    "STREET_NAME": "MCRAE", "STREET_TYPE": "DR"}),          # no postal, wrong ward
+        # The 2001 table's spelling: old date format, REFERENCE_FILE without '#'.
+        {**{k: v for k, v in _coa_row().items() if k != "REFERENCE_FILE#"},
+         "REFERENCE_FILE": "A1999E00009", "HEARING_DATE": "Jan 11, 2000", "WARD": "26",
+         "IN_DATE": "1999-12-08"},
+        # The same file again, closed later: the later row wins.
+        _coa_row(**{"STATUSDESC": "Closed", "C_OF_A_DESCISION": "Refused"}),
+    ]
+    items = coa.rows_to_items(rows, src, AREAS)
+    by = {it["external_id"]: it for it in items}
+    assert set(by) == {"A0689/25NY", "A1/25NY", "A3/25NY", "A1999E00009"}
+    assert by["A1/25NY"]["area"] == "bennington" and by["A0689/25NY"]["area"] == "leaside"
+    assert by["A0689/25NY"]["raw"]["C_OF_A_DESCISION"] == "Refused"
+    assert by["A1999E00009"]["published_at"] == "2000-01-11"
+    assert by["A0689/25NY"]["title"] == "34 Rumsey Rd: Minor variance"
+    assert "_id" not in by["A0689/25NY"]["raw"]
+
+
+def test_coa_dates_and_outcomes_read_every_spelling():
+    from leaside import topics
+    from leaside.fetchers import coa
+    assert coa.day("Jan 11, 2000") == "2000-01-11" and coa.day("2018-12-20T00:00:00") == "2018-12-20"
+    assert coa.day("") is None and coa.day("soon") is None
+    outcome = lambda d, s="Closed": topics.COA_GROUPS[topics.coa_outcome({"decision": d, "status": s})]
+    assert outcome("Approved") == outcome("Granted with condition") == outcome("conditional approval") == "Approved"
+    assert outcome("Not Granted") == outcome("refused") == outcome("Not Approved") == "Refused"
+    assert outcome("Partially Granted") == "Partly approved"
+    assert outcome("WITHDRAWN") == outcome(None, "Cancelled") == "Withdrawn or cancelled"
+    assert outcome(None, "Hearing Scheduled") == "Waiting for a decision"
+    assert outcome(None, "Closed") == "No decision recorded"
+
+
+def test_topic_tabs_build_rows_and_news_leaves_them_out(tmp_path):
+    from leaside import render, topics
+    from leaside.fetchers import coa
+    conn = db.connect(tmp_path / "t.db")
+    for it in coa.rows_to_items([_coa_row(**{"OMB_DESCISION": "OMB Approved"})],
+                                _src(id="city_coa_applications", category="coa"), AREAS):
+        db.upsert_item(conn, it)
+    db.upsert_item(conn, {"source_id": "city_building_permits", "category": "permit",
+                          "title": "New Building: 1 Rumsey Rd", "url": None, "external_id": "p1",
+                          "area": "leaside", "published_at": "2026-10-01",
+                          "raw": {"PERMIT_TYPE": "New Houses", "WORK": "New Building", "STREET_NUM": "1",
+                                  "STREET_NAME": "RUMSEY", "STREET_TYPE": "RD", "BUILDER_NAME": "ACME",
+                                  "EST_CONST_COST": "DO NOT UPDATE", "STATUS": "Permit Issued"}})
+    db.upsert_item(conn, {"source_id": "city_dinesafe", "category": "inspection",
+                          "title": "Conditional Pass: CAFE X", "url": None, "external_id": "i1",
+                          "area": "leaside", "published_at": "2026-10-02",
+                          "summary": "1 Bayview Ave · Infractions: 1 crucial · Store ice badly",
+                          "raw": {"estName": "CAFE X", "inspectionStatus": "Conditional Pass",
+                                  "address": "1 Bayview Ave"}})
+    db.upsert_item(conn, {"source_id": "ra_leaside", "category": "ra_news", "title": "Fall fair",
+                          "url": "https://example.org/f", "external_id": "n1", "area": "leaside",
+                          "published_at": "2026-10-03"})
+    conn.commit()
+    areas = geo.Areas.load("config/areas.geojson")
+    v = topics.coa_files(conn, areas)["rows"][0]
+    assert v["c"] == topics.COA_GROUPS.index("Approved") and v["g"] == ["Appealed", "Objections at hearing"]
+    assert ["Tribunal decision", "OMB Approved"] in v["f"]
+    p = topics.permits(conn, areas)["rows"][0]
+    assert topics.PERMIT_GROUPS[p["c"]] == "New buildings" and p["h"] == "1 Rumsey Rd"
+    assert ["Builder", "ACME"] in p["f"] and not any(k == "Estimated cost" for k, _ in p["f"])
+    r = topics.inspections(conn, areas)["rows"][0]
+    assert r["h"] == "Cafe X" and r["g"] == ["Crucial infraction"] and r["s"] == "1 Bayview Ave"
+    news = render.collect(conn, areas, sources.load())
+    assert [it["category"] for it in news["items"]] == ["ra_news"]

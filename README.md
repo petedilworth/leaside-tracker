@@ -49,6 +49,8 @@ To see the site render without any network:
 | `leaside/fetchers/` | One module per source kind: RSS, JSON, ArcGIS, CKAN, HTML |
 | `leaside/briefing.py` | The Today page's numbers, stories and dated events |
 | `leaside/callspage.py`, `templates/calls.html` | The Police calls page: cards, months, every call, yearly counts |
+| `leaside/topics.py`, `templates/topic.html` | The Permits, Restaurants and Variances tabs, from one template |
+| `leaside/fetchers/coa.py` | Committee of Adjustment files for Leaside and Bennington Heights, 2000 on |
 | `leaside/fetchers/tps_yearly.py` | The police's yearly count of calls attended per neighbourhood, 2015 on |
 | `templates/_shell_head.html`, `_shell_nav.html` | The one header and colour set every page shares |
 | `docs/SOURCE-INVENTORY.md` | What data exists, what it costs, what is blocked |
@@ -66,7 +68,8 @@ To see the site render without any network:
 | `docs/THE-LOG.md` | What is kept, where to find it, how it is protected |
 | `config/health-report.md` | Written every run: what came in, duplicates, failures |
 | `site/index.html` | Built every run: the Today briefing, this week against last, what is coming up, stories, permits, police calls |
-| `site/news.html` | Built every run: everything collected, drawn in the browser a page at a time, with search |
+| `site/news.html` | Built every run: the news, notices and crime records, drawn a page at a time, with search |
+| `site/permits.html`, `site/restaurants.html`, `site/variances.html` | Built every run: one tab each for permits, inspections and the Committee of Adjustment |
 | `site/trends.html` | Built every run: is crime or collisions up this year, honestly |
 | `site/calls.html` | Built every run: every police call logged, newest first, with filters and the long view |
 | `site/map.html` | Built every run: every located police record, one circle per police-placed point |

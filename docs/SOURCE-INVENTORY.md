@@ -708,3 +708,38 @@ Eglinton-Davisville (1,539 to 1,725).
 - The yearly charts give each neighbourhood its own scale from zero, because
   Rosedale-Moore Park's counts (about 3,200) flatten the others (about 1,000).
 
+## Tabs for permits, restaurants and the Committee of Adjustment, 5 November 2026
+
+The owner asked for each topic on its own tab, out of the News list: permits,
+restaurant inspections and police calls, plus the Committee of Adjustment for
+Leaside and Bennington Heights only, back to 2000, with "addresses, names,
+variances requested, what was approved, the whole shebang".
+
+**Where the Committee of Adjustment data comes from.** City open data,
+`committee-of-adjustment-applications`, refreshed daily. Active applications and
+closed ones by year (2001 to 2016) are queried in the City's datastore for Don
+Valley West (ward 26 before 2018, ward 15 after); closed ones since 2017 come as
+one 15 MB CSV, read whole because its datastore copy refuses queries. Leaside and
+Bennington Heights share postal area M4G and both go to the North York panel; a
+file with no postal area counts when it is in the ward and on one of our streets.
+First run: 1,792 files, 1,771 in Leaside and 21 in Bennington Heights, hearings
+from January 2000.
+
+**What it does not have.** No owner, applicant or agent names, and no itemised
+list of variances; only a one-line description, the decision, whether anyone
+objected at the hearing, appeals and tribunal results. The names and variance
+lists are on each file's page in the Application Information Centre, which
+returns HTTP 403 to automated requests, so they are not collected. The North
+York agenda PDFs were checked too: they list only file numbers, addresses and
+wards. The City's public notices feed carries no Committee of Adjustment notices.
+
+**What the history says.** Of 1,525 Leaside and Bennington files with a recorded
+decision, 1,406 (92%) were approved in full or in part. 91 went to the Ontario
+Municipal Board or the Toronto Local Appeal Body.
+
+**Choices.** The three tabs share one template (`templates/topic.html`).
+Decisions are written dozens of ways in the data ("Granted with condition",
+"conditional approval", "Not Granted"), so the page sorts them into plain groups.
+The Today page keeps its permit and inspection sections and links to the tabs;
+its source list now covers what it shows, not what the News list shows.
+

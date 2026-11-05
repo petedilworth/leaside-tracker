@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Leaside Tracker · {{ data.title }}</title>
+{% include "_shell_head.html" %}
+<style>
+  .jump { font-size:13.5px; color:var(--muted); margin:0 0 14px; }
+  .jump a { color:var(--accent); margin-right:10px; }
+  .caveat { font-size:13.5px; color:var(--muted); border-left:3px solid var(--line);
+            padding:6px 12px; margin:10px 0 18px; }
+  .caveat a { color:var(--accent); }
+  h2 { font-size:12.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);
+       margin:30px 0 10px; }
+  .scope { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; font-size:14px;
+           background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  select, input[type=search] { font:inherit; font-size:14px; padding:5px 8px; border:1px solid var(--line);
+           border-radius:8px; background:var(--bg); color:var(--fg); max-width:100%; }
+  label { display:inline-flex; align-items:center; gap:6px; }
+  .note { font-size:12.5px; color:var(--muted); margin:6px 0 0; }
+  .hero { display:flex; align-items:baseline; gap:6px 14px; flex-wrap:wrap; margin:0 0 10px; }
+  .hero b { font-size:44px; line-height:1; font-weight:600; font-variant-numeric:tabular-nums; }
+  .hero span { font-size:15px; color:var(--muted); }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+  .tile { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; min-width:0; }
+  .tile .l { font-size:12.5px; color:var(--muted); }
+  .tile .v { font-size:22px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+  .tile .v.small { font-size:15px; }
+  .tile .d { font-size:12.5px; color:var(--muted); margin-top:2px; }
+  .tile.fact { background:transparent; border-style:dashed; }
+  .hear { list-style:none; margin:0; padding:0; }
+  .hear > li { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:0 0 8px; }
+  .hear b { font-size:14.5px; }
+  .hear ul { margin:4px 0 0; padding-left:18px; font-size:14px; }
+  .filters { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; margin:0 0 10px; font-size:14px; }
+  .filters input[type=search] { flex:1 1 200px; min-width:0; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
+  .chip { font:inherit; font-size:13px; padding:4px 10px; border-radius:999px; cursor:pointer;
+          border:1px solid var(--line); background:var(--bg); color:var(--muted); }
+  .chip[aria-pressed="true"] { background:var(--card); color:var(--fg); border-color:var(--fg); }
+  .chip .n { color:var(--faint); margin-left:4px; font-variant-numeric:tabular-nums; }
+  .count { font-size:13px; color:var(--muted); margin:0 0 6px; }
+  ul.list { list-style:none; margin:0; padding:0; }
+  .row { padding:9px 0; border-bottom:1px solid var(--line); font-size:14.5px; overflow-wrap:anywhere; }
+  .row time { display:block; color:var(--faint); font-size:12px; font-variant-numeric:tabular-nums; }
+  .row .grp, .row .tag { font-size:11.5px; color:var(--muted); border:1px solid var(--line); border-radius:999px;
+                         padding:0 7px; margin-left:4px; white-space:nowrap; }
+  .row .tag { color:var(--accent); border-color:var(--accent-soft); background:var(--accent-soft); }
+  .row .w { display:block; color:var(--muted); font-size:13px; }
+  .row .x { margin:4px 0 0; font-size:13.5px; }
+  .row details { margin-top:4px; font-size:13px; }
+  .row summary { color:var(--accent); cursor:pointer; }
+  .row dl { display:grid; grid-template-columns:max-content 1fr; gap:2px 12px; margin:6px 0 0; }
+  .row dt { color:var(--muted); }
+  .row dd { margin:0; }
+  .row a { color:var(--accent); }
+  .more { font:inherit; font-size:14px; margin:12px 0 0; padding:7px 14px; border-radius:8px;
+          border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+  .empty { border:1px dashed var(--line); border-radius:10px; padding:16px; color:var(--muted); font-size:14px; }
+  .scroll { overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--card); }
+  table.yrs { border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; min-width:100%; }
+  .yrs th, .yrs td { padding:5px 10px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }
+  .yrs th:first-child, .yrs td:first-child { text-align:left; position:sticky; left:0; background:var(--card); }
+  .yrs thead th { font-size:12px; color:var(--muted); font-weight:600; }
+  .yrs td.zero { color:var(--faint); }
+</style>
+</head>
+<body>
+<div class="wrap">
+{% set page = data.key %}{% include "_shell_nav.html" %}
+<h1>{{ data.title }}</h1>
+<p class="stamp">{{ data.intro }}{% if data.first %} Records from <time data-day="{{ data.first }}">{{ data.first }}</time>.{% endif %}</p>
+<p class="jump"><a href="#cards">At a glance</a>{% if data.upcoming %}<a href="#upcoming">Next hearings</a>{% endif %}<a href="#list">Every record</a>{% if data.years %}<a href="#years">By year</a>{% endif %}</p>
+<p class="caveat">{{ data.caveat }}{% if data.aic %} <a href="{{ data.aic }}" target="_blank" rel="noopener">Open the Application Information Centre</a>.{% endif %}</p>
+
+{% if data.areas|length > 1 %}
+<div class="scope" role="group" aria-label="Which area this page counts">
+  <label>Area <select id="area"><option value="">All areas</option>
+    {% for a in data.areas %}<option value="{{ a.key }}">{{ a.name }}</option>{% endfor %}</select></label>
+</div>
+<p class="note">The area applies to the whole page.</p>
+{% else %}<select id="area" hidden><option value=""></option></select>{% endif %}
+
+<section id="cards" aria-labelledby="cards-h">
+  <h2 id="cards-h">At a glance</h2>
+  <div class="hero"><b id="hero-n">–</b><span id="hero-d"></span></div>
+  <div class="tiles" id="tiles"></div>
+  <p class="note">Small numbers move a lot by chance; a change of two or three is not a trend.</p>
+</section>
+
+{% if data.upcoming %}
+<section id="upcoming" aria-labelledby="up-h">
+  <h2 id="up-h">Next hearings</h2>
+  <ul class="hear" id="hear"></ul>
+</section>
+{% endif %}
+
+<section id="list" aria-labelledby="list-h">
+  <h2 id="list-h">Every record, newest first</h2>
+  <div class="chips" id="chips" role="group" aria-label="Groups"></div>
+  <div class="filters">
+    <label>Since <select id="since">
+      <option value="30">30 days</option><option value="90">3 months</option><option value="365">1 year</option>
+      <option value="1826">5 years</option><option value="0">Everything</option>
+    </select></label>
+    <input type="search" id="q" placeholder="{{ data.search }}" aria-label="{{ data.search }}">
+    <label id="near-l" hidden><input type="checkbox" id="near"> <span id="near-t">Near home</span></label>
+  </div>
+  <p class="count" id="count" aria-live="polite"></p>
+  <ul class="list" id="rows"></ul>
+  <button class="more" id="more" hidden>Show more</button>
+</section>
+
+{% if data.years %}
+<section id="years" aria-labelledby="years-h">
+  <h2 id="years-h">By year</h2>
+  <div class="scroll"><table class="yrs" id="yrs"></table></div>
+  <p class="note">By the year of the hearing, or of the application when there was no hearing.</p>
+</section>
+{% endif %}
+
+{% include "_sources.html" %}
+<p class="foot">Built <time data-ts="{{ data.generated }}">{{ data.generated[:16] }} UTC</time>. Nothing collected is ever deleted; every record is in the downloads on the <a href="news.html">News</a> page.</p>
+</div>
+
+<script type="application/json" id="topic-data">{{ payload|safe }}</script>
+<script>
+(function () {
+  var D = JSON.parse(document.getElementById('topic-data').textContent);
+  var G = D.groups, PAGE = 50, NEAR_M = 500;
+  var AREA = {}; D.areas.forEach(function (a) { AREA[a.key] = a.name; });
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (ch) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]; }); }
+  function num(n) { return n.toLocaleString('en-CA'); }
+  // Dates are calendar days, so they are read and shown as days: no time zone shift.
+  var fmtDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  var fmtShort = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
+  function dayText(t, f) { return t ? (f || fmtDay).format(new Date(t + 'T12:00:00Z')) : 'No date'; }
+  var TODAY = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+  function daysAgo(n) { return new Date(Date.parse(TODAY + 'T12:00:00Z') - n * 864e5).toISOString().slice(0, 10); }
+  document.querySelectorAll('time[data-day]').forEach(function (t) { t.textContent = dayText(t.getAttribute('data-day'), fmtShort); });
+  document.querySelectorAll('time[data-ts]').forEach(function (t) {
+    t.textContent = new Date(t.getAttribute('data-ts')).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' }); });
+
+  var home = null;
+  try { home = JSON.parse(localStorage.getItem('leaside.home.v1') || 'null'); } catch (e) {}
+  if (!home || typeof home.lat !== 'number' || !D.near) home = null;
+  var nearM = home ? (home.radius || NEAR_M) : NEAR_M;
+  function metres(r) {
+    if (!home || r.lat == null) return Infinity;
+    var dy = (r.lat - home.lat) * 111320, dx = (r.lon - home.lon) * 111320 * Math.cos(home.lat * Math.PI / 180);
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  var KEY = 'leaside.' + D.key + '.v1';
+  var st = { area: '', since: D.since, q: '', near: false, off: [] };
+  try { var saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+        if (saved) { st.area = saved.area || ''; if (saved.since !== undefined) st.since = +saved.since || 0; } } catch (e) {}
+  var U = new URLSearchParams(location.search);
+  if (U.has('area')) st.area = U.get('area');
+  if (U.has('since')) st.since = +U.get('since') || 0;
+  if (U.has('q')) st.q = U.get('q');
+  if (U.has('group')) { var want = U.get('group');
+    st.off = G.map(function (g, i) { return i; }).filter(function (i) { return G[i] !== want; }); }
+  if (!AREA[st.area]) st.area = '';
+  function save() { try { localStorage.setItem(KEY, JSON.stringify({ area: st.area, since: st.since })); } catch (e) {} }
+  $('area').value = st.area; $('since').value = String(st.since); $('q').value = st.q;
+  if (!$('since').value) { $('since').value = '0'; st.since = 0; }
+  if (home) { $('near-l').hidden = false; $('near-t').textContent = 'Within ' + nearM + ' m of home'; }
+
+  function inScope(r) { return !st.area || r.a === st.area; }
+
+  // ---- cards ----
+  function tile(label, value, sub, cls) {
+    return '<div class="tile' + (cls ? ' ' + cls : '') + '"><div class="l">' + esc(label) + '</div><div class="v' +
+      (String(value).length > 9 ? ' small' : '') + '">' + value + '</div>' + (sub ? '<div class="d">' + sub + '</div>' : '') + '</div>';
+  }
+  function cards(pool) {
+    var N = D.card_days, a = daysAgo(N), b = daysAgo(2 * N);
+    var cur = pool.filter(function (r) { return r.t > a && r.t <= TODAY; });
+    var prev = pool.filter(function (r) { return r.t > b && r.t <= a; });
+    var full = D.first && D.first <= b;
+    $('hero-n').textContent = num(cur.length);
+    $('hero-d').textContent = D.hero + (full ? ' · the period before: ' + num(prev.length) : '');
+    var html = '';
+    G.forEach(function (g, i) {
+      var n = cur.filter(function (r) { return r.c === i; }).length;
+      var p = prev.filter(function (r) { return r.c === i; }).length;
+      if (!n && !p) return;
+      html += tile(g, num(n), full ? 'the period before: ' + num(p) : '');
+    });
+    (D.facts || []).forEach(function (f) { html += tile(f[0], esc(f[1]), esc(f[2]), 'fact'); });
+    if (D.upcoming) {
+      var next = pool.filter(function (r) { return r.t >= TODAY && r.c === 0; }).map(function (r) { return r.t; }).sort()[0];
+      html += next ? tile('Next hearing', dayText(next, fmtShort), num(pool.filter(function (r) { return r.t === next; }).length) +
+        ' file' + (pool.filter(function (r) { return r.t === next; }).length === 1 ? '' : 's') + ' from your areas', 'fact')
+        : tile('Next hearing', 'None listed', 'no file from your areas is scheduled yet', 'fact');
+    }
+    if (home) html += tile('Near home', num(cur.filter(function (r) { return metres(r) <= nearM; }).length),
+      'within ' + nearM + ' m', 'fact');
+    $('tiles').innerHTML = html;
+  }
+
+  // ---- next hearings ----
+  function hearings(pool) {
+    if (!D.upcoming) return;
+    var up = pool.filter(function (r) { return r.t >= TODAY; }), by = {};
+    up.forEach(function (r) { (by[r.t] = by[r.t] || []).push(r); });
+    var days = Object.keys(by).sort();
+    $('hear').innerHTML = days.length ? days.map(function (d) {
+      return '<li><b>' + esc(dayText(d)) + '</b><ul>' + by[d].map(function (r) {
+        return '<li>' + esc(r.h) + ' · ' + esc(r.s) + '</li>'; }).join('') + '</ul></li>';
+    }).join('') : '<li class="empty">No hearing for your areas is listed yet. The North York panel meets every two weeks; files appear here once the City schedules them.</li>';
+  }
+
+  // ---- the list ----
+  var shownN = PAGE;
+  function sinceDay() { return st.since ? daysAgo(st.since) : ''; }
+  function chips(pool) {
+    var s = sinceDay();
+    $('chips').innerHTML = G.map(function (g, i) {
+      var n = pool.filter(function (r) { return r.c === i && r.t >= s; }).length;
+      if (!n && st.off.indexOf(i) < 0 && !pool.some(function (r) { return r.c === i; })) return '';
+      return '<button type="button" class="chip" data-g="' + i + '" aria-pressed="' + (st.off.indexOf(i) < 0) + '">' +
+        esc(g) + '<span class="n">' + num(n) + '</span></button>';
+    }).join('');
+  }
+  function row(r) {
+    var d = metres(r);
+    return '<li class="row"><time datetime="' + esc(r.t) + '">' + esc(dayText(r.t)) + '</time><b>' + esc(r.h) + '</b>' +
+      '<span class="grp">' + esc(G[r.c]) + '</span>' + (r.g || []).map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; }).join('') +
+      '<span class="w">' + esc(r.s) + (r.s ? ' · ' : '') + esc(AREA[r.a] || 'Unmatched') +
+      (d < Infinity ? ' · ' + (d < 1000 ? Math.round(d / 10) * 10 + ' m' : (d / 1000).toFixed(1) + ' km') + ' from home' : '') + '</span>' +
+      (r.x ? '<p class="x">' + esc(r.x) + '</p>' : '') +
+      ((r.f && r.f.length) || r.u ? '<details><summary>Details</summary><dl>' + (r.f || []).map(function (p) {
+        return '<dt>' + esc(p[0]) + '</dt><dd>' + esc(p[1]) + '</dd>'; }).join('') + '</dl>' +
+        (r.u ? '<p><a href="' + esc(r.u) + '" target="_blank" rel="noopener">The City\'s page for this file</a></p>' : '') + '</details>' : '') +
+      '</li>';
+  }
+  function list(pool) {
+    var s = sinceDay(), q = st.q.trim().toLowerCase();
+    var m = pool.filter(function (r) {
+      if (r.t < s || st.off.indexOf(r.c) >= 0) return false;
+      if (st.near && metres(r) > nearM) return false;
+      if (q && (r.h + ' ' + r.s + ' ' + (r.x || '') + ' ' + (r.f || []).map(function (p) { return p[1]; }).join(' ') + ' ' + G[r.c] + ' ' + (r.g || []).join(' ')).toLowerCase().indexOf(q) < 0) return false;
+      return true; });
+    $('count').textContent = m.length ? 'Showing ' + num(Math.min(shownN, m.length)) + ' of ' + num(m.length) : '';
+    $('rows').innerHTML = m.length ? m.slice(0, shownN).map(row).join('') : '<li class="empty">Nothing matches these filters.</li>';
+    $('more').hidden = m.length <= shownN;
+    $('more').textContent = 'Show ' + Math.min(PAGE, m.length - shownN) + ' more';
+  }
+
+  // ---- by year ----
+  function years(pool) {
+    if (!D.years) return;
+    var by = {}, used = G.map(function () { return false; });
+    pool.forEach(function (r) { if (!r.t) return; var y = r.t.slice(0, 4);
+      (by[y] = by[y] || G.map(function () { return 0; }))[r.c]++; used[r.c] = true; });
+    var ys = Object.keys(by).sort().reverse();
+    var cols = G.map(function (g, i) { return i; }).filter(function (i) { return used[i]; });
+    $('yrs').innerHTML = '<thead><tr><th>Year</th><th>Files</th>' + cols.map(function (i) { return '<th>' + esc(G[i]) + '</th>'; }).join('') +
+      '</tr></thead><tbody>' + ys.map(function (y) {
+        var tot = by[y].reduce(function (s, n) { return s + n; }, 0);
+        return '<tr><td>' + y + '</td><td>' + num(tot) + '</td>' + cols.map(function (i) {
+          return by[y][i] ? '<td>' + num(by[y][i]) + '</td>' : '<td class="zero">0</td>'; }).join('') + '</tr>';
+      }).join('') + '</tbody>';
+  }
+
+  function render() {
+    var pool = D.rows.filter(inScope);
+    cards(pool); hearings(pool); chips(pool); list(pool); years(pool);
+  }
+  $('area').onchange = function () { st.area = this.value; shownN = PAGE; save(); render(); };
+  $('since').onchange = function () { st.since = +this.value; shownN = PAGE; save(); render(); };
+  $('near').onchange = function () { st.near = this.checked; shownN = PAGE; render(); };
+  $('q').oninput = function () { st.q = this.value; shownN = PAGE; render(); };
+  $('more').onclick = function () { shownN += PAGE; render(); };
+  $('chips').onclick = function (e) {
+    var b = e.target.closest('.chip'); if (!b) return;
+    var g = +b.getAttribute('data-g'), at = st.off.indexOf(g);
+    if (at >= 0) st.off.splice(at, 1); else st.off.push(g);
+    shownN = PAGE; render();
+  };
+  render();
+})();
+</script>
+</body>
+</html>

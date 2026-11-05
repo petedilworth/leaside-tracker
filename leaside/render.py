@@ -14,7 +14,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 import json
 
-from . import attribution, briefing, callspage, db, export, geo, mapdata, sources, trends, version
+from . import attribution, briefing, callspage, db, topics, export, geo, mapdata, sources, trends, version
 
 OUT = Path("site")
 
@@ -28,8 +28,11 @@ LIVE_DAYS = 7
 
 
 def collect(conn, areas, cfg, window_days: int = WINDOW_DAYS) -> dict:
+    # Police calls, permits, inspections and the Committee of Adjustment each
+    # have a tab of their own, so the News list leaves them out.
+    skip = ", ".join(f"'{c}'" for c in ("registry",) + topics.TOPIC_CATEGORIES)
     rows = conn.execute(
-        f"SELECT * FROM items WHERE category != 'registry' AND {db.SHOWN}"
+        f"SELECT * FROM items WHERE category NOT IN ({skip}) AND {db.SHOWN}"
         " ORDER BY COALESCE(published_at, first_seen_at) DESC LIMIT ?",
         (MAX_ROWS,),
     ).fetchall()
@@ -157,14 +160,22 @@ def run(db_path=db.DEFAULT_DB, config_path="config/sources.yaml",
     # keeps its own names (demo.html, demo-news.html) so it never overwrites them.
     target = OUT / out_name
     today = briefing.build(conn, areas, cfg)
+    # Today shows police calls, permits and inspections as well as the news, so it
+    # cites every source on the log, not only the ones the News list carries.
+    shown = [r[0] for r in conn.execute(
+        f"SELECT DISTINCT source_id FROM items WHERE category NOT IN ('registry', 'coa')"
+        f" AND {db.SHOWN} ORDER BY source_id")]
+    today_attrib = attribution.for_sources(conn, cfg, shown, where=f"AND {db.SHOWN}")
     target.write_text(env.get_template("index.html").render(
-        b=today, attrib=data["attrib"], lookahead=briefing.LOOKAHEAD_DAYS,
+        b=today, attrib=today_attrib, lookahead=briefing.LOOKAHEAD_DAYS,
         generated_at=data["generated_at"], code_version=data["code_version"]), encoding="utf-8")
     news = OUT / _companion(out_name, "news")
     news.write_text(env.get_template("news.html").render(**data), encoding="utf-8")
     render_trends(conn, areas, env, out_name)
     render_map(conn, areas, env, cfg, out_name)
     render_calls(conn, areas, env, cfg, out_name)
+    for key in topics.BUILDERS:
+        render_topic(conn, areas, env, cfg, key, out_name)
     if out_name == "index.html":          # never let the demo overwrite the real log
         export.write(conn, areas, cfg, OUT / "log")
     return target
@@ -236,4 +247,19 @@ def render_calls(conn, areas, env, cfg, out_name: str = "index.html") -> Path:
     target = OUT / _companion(out_name, "calls")
     target.write_text(env.get_template("calls.html").render(
         data=data, payload=callspage.payload(data), attrib=attrib), encoding="utf-8")
+    return target
+
+
+def render_topic(conn, areas, env, cfg, key: str, out_name: str = "index.html") -> Path:
+    """One topic tab: permits, restaurants or the Committee of Adjustment."""
+    data = topics.BUILDERS[key](conn, areas)
+    cats = topics.SOURCES[key]
+    marks = ",".join("?" * len(cats))
+    used = [r[0] for r in conn.execute(
+        f"SELECT DISTINCT source_id FROM items WHERE category IN ({marks}) AND {db.SHOWN}"
+        " ORDER BY source_id", cats)]
+    attrib = attribution.for_sources(conn, cfg, used, where=f"AND {db.SHOWN}")
+    target = OUT / _companion(out_name, key)
+    target.write_text(env.get_template("topic.html").render(
+        data=data, payload=topics.payload(data), attrib=attrib), encoding="utf-8")
     return target
