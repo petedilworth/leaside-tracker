@@ -5,7 +5,6 @@
 - [ ] Re-think the site: separate pages by topic, each with its own neighbourhoods
 
 ## Next
-- [ ] Keep police calls in full for 30 days, then weekly counts only
 
 ## Later
 - [ ] Street names for every map point, not just the ones police calls name
