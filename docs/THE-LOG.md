@@ -26,6 +26,7 @@ day whether your PC is on or not.
 | Rows from a source that was removed | The source is gone | Status *Hidden: source no longer configured* |
 | Rows stored under a faulty key | A parser fix replaced them with correct rows | Status *Hidden: superseded by a corrected record* |
 | Rows outside your areas | A boundary correction (the City's own neighbourhood lines, or a tighter postal rule) found they were never in your areas | Status *Hidden: outside your areas after a boundary correction* |
+| Police records on a boundary street | Not hidden. Police place each record at the nearest intersection, and the City's lines run down the middle of Yonge, Bloor, Bayview and Eglinton. When the police file a record under one of your neighbourhoods it is shown, wherever its point falls | On the page |
 | Items older than a source's email window | Too old to be news | On the page under *Since*, never emailed |
 
 The page itself shows the newest 3,000 items. The download has all of them.
@@ -47,14 +48,14 @@ the database held that day: 19,100 records.
 
 ## How it is protected
 
-- **Compressed on GitHub.** The database was 32 MB. GitHub refuses any file over
-  100 MB, so it is stored compressed: 4.5 MB. The health report states the size
-  every run and warns well before the limit.
+- **Compressed on GitHub.** The database was 82 MB in November 2026. GitHub
+  refuses any file over 100 MB, so it is stored compressed: 13 MB. Each save
+  states the size and warns well before the limit.
 - **Never overwritten by a smaller copy.** Since nothing is deleted, a save with
   fewer records than the run started with is refused, and so is any save after a
   failed restore. Either would mean a fault, and pushing it would wipe the log.
 - **A dated backup every Monday.** Under the repository's *Releases*, in
-  *Log backups*. One compressed file per week, about 5 MB each. If anything ever
+  *Log backups*. One compressed file per week, about 13 MB each in November 2026. If anything ever
   goes wrong, tell Claude which date to go back to.
 
 ## What it does not fix
@@ -64,3 +65,21 @@ Police calls show on the police map for about four hours. GitHub runs the
 half-hourly check about five times a day, not 48, so calls that come and go
 between checks are never collected. See the October entry in
 `docs/SOURCE-INVENTORY.md` for the numbers.
+
+## The boundary-street fault, 16 November 2026
+
+From 29 October to 16 November 2026 the tracker hid 1,130 police records (934
+crimes, 196 collisions) that the police file under your six neighbourhoods. Each
+sat exactly on a boundary street, where "inside the line" is a coin toss. They
+are back, with the note *the publisher files it under one of your
+neighbourhoods*. Crime for January to September 2026 reads 849, not 728.
+
+The same fault made about 1,170 rows flip *back* and *hidden* every day, because
+each fetch brought them back and each refresh hid them again. About 60,000 of
+the change log's lines from those weeks are that flip. They stay in the log as a
+record of the fault; a row hidden for lying outside your areas now stays hidden
+until a boundary check says otherwise.
+
+Police calls carry no neighbourhood label, so a call at a boundary intersection
+is still judged by its point alone.
+

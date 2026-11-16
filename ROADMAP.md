@@ -20,8 +20,22 @@
 - [ ] Compare break-in calls with break-in reports a few months later
 - [ ] Committee of Adjustment names and variances, if the City grants access
 - [ ] Link each Committee of Adjustment file to later permits at that address
+- [ ] Ask Leaside Life for permission to read its feed
+- [ ] Start the daily collection from Cloudflare; GitHub runs it 6 to 8 hours late
+- [ ] Decide if police calls at boundary intersections count; 64 are hidden now
+- [ ] Move crime and collision records out of News; they are 8 in 10 unread items
+- [ ] Show the usual range beside each weekly count, so +2 is not read as a rise
+- [ ] Shorten stored story text; some posts are kept and published nearly whole
+- [ ] Count a police call once when two units log the same event
+- [ ] Stop tagging far-off Bayview Avenue stories as Leaside
+- [ ] Bigger buttons on phones; the News filters are 24 px tall
+- [ ] Leave the 60,000 flip lines out of the changes download; keep them in the log
 
 ## Done
+- [x] 2026-11-16 – Boundary-street police records shown again; 1,130 were hidden
+- [x] 2026-11-16 – Stopped 1,170 records flipping hidden and back every day
+- [x] 2026-11-16 – Page publish tries twice; 1 run in 30 failed at GitHub
+- [x] 2026-11-16 – Stopped asking Leaside Life's feed; it has refused since October
 - [x] 2026-11-05 – Tabs for permits, restaurants and variances; all three out of News
 - [x] 2026-11-05 – Committee of Adjustment files for Leaside and Bennington, back to 2000
 - [x] 2026-11-04 – Police calls page: cards, filters, months and yearly counts since 2015

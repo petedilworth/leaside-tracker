@@ -139,7 +139,7 @@ def rows_to_items(rows: list[dict], source, areas, stats: dict | None = None) ->
         if hood and not areas.is_official_ours(hood):
             tally["other_neighbourhood"] = tally.get("other_neighbourhood", 0) + 1
             continue
-        area = (areas.match_point(lat, lon) or areas.match_official(hood)
+        area = (areas.match_point(lat, lon) or areas.match_labelled(lat, lon, hood)
                 or areas.match_text(json.dumps(row, default=str)))
         if not area:
             tally["outside_areas"] += 1

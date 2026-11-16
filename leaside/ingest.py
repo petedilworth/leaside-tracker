@@ -114,6 +114,8 @@ def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> 
     if fixed["retired_hidden"]:
         print(f"  hid {fixed['retired_hidden']} rows from sources no longer configured "
               f"(kept in the log)")
+    if fixed.get("inside_shown"):
+        print(f"  brought back {fixed['inside_shown']} rows that are inside your areas after all")
     print(f"  refreshed {fixed['rows']} stored items, {fixed['changed']} corrected")
     db.finish_run(conn, run_id, totals)
     return totals

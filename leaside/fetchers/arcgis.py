@@ -148,7 +148,7 @@ def parse_features(text: str, source, areas, label: str | None = None,
             continue
         if lat is None or lon is None:
             tally["no_geometry"] += 1
-        area = areas.match_point(lat, lon) or areas.match_official(official)
+        area = areas.match_point(lat, lon) or areas.match_labelled(lat, lon, official)
         if not area:
             tally["outside_areas"] += 1
             continue

@@ -69,16 +69,37 @@ class Areas:
             hood = self.official_at(lat, lon)
             if hood is None:
                 return None
-            for f in self.features:          # the sub-area, by rectangle, within the hood
-                if hood in {self._norm(n) for n in f["properties"].get("official", [])}:
-                    if any(_point_in_ring(lon, lat, ring) for ring in f["geometry"]["coordinates"]):
-                        return f["properties"]["key"]
-            return self.match_official(hood)   # inside the hood, outside every rectangle
+            return self._sub_area(hood, lat, lon)
         for f in self.features:
             for ring in f["geometry"]["coordinates"]:
                 if _point_in_ring(lon, lat, ring):
                     return f["properties"]["key"]
         return None
+
+    def _sub_area(self, hood: str, lat: float | None, lon: float | None) -> str | None:
+        """Our area within one City neighbourhood (normalised name): the rectangle
+        holding the point, or the neighbourhood's first area when none does."""
+        if lat is not None and lon is not None:
+            for f in self.features:
+                if hood in {self._norm(n) for n in f["properties"].get("official", [])}:
+                    if any(_point_in_ring(lon, lat, ring) for ring in f["geometry"]["coordinates"]):
+                        return f["properties"]["key"]
+        return self.match_official(hood)
+
+    def match_labelled(self, lat: float | None, lon: float | None,
+                       official: str | None) -> str | None:
+        """The area for a record whose publisher names its City neighbourhood.
+
+        Police place each record at the nearest intersection, and the City draws
+        its boundaries down the middle of Yonge, Bloor, Bayview and Eglinton. A
+        record on one of those streets sits exactly on the line, where "inside
+        the polygon" is a coin toss: 1,130 crime and collision records the police
+        file under our neighbourhoods were hidden that way. The publisher's own
+        label settles it; the point only chooses the sub-area.
+        """
+        if not self.is_official_ours(official):
+            return None
+        return self._sub_area(self._norm(official), lat, lon)
 
     @staticmethod
     def _norm(name: str) -> str:

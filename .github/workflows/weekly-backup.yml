@@ -4,7 +4,8 @@ name: Weekly backup
 # ever saved a damaged database, the good one would be gone. This keeps a dated
 # copy every week as a download under Releases > "Log backups".
 #
-# Each copy is about 5 MB compressed; a year of them is about 260 MB. The repository
+# Each copy was about 13 MB compressed in November 2026 and grows with the log;
+# a year of them is about 700 MB. The repository
 # is public, so these are too - the same data the state branch already exposes.
 
 on:

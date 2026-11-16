@@ -34,7 +34,7 @@ jobs:
     timeout-minutes: 15
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy_again.outputs.page_url }}
     steps:
       - name: Check out the code
         uses: actions/checkout@v4
@@ -79,7 +79,21 @@ jobs:
         with:
           path: site
 
+      # About one run in thirty failed here in November 2026: GitHub answered
+      # "No artifacts named github-pages were found" a second after storing it.
+      # The first try may fail without failing the run; a second try a little
+      # later settles it.
       - name: Deploy
         if: steps.pages.outputs.enabled == 'true'
         id: deploy
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Wait before a second try
+        if: steps.pages.outputs.enabled == 'true' && steps.deploy.outcome == 'failure'
+        run: sleep 45
+
+      - name: Deploy, second try
+        if: steps.pages.outputs.enabled == 'true' && steps.deploy.outcome == 'failure'
+        id: deploy_again
         uses: actions/deploy-pages@v4

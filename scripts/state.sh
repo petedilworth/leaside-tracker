@@ -13,7 +13,8 @@
 #
 # The database is the complete log: nothing in it is ever deleted. Two rules here
 # protect that.
-#   1. It is stored compressed. 32 MB raw is 4.5 MB compressed, and GitHub refuses
+#   1. It is stored compressed. 82 MB raw was 13 MB compressed in November 2026
+#      (32 MB and 4.5 MB a month earlier), and GitHub refuses
 #      any single file over 100 MB.
 #   2. A save that would leave FEWER records than the restore found is refused.
 #      Since nothing is deleted, fewer means something went wrong - most likely a

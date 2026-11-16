@@ -2416,6 +2416,106 @@ def test_boundary_correction_hides_outside_rows_but_keeps_them(tmp_path):
     assert why == [("outside your areas after a boundary correction",)]
 
 
+def _six_hoods(conn, s=43.6712, w=-79.41, n=43.75, e=-79.34):
+    from leaside import db
+    box = {"type": "Polygon", "coordinates": [[[w, s], [e, s], [e, n], [w, n], [w, s]]]}
+    db.save_boundaries(conn, {name: box for name in (
+        "Rosedale-Moore Park (98)", "Leaside-Bennington (56)", "Mount Pleasant East (99)",
+        "South Eglinton-Davisville (174)", "Lawrence Park South (103)", "Lawrence Park North (105)")})
+
+
+def test_a_record_the_police_file_under_our_neighbourhood_is_shown_on_the_line(tmp_path):
+    """Police place records at intersections, and the City's lines run down the
+    middle of Yonge, Bloor, Bayview and Eglinton. On the live log 1,130 crime and
+    collision records filed under our neighbourhoods were hidden as outside."""
+    from leaside import db, geo, sources
+    conn = db.connect(tmp_path / "t.db")
+    on_the_line = dict(lat=43.6712, lon=-79.3780)      # the polygon's south edge
+    just_south = dict(lat=43.6700, lon=-79.3780)
+    db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime", url=None,
+                               title="Ours by label", external_id="a", area="south_rosedale",
+                               raw={"NEIGHBOURHOOD_158": "Rosedale-Moore Park (98)"}, **just_south))
+    db.upsert_item(conn, _item(source_id="tps_reported_crime", category="crime", url=None,
+                               title="Not ours by label", external_id="b", area="south_rosedale",
+                               raw={"NEIGHBOURHOOD_158": "Annex (95)"}, **just_south))
+    db.upsert_item(conn, _item(source_id="tps_calls_for_service", category="police_call", url=None,
+                               title="No label", external_id="c", area="south_rosedale", **just_south))
+    conn.commit()
+    _six_hoods(conn)
+    areas = geo.Areas.load(conn=conn)
+    assert areas.match_labelled(on_the_line["lat"], on_the_line["lon"],
+                                "Rosedale-Moore Park (98)") in ("north_rosedale", "south_rosedale", "moore_park")
+    assert areas.match_labelled(43.70, -79.37, "Annex (95)") is None
+    db.refresh_all(conn, areas, sources.load())
+    shown = {r[0] for r in conn.execute(f"SELECT title FROM items WHERE {db.SHOWN}")}
+    assert shown == {"Ours by label"}
+
+
+def test_rows_hidden_before_the_label_was_trusted_come_back_once(tmp_path):
+    from leaside import db, geo, sources
+    conn = db.connect(tmp_path / "t.db")
+    item = _item(source_id="tps_reported_crime", category="crime", url=None, title="Assault",
+                 external_id="a", area="south_rosedale", lat=43.6700, lon=-79.3780,
+                 raw={"NEIGHBOURHOOD_158": "Rosedale-Moore Park (98)"})
+    db.upsert_item(conn, item)
+    iid = conn.execute("SELECT id FROM items").fetchone()[0]
+    db.hide(conn, iid, "tps_reported_crime", db.OUTSIDE_REASON)
+    conn.commit()
+    _six_hoods(conn)
+    areas, cfg = geo.Areas.load(conn=conn), sources.load()
+    assert db.refresh_all(conn, areas, cfg)["inside_shown"] == 1
+    assert conn.execute("SELECT hidden_at FROM items").fetchone()[0] is None
+    note = conn.execute("SELECT note FROM item_log WHERE event = 'back'").fetchone()[0]
+    assert "files it under one of your neighbourhoods" in note
+    before = conn.execute("SELECT COUNT(*) FROM item_log").fetchone()[0]
+    db.upsert_item(conn, item)
+    assert db.refresh_all(conn, areas, cfg)["inside_shown"] == 0
+    assert conn.execute("SELECT COUNT(*) FROM item_log").fetchone()[0] == before
+
+
+def test_a_row_outside_our_areas_does_not_flip_back_each_time_it_is_fetched(tmp_path):
+    """Every fetch brought hidden rows back and every refresh hid them again:
+    1,170 rows a day on the live log, two change-log lines each."""
+    from leaside import db, geo, sources
+    conn = db.connect(tmp_path / "t.db")
+    item = _item(source_id="tps_calls_for_service", category="police_call", url=None,
+                 title="Disorderlies", external_id="c", area="south_rosedale",
+                 lat=43.6700, lon=-79.3780)
+    db.upsert_item(conn, item)
+    _six_hoods(conn)
+    areas, cfg = geo.Areas.load(conn=conn), sources.load()
+    assert db.refresh_all(conn, areas, cfg)["outside_hidden"] == 1
+    before = conn.execute("SELECT COUNT(*) FROM item_log").fetchone()[0]
+    for _ in range(3):
+        assert db.upsert_item(conn, item) is False
+        counts = db.refresh_all(conn, areas, cfg)
+        assert counts["outside_hidden"] == 0 and counts["inside_shown"] == 0
+    assert conn.execute("SELECT COUNT(*) FROM item_log").fetchone()[0] == before
+    assert conn.execute("SELECT hidden_reason FROM items").fetchone()[0] == db.OUTSIDE_REASON
+    # A row hidden for any other reason still comes back when its source lists it again.
+    iid = conn.execute("SELECT id FROM items").fetchone()[0]
+    conn.execute("UPDATE items SET hidden_reason = 'source no longer configured' WHERE id = ?", (iid,))
+    db.upsert_item(conn, {**item, "lat": 43.70, "lon": -79.37})
+    assert conn.execute("SELECT hidden_at FROM items").fetchone()[0] is None
+
+
+def test_hidden_rows_stay_hidden_when_the_boundaries_are_not_loaded(tmp_path):
+    """Without the City's lines a run cannot tell inside from outside, so it must
+    not bring back what an earlier run hid."""
+    from leaside import db, geo, sources
+    conn = db.connect(tmp_path / "t.db")
+    db.upsert_item(conn, _item(source_id="tps_calls_for_service", category="police_call", url=None,
+                               title="Disorderlies", external_id="c", area="south_rosedale",
+                               lat=43.6700, lon=-79.3780))
+    iid = conn.execute("SELECT id FROM items").fetchone()[0]
+    db.hide(conn, iid, "tps_calls_for_service", db.OUTSIDE_REASON)
+    conn.commit()
+    areas = geo.Areas.load(conn=conn)
+    assert not areas.official_gate
+    assert db.refresh_all(conn, areas, sources.load())["inside_shown"] == 0
+    assert conn.execute("SELECT hidden_reason FROM items").fetchone()[0] == db.OUTSIDE_REASON
+
+
 def test_loose_postal_areas_need_a_known_street():
     assert AREAS.match_postal("M4W 1J5", "CUMBERLAND") is None          # Yorkville
     assert AREAS.match_postal("M4W 1J5", "BLOOR") is None

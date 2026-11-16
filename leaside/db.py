@@ -191,6 +191,29 @@ def content_hash(item: dict) -> str:
     return hashlib.sha1(json.dumps(body, sort_keys=True, default=str).encode()).hexdigest()
 
 
+# Why a row is off the page when its place falls outside our neighbourhoods.
+# refresh_all alone sets and lifts this, so a fetch cannot undo it.
+OUTSIDE_REASON = "outside your areas after a boundary correction"
+LABEL_KINDS = {"arcgis_feature", "arcgis_multi", "ckan_dataset"}
+
+
+def publisher_hood(src, raw_text: str | None) -> str | None:
+    """The City neighbourhood the publisher itself put on a police or City record."""
+    if not src or src.kind not in LABEL_KINDS or not raw_text:
+        return None
+    try:
+        raw = json.loads(raw_text)
+    except ValueError:
+        return None
+    if not isinstance(raw, dict):
+        return None
+    if src.kind == "ckan_dataset":
+        from .fetchers import ckan
+        return ckan.fields.pick(raw, **ckan.HOOD)[1]
+    return (raw.get("NEIGHBOURHOOD_158") or raw.get("NEIGHBOURHOOD_140")
+            or raw.get("Neighbourhood"))
+
+
 def _log(conn, item_id, source_id, at, event, note=None, row=None, raw=None):
     row = row or {}
     conn.execute(
@@ -227,19 +250,26 @@ def upsert_item(conn: sqlite3.Connection, item: dict, seen_at: str | None = None
                 changed.append("record")
             _log(conn, iid, item["source_id"], now, "changed",
                  ", ".join(changed) or "record", dict(existing), existing["raw"])
-        if existing["hidden_at"]:
+        # A row hidden for lying outside our areas stays hidden when it is seen
+        # again. Being fetched is not evidence it moved, and refresh_all decides
+        # that at the end of every run. Bringing it back here made 1,170 rows
+        # flip back and hidden again each day, two log lines apiece.
+        stays_hidden = existing["hidden_reason"] == OUTSIDE_REASON
+        if existing["hidden_at"] and not stays_hidden:
             _log(conn, iid, item["source_id"], now, "back",
                  f"seen again after being hidden: {existing['hidden_reason']}",
                  {"title": item["title"]})
         conn.execute(
             """UPDATE items SET last_seen_at = MAX(last_seen_at, ?), title = ?, summary = ?,
                    published_at = ?, area = ?, lat = ?, lon = ?, url = ?, raw = ?,
-                   content_hash = ?, routine = ?, hidden_at = NULL, hidden_reason = NULL
+                   content_hash = ?, routine = ?, hidden_at = ?, hidden_reason = ?
                WHERE id = ?""",
             (
                 now, item["title"], item.get("summary"), item.get("published_at"),
                 item.get("area"), item.get("lat"), item.get("lon"), item.get("url"),
-                raw_text, digest, routine, iid,
+                raw_text, digest, routine,
+                existing["hidden_at"] if stays_hidden else None,
+                existing["hidden_reason"] if stays_hidden else None, iid,
             ),
         )
         return False
@@ -300,6 +330,13 @@ def hide(conn: sqlite3.Connection, iid: str, source_id: str, reason: str) -> Non
                  (now, reason, iid))
     title = conn.execute("SELECT title FROM items WHERE id = ?", (iid,)).fetchone()
     _log(conn, iid, source_id, now, "hidden", reason, {"title": title[0] if title else None})
+
+
+def unhide(conn: sqlite3.Connection, iid: str, source_id: str, note: str) -> None:
+    """Put a hidden row back on the page, and say why in the change log."""
+    conn.execute("UPDATE items SET hidden_at = NULL, hidden_reason = NULL WHERE id = ?", (iid,))
+    title = conn.execute("SELECT title FROM items WHERE id = ?", (iid,)).fetchone()
+    _log(conn, iid, source_id, utcnow(), "back", note, {"title": title[0] if title else None})
 
 
 def rekey(conn: sqlite3.Connection, source_id: str, key_for_raw) -> dict:
@@ -404,20 +441,32 @@ def refresh_all(conn: sqlite3.Connection, areas, cfg) -> dict:
             hide(conn, row["id"], row["source_id"], "source no longer configured")
             counts["retired_hidden"] += 1
     counts["outside_hidden"] = 0
+    counts["inside_shown"] = 0
     for row in conn.execute(
-        "SELECT id, source_id, title, summary, published_at, area, lat, lon, raw, hidden_at"
-        " FROM items"
+        "SELECT id, source_id, title, summary, published_at, area, lat, lon, raw, hidden_at,"
+        " hidden_reason FROM items"
     ).fetchall():
         counts["rows"] += 1
         fixed = normalise({"title": row["title"], "summary": row["summary"],
                            "published_at": row["published_at"]})
         src = cfg.by_id(row["source_id"])
         outside = False
+        decided = True       # False when this run cannot tell inside from outside
+        back_note = "inside your areas after a boundary correction"
         if row["lat"] is not None and row["lon"] is not None:
             area = areas.match_point(row["lat"], row["lon"])
+            if area is None:
+                # The police file each record under a City neighbourhood. When that
+                # is one of ours the record is ours, even with its point on the
+                # boundary street itself, where inside and outside are a coin toss.
+                area = areas.match_labelled(row["lat"], row["lon"],
+                                            publisher_hood(src, row["raw"]))
+                if area:
+                    back_note = "the publisher files it under one of your neighbourhoods"
             # With the City's boundaries loaded, a point outside them is not ours,
             # however a rectangle once read it. Hidden with the reason, never deleted.
             outside = area is None and areas.official_gate
+            decided = areas.official_gate
             area = area or row["area"]
         elif src and src.kind == "ckan_coa" and row["raw"]:
             # The file's own postal area and street decide, never words in its
@@ -431,11 +480,15 @@ def refresh_all(conn: sqlite3.Connection, areas, cfg) -> dict:
             outside = area is None
             area = area or row["area"]
         else:
+            decided = False
             area = (areas.match_text(fixed["title"], fixed["summary"])
                     or (src.area if src else None) or row["area"])
         if outside and not row["hidden_at"]:
-            hide(conn, row["id"], row["source_id"], "outside your areas after a boundary correction")
+            hide(conn, row["id"], row["source_id"], OUTSIDE_REASON)
             counts["outside_hidden"] += 1
+        elif decided and not outside and row["hidden_reason"] == OUTSIDE_REASON:
+            unhide(conn, row["id"], row["source_id"], back_note)
+            counts["inside_shown"] += 1
         if (fixed["title"], fixed["summary"], fixed["published_at"], area) != (
             row["title"], row["summary"], row["published_at"], row["area"]
         ):

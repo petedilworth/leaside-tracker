@@ -211,10 +211,14 @@ sources:
     area: leaside
     kind: rss
     url: https://leasidelife.com/feed/
-    status: verified
+    status: blocked
     notes: >
-      Probe returned 10 entries. Monthly community paper and the highest signal source
-      for Leaside. Headlines and links only - never republish article bodies.
+      Monthly community paper and the highest signal source for Leaside. The feed
+      worked in September 2026 (10 entries), then answered 403 Forbidden on every
+      one of 72 daily tries from 6 October to 15 November. A 403 is a no, so the
+      tracker has stopped asking. To bring it back, ask the publisher for
+      permission, then set status back to verified. Headlines and links only -
+      never republish article bodies.
 
   # ---------------------------------------------------------------- councillor / city hall
   - id: councillor_ward15
