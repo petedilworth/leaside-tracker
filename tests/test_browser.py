@@ -453,6 +453,14 @@ def test_topic_tabs_filter_search_and_show_the_next_hearing(tmp_path, monkeypatc
     src = sources.load().by_id("city_coa_applications")
     for it in coa.rows_to_items([{**base, **r} for r in rows], src, geo.Areas.load()):
         db.upsert_item(conn, it)
+    city_file = "http://app.toronto.ca/AIC/index.do?folderRsn=abc%3D%3D"
+    db.upsert_item(conn, {"source_id": "city_coa_agendas", "category": "coa_agenda", "routine": True,
+                          "title": "10 RUMSEY RD: on the agenda", "url": "https://example.org/agenda.pdf",
+                          "external_id": f"A0001/26NY|{soon}", "published_at": soon,
+                          "raw": {"kind": "file", "ref": "A0001/26NY", "hearing": soon, "item": 4,
+                                  "slot": "10:00 a.m.", "ward": "15", "address": "10 RUMSEY RD",
+                                  "agenda_url": "https://example.org/agenda.pdf",
+                                  "city_file_url": city_file}})
     db.upsert_item(conn, {"source_id": "city_building_permits", "category": "permit",
                           "title": "New Building: 1 Rumsey Rd", "url": None, "external_id": "p1",
                           "area": "leaside", "published_at": date.today().isoformat(),
@@ -474,6 +482,15 @@ def test_topic_tabs_filter_search_and_show_the_next_hearing(tmp_path, monkeypatc
         rows = pg.locator("#rows li.row")
         assert rows.count() == 3
         assert "10 Rumsey Rd" in rows.first.inner_text()                  # newest first: the coming hearing
+        # One tap from the City's own page for the file, its agenda and the recording.
+        opens = rows.first.locator(".lk a")
+        assert opens.count() == 3 and opens.first.get_attribute("href") == city_file
+        assert "item 4" in opens.nth(1).inner_text()
+        assert opens.first.bounding_box()["height"] >= 32                 # a thumb can hit it
+        assert pg.locator("#hear a").first.get_attribute("href") == city_file
+        assert "Appeal decisions" in rows.nth(1).locator(".lk a").inner_text()   # appealed in 2024
+        assert rows.nth(2).locator(".lk a").count() == 0                  # 2001, no agenda held: no links
+        assert "coa.ny@toronto.ca" in pg.locator(".caveat").inner_text()
         assert "Appealed" in rows.nth(1).inner_text()
         pg.locator("#chips .chip", has_text="Refused").click()            # hide refused files
         assert rows.count() == 2

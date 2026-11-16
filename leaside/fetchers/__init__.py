@@ -1,5 +1,5 @@
 """Per-kind fetchers. Each returns a list of normalised item dicts."""
-from . import arcgis, c4s, ckan, notices, rss_feed, html_list, tps_yearly, coa  # noqa: F401
+from . import arcgis, c4s, ckan, notices, rss_feed, html_list, tps_yearly, coa, coa_agendas  # noqa: F401
 
 REGISTRY = {
     "rss": rss_feed.fetch,
@@ -15,4 +15,5 @@ REGISTRY = {
     "tps_calls": c4s.fetch_calls,
     "tps_calls_yearly": tps_yearly.fetch_calls_yearly,
     "ckan_coa": coa.fetch,
+    "coa_agendas": coa_agendas.fetch,
 }

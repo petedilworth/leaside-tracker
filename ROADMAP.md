@@ -30,8 +30,12 @@
 - [ ] Stop tagging far-off Bayview Avenue stories as Leaside
 - [ ] Bigger buttons on phones; the News filters are 24 px tall
 - [ ] Leave the 60,000 flip lines out of the changes download; keep them in the log
+- [ ] Email coa.ny@toronto.ca to join the agenda list and ask for hearing minutes
+- [ ] Link each hearing to its own YouTube video, not just the City's channel
+- [ ] Read a decision PDF you save from the City's page: names, variances, conditions
 
 ## Done
+- [x] 2026-11-16 – Each variance file links to the City's page, agenda and recording
 - [x] 2026-11-16 – Boundary-street police records shown again; 1,130 were hidden
 - [x] 2026-11-16 – Stopped 1,170 records flipping hidden and back every day
 - [x] 2026-11-16 – Page publish tries twice; 1 run in 30 failed at GitHub

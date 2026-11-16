@@ -743,3 +743,37 @@ Decisions are written dozens of ways in the data ("Granted with condition",
 The Today page keeps its permit and inspection sections and links to the tabs;
 its source list now covers what it shows, not what the News list shows.
 
+## Who is applying for a variance, 16 November 2026
+
+The owner asked for everything on each Committee of Adjustment file: who is
+applying, every detail, the documents, the decision and a transcript of the
+hearing. What exists, and what the tracker now does with it:
+
+| Wanted | Where it is | What the tracker does |
+| --- | --- | --- |
+| Owner, applicant, agent | Each file's page in the City's Application Information Centre, and on the notice of decision | Links to the page. The City refuses automated requests there (HTTP 403), so nothing on it is copied |
+| Itemised variances, plans, staff reports, notice, written decision | The same page, until about 90 days after the final decision | The same link. After that, the City sends a decision on request to coa.ny@toronto.ca, quoting the file number |
+| Decision, objections, appeal | City open data | Already on the Variances tab |
+| Agenda | A PDF per hearing on toronto.ca, this year and last | Read. Each file shows its item number and sitting, and links to the PDF |
+| Recording | The City's YouTube channel, @TorontoCityPlanning | Links to the channel. Captions appear about a day after a hearing |
+| Transcript | Not published. Agendas confirm minutes of the previous hearing, but the City posts none | Nothing to collect. YouTube forbids robots from taking captions, and its own programme interface gives captions only to a video's owner |
+| Appeal decisions | CanLII, for Toronto Local Appeal Body decisions since 1 February 2023 | Links to the listing, for appealed files |
+
+**How the link is found.** The open data's `SYS_ID` is not the address of the
+file's page; the page is reached by an encoded token. The City's own agendas
+carry that token: every line is hyperlinked to the file's page. The tracker
+reads the 46 agendas on the North York schedule page once (about 130 KB each,
+two seconds apart), then only an agenda within three days of its hearing or
+still to come. First run, 16 November 2026: 46 agendas, 286 files in Don Valley
+West, 228 with the City's link. Of the 62 Leaside and Bennington Heights files
+heard since 16 January 2025, 61 were found on an agenda, 56 with a link. The
+City left some lines unlinked; those files show the agenda only.
+
+**Not confirmed from here.** The file page itself refuses this machine, so
+that the link opens the right file has not been seen. Tap one to check.
+
+**Names.** A file is a public record under the Planning Act, and the owner is
+content for names to appear on the site. None are collected, so none do. The
+Information and Privacy Commissioner's report MC20-00002 (2022) recommends
+publishing as little personal detail as the purpose needs.
+

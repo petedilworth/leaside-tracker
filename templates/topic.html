@@ -34,6 +34,7 @@
   .hear > li { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:0 0 8px; }
   .hear b { font-size:14.5px; }
   .hear ul { margin:4px 0 0; padding-left:18px; font-size:14px; }
+  .hear a { color:var(--accent); display:inline-block; padding:5px 0; }
   .filters { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; margin:0 0 10px; font-size:14px; }
   .filters input[type=search] { flex:1 1 200px; min-width:0; }
   .chips { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
@@ -50,6 +51,9 @@
   .row .tag { color:var(--accent); border-color:var(--accent-soft); background:var(--accent-soft); }
   .row .w { display:block; color:var(--muted); font-size:13px; }
   .row .x { margin:4px 0 0; font-size:13.5px; }
+  .row .lk { list-style:none; margin:6px 0 0; padding:0; font-size:14px; }
+  .row .lk li { margin:0; }
+  .row .lk a { display:inline-block; padding:7px 0; color:var(--accent); }
   .row details { margin-top:4px; font-size:13px; }
   .row summary { color:var(--accent); cursor:pointer; }
   .row dl { display:grid; grid-template-columns:max-content 1fr; gap:2px 12px; margin:6px 0 0; }
@@ -212,7 +216,9 @@
     var days = Object.keys(by).sort();
     $('hear').innerHTML = days.length ? days.map(function (d) {
       return '<li><b>' + esc(dayText(d)) + '</b><ul>' + by[d].map(function (r) {
-        return '<li>' + esc(r.h) + ' · ' + esc(r.s) + '</li>'; }).join('') + '</ul></li>';
+        var first = (r.l || [])[0];
+        return '<li>' + esc(r.h) + ' · ' + esc(r.s) + (first ? ' · <a href="' + esc(first[1]) +
+          '" target="_blank" rel="noopener">' + esc(first[0].split(/[:,]/)[0]) + '</a>' : '') + '</li>'; }).join('') + '</ul></li>';
     }).join('') : '<li class="empty">No hearing for your areas is listed yet. The North York panel meets every two weeks; files appear here once the City schedules them.</li>';
   }
 
@@ -235,6 +241,8 @@
       '<span class="w">' + esc(r.s) + (r.s ? ' · ' : '') + esc(AREA[r.a] || 'Unmatched') +
       (d < Infinity ? ' · ' + (d < 1000 ? Math.round(d / 10) * 10 + ' m' : (d / 1000).toFixed(1) + ' km') + ' from home' : '') + '</span>' +
       (r.x ? '<p class="x">' + esc(r.x) + '</p>' : '') +
+      (r.l && r.l.length ? '<ul class="lk">' + r.l.map(function (p) {
+        return '<li><a href="' + esc(p[1]) + '" target="_blank" rel="noopener">' + esc(p[0]) + '</a></li>'; }).join('') + '</ul>' : '') +
       ((r.f && r.f.length) || r.u ? '<details><summary>Details</summary><dl>' + (r.f || []).map(function (p) {
         return '<dt>' + esc(p[0]) + '</dt><dd>' + esc(p[1]) + '</dd>'; }).join('') + '</dl>' +
         (r.u ? '<p><a href="' + esc(r.u) + '" target="_blank" rel="noopener">The City\'s page for this file</a></p>' : '') + '</details>' : '') +

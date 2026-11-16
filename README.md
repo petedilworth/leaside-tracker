@@ -51,6 +51,7 @@ To see the site render without any network:
 | `leaside/callspage.py`, `templates/calls.html` | The Police calls page: cards, months, every call, yearly counts |
 | `leaside/topics.py`, `templates/topic.html` | The Permits, Restaurants and Variances tabs, from one template |
 | `leaside/fetchers/coa.py` | Committee of Adjustment files for Leaside and Bennington Heights, 2000 on |
+| `leaside/fetchers/coa_agendas.py` | The Committee's hearing agendas: each file's place on the agenda and the City's own link to its page |
 | `leaside/fetchers/tps_yearly.py` | The police's yearly count of calls attended per neighbourhood, 2015 on |
 | `templates/_shell_head.html`, `_shell_nav.html` | The one header and colour set every page shares |
 | `docs/SOURCE-INVENTORY.md` | What data exists, what it costs, what is blocked |

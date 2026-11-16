@@ -2803,3 +2803,122 @@ def test_topic_tabs_build_rows_and_news_leaves_them_out(tmp_path):
     assert r["h"] == "Cafe X" and r["g"] == ["Crucial infraction"] and r["s"] == "1 Bayview Ave"
     news = render.collect(conn, areas, sources.load())
     assert [it["category"] for it in news["items"]] == ["ra_news"]
+
+
+# ---------------------------------------------------------------- Committee of Adjustment agendas
+
+AGENDA_PDF = FIX / "coa_agenda_2026-11-26.pdf"
+AGENDA_URL = "https://www.toronto.ca/wp-content/uploads/2026/11/agenda-November-26-2026.pdf"
+
+
+def test_agenda_gives_each_file_its_place_and_the_citys_own_link():
+    """The City's agenda links every file to its page, where the names, plans and
+    decision are. The real 26 November 2026 North York agenda, as published."""
+    from leaside.fetchers import coa_agendas
+    agenda = coa_agendas.parse_agenda(AGENDA_PDF.read_bytes(), AGENDA_URL)
+    assert agenda["hearing"] == "2026-11-26"
+    files = {f["ref"]: f for f in agenda["files"]}
+    assert len(files) == 20
+    deck = files["A0448/24NY"]
+    assert (deck["item"], deck["slot"], deck["ward"]) == (15, "2:00 p.m.", "15")
+    assert deck["address"] == "114 BRENTCLIFFE RD"
+    assert files["A0082/26NY"]["slot"] == "10:00 a.m." and files["A0082/26NY"]["item"] == 1
+    links = [f["city_file_url"] for f in agenda["files"]]
+    assert all(u and "/AIC/index.do?folderRsn=" in u for u in links)
+    assert len(set(links)) == 20                      # each file its own link
+
+
+def test_agenda_rows_keep_our_ward_and_stay_off_the_news_list():
+    from leaside.fetchers import coa_agendas
+    src = CFG.by_id("city_coa_agendas")
+    assert src.runnable and CFG.licence_of(src).statement
+    agenda = coa_agendas.parse_agenda(AGENDA_PDF.read_bytes(), AGENDA_URL)
+    items = coa_agendas.to_items(agenda, src, "North York")
+    assert all(it["routine"] and it["category"] == "coa_agenda" for it in items)
+    kinds = [it["raw"]["kind"] for it in items]
+    assert kinds.count("agenda") == 1
+    assert {it["raw"]["ward"] for it in items if it["raw"]["kind"] == "file"} == {"15"}
+    assert len({it["external_id"] for it in items}) == len(items)
+    assert "A0448/24NY|2026-11-26" in {it["external_id"] for it in items}
+
+
+def test_schedule_page_lists_agendas_with_their_hearing_dates():
+    from leaside.fetchers import coa_agendas
+    html = """<a href="/wp-content/uploads/2026/11/918f-Hearing-Agenda-November-26-2026.pdf">November 26, 2026</a>
+              <a href="https://www.toronto.ca/wp-content/uploads/2026/01/941a-Hearing-Agenda-Jan-22-2026.pdf">Jan 22 2026</a>
+              <a href="/wp-content/uploads/2026/09/95ab-participation-handbook.pdf">Handbook</a>
+              <a href="/wp-content/uploads/2026/11/918f-Hearing-Agenda-November-26-2026.pdf">again</a>"""
+    got = coa_agendas.agenda_links(html, "https://www.toronto.ca/x/north-york-schedule/")
+    assert got == [("2026-11-26", "https://www.toronto.ca/wp-content/uploads/2026/11/918f-Hearing-Agenda-November-26-2026.pdf"),
+                   ("2026-01-22", "https://www.toronto.ca/wp-content/uploads/2026/01/941a-Hearing-Agenda-Jan-22-2026.pdf")]
+
+
+def test_an_agenda_is_downloaded_once_then_only_near_its_hearing():
+    """Polite: forty-six agendas are listed, and none of the old ones change."""
+    from datetime import date, timedelta
+    from leaside.fetchers import coa_agendas
+    soon = date.today() + timedelta(days=5)
+    old, new = "https://www.toronto.ca/a/Agenda-old.pdf", "https://www.toronto.ca/a/Agenda-new.pdf"
+    page = (f'<a href="{old}">January 16, 2025</a>'
+            f'<a href="{new}">{soon.strftime("%B")} {soon.day}, {soon.year}</a>')
+
+    class Resp:
+        def __init__(self, text="", content=b""):
+            self.text, self.content, self.status_code = text, content, 200
+        def raise_for_status(self):
+            pass
+
+    class Http:
+        asked = []
+        def get(self, url, **kw):
+            self.asked.append(url)
+            return Resp(text=page) if url.endswith("schedule/") else Resp(content=AGENDA_PDF.read_bytes())
+
+    src = _src(id="city_coa_agendas", category="coa_agenda", kind="coa_agendas",
+               url="https://www.toronto.ca/x/north-york-schedule/")
+    src._known = {old, new}
+    http = Http()
+    items, status = coa_agendas.fetch(src, http, AREAS)
+    assert http.asked == [src.url, new] and status == 200       # the old one is left alone
+    assert any(it["raw"]["kind"] == "file" for it in items)
+    src._known = set()
+    http.asked.clear()
+    coa_agendas.fetch(src, http, AREAS)
+    assert http.asked == [src.url, old, new]                     # first run reads both
+
+
+def test_a_variance_file_links_to_the_citys_page_its_agenda_and_the_recording(tmp_path):
+    from datetime import date, timedelta
+    from leaside import db, geo, topics
+    from leaside.fetchers import coa, coa_agendas
+    conn = db.connect(tmp_path / "t.db")
+    src = CFG.by_id("city_coa_agendas")
+    agenda = coa_agendas.parse_agenda(AGENDA_PDF.read_bytes(), AGENDA_URL)
+    for it in coa_agendas.to_items(agenda, src, "North York"):
+        db.upsert_item(conn, it)
+    coa_src = _src(id="city_coa_applications", category="coa")
+    rows = [_coa_row(**{"REFERENCE_FILE#": "A0448/24NY", "STREET_NUM": "114", "STREET_NAME": "BRENTCLIFFE",
+                        "STREET_TYPE": "RD", "HEARING_DATE": "2026-11-26", "STATUSDESC": "Hearing Scheduled",
+                        "C_OF_A_DESCISION": None}),
+            _coa_row(**{"REFERENCE_FILE#": "A0999/19NY", "STREET_NUM": "9", "HEARING_DATE": "2019-05-02"})]
+    for it in coa.rows_to_items(rows, coa_src, AREAS):
+        db.upsert_item(conn, it)
+    conn.commit()
+    out = {r["s"].split(" · ")[-1]: r for r in topics.coa_files(conn, geo.Areas.load())["rows"]}
+    links = out["A0448/24NY"]["l"]
+    assert links[0][0].startswith("The City's file") and "folderRsn=" in links[0][1]
+    assert links[1] == ["Hearing agenda, Nov 26, 2026, item 15, 2:00 p.m.", AGENDA_URL]
+    assert links[2][1] == topics.RECORDINGS
+    assert out["A0999/19NY"]["l"] == []               # not on an agenda we hold: nothing to open
+    # Once a file is closed and the City has taken it down, the dead link goes; the agenda stays.
+    n = {"status": "Closed", "hearing": "2026-01-08", "received": None}
+    entries = [{"hearing": "2026-01-08", "agenda_url": "https://x/a.pdf", "item": 3, "slot": "10:00 a.m.",
+                "city_file_url": "http://app.toronto.ca/AIC/index.do?folderRsn=abc"}]
+    late = (date(2026, 1, 8) + timedelta(days=topics.CITY_FILE_DAYS + 1)).isoformat()
+    labels = [l[0] for l in topics.coa_links(n, entries, late, appealed=True)]
+    assert not any(l.startswith("The City's file") for l in labels)
+    assert labels[0].startswith("Hearing agenda") and labels[-1].startswith("Appeal decisions")
+    assert topics.coa_links(n, entries, "2026-02-01", appealed=False)[0][0].startswith("The City's file")
+    # Agenda rows never appear as records of their own.
+    assert conn.execute(f"SELECT COUNT(*) FROM items WHERE category = 'coa_agenda' AND {db.SHOWN}").fetchone()[0] == 0
+

@@ -11,6 +11,7 @@ list and the year table follow the same filters. A row:
     f    [[label, value], ...] details, shown when opened
     g    small tags, e.g. "Appealed"
     lat, lon, u   map point and link, when the record has them
+    l    [[label, address], ...] links shown under the record, e.g. the City's file
 
 These records are kept in the log and the downloads as before; they are left
 out of the News list because each has a page of its own.
@@ -180,8 +181,60 @@ def coa_outcome(n: dict) -> int:
     return 6
 
 
+CITY_FILE_DAYS = 150      # the City removes a file about 90 days after its final decision
+RECORDINGS = "https://www.youtube.com/@TorontoCityPlanning"
+APPEALS = "https://www.canlii.org/en/on/ontlab/"
+
+
+def coa_agendas(conn) -> dict:
+    """{file number: its agenda entries, newest hearing first}, from the hearing agendas."""
+    out: dict[str, list[dict]] = {}
+    for (raw,) in conn.execute(
+            "SELECT raw FROM items WHERE category = 'coa_agenda' AND hidden_at IS NULL"
+            " AND raw IS NOT NULL"):
+        try:
+            a = json.loads(raw)
+        except ValueError:
+            continue
+        if a.get("kind") == "file" and a.get("ref"):
+            out.setdefault(a["ref"].upper(), []).append(a)
+    for entries in out.values():
+        entries.sort(key=lambda a: a.get("hearing") or "", reverse=True)
+    return out
+
+
+def coa_links(n: dict, entries: list[dict], today: str, appealed: bool) -> list[list[str]]:
+    """What a reader can open for one file: the City's own page for it, the agenda
+    it was on, the recording, and appeal decisions. Nothing here is fetched by the
+    tracker; each is the publisher's own page."""
+    from datetime import date, timedelta
+    links = []
+    closed = (n["status"] or "").lower() == "closed"
+    cutoff = (date.fromisoformat(today) - timedelta(days=CITY_FILE_DAYS)).isoformat()
+    city = next((a["city_file_url"] for a in entries if a.get("city_file_url")), None)
+    newest = entries[0].get("hearing") if entries else None
+    if city and (not closed or (newest or "") >= cutoff):
+        links.append(["The City's file: owner, agent, plans, reports, decision", city])
+    for a in entries[:3]:
+        day = a.get("hearing")
+        if day:
+            d = date.fromisoformat(day)
+            day = f"{d.strftime('%b')} {d.day}, {d.year}"      # no %-d: it fails on Windows
+        links.append([", ".join(x for x in ("Hearing agenda", day,
+                                            f"item {a['item']}" if a.get("item") else None,
+                                            a.get("slot")) if x), a["agenda_url"]])
+    if entries:
+        links.append(["Recording, with captions a day later" if (newest or "") < today
+                      else "Watch the hearing live", RECORDINGS])
+    if appealed and (n["hearing"] or n["received"] or "") >= "2022":
+        links.append(["Appeal decisions since 2023, search by address", APPEALS])
+    return links
+
+
 def coa_files(conn, areas) -> dict:
     rows = []
+    agendas = coa_agendas(conn)
+    today = db.utcnow()[:10]
     for r, raw in _rows(conn, "coa"):
         n = coa.normalise(raw)
         outcome = coa_outcome(n)
@@ -192,6 +245,7 @@ def coa_files(conn, areas) -> dict:
         if (n["objections"] or "").lower() == "yes":
             tags.append("Objections at hearing")
         hearing = " ".join(x for x in (n["hearing"], n["time"]) if x)
+        on_agenda = agendas.get(n["ref"] or "", [])
         rows.append({
             "t": n["hearing"] or n["received"] or "",
             "c": outcome, "a": r["area"],
@@ -208,6 +262,7 @@ def coa_files(conn, areas) -> dict:
                          ("Conditions expire", n["condition_expiry"]), ("Status", n["status"]),
                          ("Closed", n["final"])),
             "u": n["url"],
+            "l": coa_links(n, on_agenda, today, bool(tribunal)),
         })
     decided = [r for r in rows if r["c"] in (1, 2, 3)]
     approved = sum(1 for r in decided if r["c"] in (1, 2))
@@ -225,16 +280,21 @@ def coa_files(conn, areas) -> dict:
                  intro="Minor variance and consent applications in Leaside and Bennington Heights, "
                        "heard by the North York panel every two weeks. Newest first, with hearings back "
                        "to January 2000.",
-                 caveat="The City's open data has no owner, applicant or agent names and no "
-                        "itemised list of variances. Those are only on each file's page in the "
-                        "City's Application Information Centre. Search it by file number at "
-                        "secure.toronto.ca/AIC.",
+                 caveat="Owner, applicant and agent names, the itemised variances, plans, staff "
+                        "reports and the written decision are on each file's own page at the "
+                        "City, which does not let this tracker read them. Files on a hearing "
+                        "agenda since January 2025 link straight to that page; the City takes "
+                        "a file down about 90 days after its final decision. After that, ask "
+                        "coa.ny@toronto.ca for the decision, quoting the file number. The City "
+                        "publishes no transcript: hearings are recorded on its YouTube channel, "
+                        "with captions about a day later. For older files, search by file number.",
                  search="Street, house number or file number",
                  aic="https://secure.toronto.ca/AIC/index.do")
 
 
 BUILDERS = {"permits": permits, "restaurants": inspections, "variances": coa_files}
-SOURCES = {"permits": ("permit",), "restaurants": ("inspection",), "variances": ("coa",)}
+SOURCES = {"permits": ("permit",), "restaurants": ("inspection",),
+           "variances": ("coa", "coa_agenda")}
 
 
 def payload(data: dict) -> str:

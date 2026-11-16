@@ -55,6 +55,11 @@ def run(config_path="config/sources.yaml", db_path=db.DEFAULT_DB, only=None) -> 
                     print(f"        {arcgis.offence_label(title):<28} {len(got):>4} in area")
                     items += got
             else:
+                if src.kind == "coa_agendas":
+                    # Agendas already in the log are not downloaded again.
+                    src._known = {r[0] for r in conn.execute(
+                        "SELECT url FROM items WHERE source_id = ? AND url IS NOT NULL",
+                        (src.id,))}
                 items, status = REGISTRY[src.kind](src, fetcher, areas)
             for it in items:
                 if it.get("area"):

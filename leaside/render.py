@@ -255,10 +255,14 @@ def render_topic(conn, areas, env, cfg, key: str, out_name: str = "index.html") 
     data = topics.BUILDERS[key](conn, areas)
     cats = topics.SOURCES[key]
     marks = ",".join("?" * len(cats))
+    # Agenda rows are routine: never listed on their own, but they supply the
+    # links on the Committee of Adjustment tab, so their source is named too.
     used = [r[0] for r in conn.execute(
-        f"SELECT DISTINCT source_id FROM items WHERE category IN ({marks}) AND {db.SHOWN}"
+        f"SELECT DISTINCT source_id FROM items WHERE category IN ({marks})"
+        " AND hidden_at IS NULL AND (routine = 0 OR category = 'coa_agenda')"
         " ORDER BY source_id", cats)]
-    attrib = attribution.for_sources(conn, cfg, used, where=f"AND {db.SHOWN}")
+    attrib = attribution.for_sources(
+        conn, cfg, used, where="AND hidden_at IS NULL AND (routine = 0 OR category = 'coa_agenda')")
     target = OUT / _companion(out_name, key)
     target.write_text(env.get_template("topic.html").render(
         data=data, payload=topics.payload(data), attrib=attrib), encoding="utf-8")

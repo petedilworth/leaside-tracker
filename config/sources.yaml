@@ -46,6 +46,10 @@ licences:
   publisher_owned:
     name: Copyright of each publisher
     statement: Headlines and short excerpts belong to their publishers. Each item links to the original.
+  city_agendas:
+    name: City of Toronto hearing agendas
+    url: https://www.toronto.ca/city-government/planning-development/committee-of-adjustment/hearing-agendas-and-schedules/
+    statement: Hearing agendas are published by the City of Toronto's Committee of Adjustment. The tracker keeps each file's number, address, place on the agenda and the City's own link to the file.
   google_news:
     name: Found through Google News
     url: https://news.google.com/
@@ -299,17 +303,28 @@ sources:
       refuses automated requests. Replaces the plan to read hearing notices out of
       city_public_notices, which carried none (checked 5 November 2026).
 
-  - id: committee_of_adjustment_ny
-    name: Committee of Adjustment - North York panel agendas
-    category: planning
+  - id: city_coa_agendas
+    name: Committee of Adjustment hearing agendas, North York panel
+    publisher: City of Toronto, Committee of Adjustment
+    licence: city_agendas
+    category: coa_agenda
     area: null
-    kind: manual
+    kind: coa_agendas
+    panel: North York
     url: https://www.toronto.ca/city-government/planning-development/committee-of-adjustment/north-york-schedule/
-    status: manual
+    home_url: https://www.toronto.ca/city-government/planning-development/committee-of-adjustment/north-york-schedule/
+    timeout: 60
+    retries: 2
+    status: verified
     notes: >
-      PDF agendas, one per hearing, every two weeks. Checked 5 November 2026: each
-      lists only item numbers, file numbers, addresses and wards, all of which the
-      open data above already has. Not collected.
+      PDF agendas, one per hearing, every two weeks, for this year and last. Read
+      16 November 2026: each line carries the item number, file number, address and
+      ward, and a link to that file's page in the City's Application Information
+      Centre, where the owner, agent, plans, staff reports, notice and decision are.
+      The tracker keeps the link and the file's place on the agenda, for Don Valley
+      West only, and fetches nothing behind the link. An agenda is downloaded once,
+      and again each day from three days before its hearing, since agendas are
+      revised. The City removes a file about 90 days after its final decision.
 
   - id: aic_applications
     name: Application Information Centre (development + CofA + TLAB applications)
