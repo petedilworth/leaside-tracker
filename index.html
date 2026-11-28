@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Leaside Tracker · Today</title>
+
+<style>
+  :root {
+    --bg:#f7f5f1; --fg:#1c1b19; --muted:#6f6a63; --faint:#a39d94; --line:#e4e0d8;
+    --card:#fffdf9; --accent:#8a3b2a; --accent-soft:#f3e4df; --new:#2e6b47;
+    --s0:#2a78d6; --s1:#eb6834; --s2:#1baf7a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161513; --fg:#ebe7e0; --muted:#a19a90; --faint:#6b665e; --line:#2c2925;
+            --card:#1e1c19; --accent:#e0a08e; --accent-soft:#33241f; --new:#7fc39a;
+            --s0:#3987e5; --s1:#d95926; --s2:#199e70; }
+  }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  a { color:inherit; }
+  .wrap { max-width:760px; margin:0 auto; padding:16px 16px 96px; }
+  .wrap.wide { max-width:1100px; }
+  .top { display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap;
+         padding:6px 0 10px; border-bottom:1px solid var(--line); margin-bottom:16px; }
+  .top .brand { font-weight:700; font-size:18px; letter-spacing:-0.01em; text-decoration:none; }
+  .top .brand small { font-weight:400; color:var(--muted); font-size:12.5px; margin-left:8px; }
+  .nav { display:flex; gap:4px; flex-wrap:wrap; }
+  .nav a { text-decoration:none; font-size:14px; color:var(--muted); padding:4px 10px; border-radius:999px; }
+  .nav a:hover { color:var(--fg); background:var(--accent-soft); }
+  .nav a[aria-current="page"] { color:var(--fg); background:var(--card); border:1px solid var(--line); }
+  .stamp { color:var(--muted); font-size:13.5px; margin:4px 0 18px; }
+  h1 { font-size:24px; margin:0 0 2px; letter-spacing:-0.01em; }
+  .sources { margin-top:36px; }
+  .sources h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+                margin:0 0 6px; }
+  .sources table { width:100%; border-collapse:collapse; font-size:13px; }
+  .sources th, .sources td { text-align:left; padding:6px 8px 6px 0; border-bottom:1px solid var(--line);
+                             vertical-align:top; }
+  .sources th { font-weight:600; color:var(--muted); font-size:12px; }
+  .sources .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .sources td:nth-child(5) { white-space:nowrap; }
+  .sources .pub { color:var(--muted); font-size:12px; }
+  .sources a { color:var(--accent); }
+  .sources .lic { font-size:12.5px; color:var(--muted); margin:8px 0 0; }
+  @media (max-width:560px) { .sources th:nth-child(5), .sources td:nth-child(5) { display:none; } }
+  .foot { margin-top:40px; font-size:12.5px; color:var(--faint); }
+  .foot a { color:var(--accent); }
+</style>
+<style>
+  .lead { font-size:14px; color:var(--muted); margin:0 0 16px; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin:0 0 22px; }
+  .tile { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px;
+          text-decoration:none; display:block; }
+  .tile:hover { border-color:var(--muted); }
+  .tile b { display:block; font-size:30px; line-height:1.05; font-weight:600; }
+  .tile .lbl { font-size:13px; color:var(--fg); margin-top:4px; }
+  .tile .note { font-size:12px; color:var(--muted); }
+  .tile .delta { font-size:12.5px; margin-top:6px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .tile .delta.up { color:#b3402e; } .tile .delta.down { color:#2f7d4f; }
+  @media (prefers-color-scheme: dark) { .tile .delta.up { color:#e08a78; } .tile .delta.down { color:#7fc39a; } }
+  section { margin:0 0 28px; }
+  section > h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+                 margin:0 0 8px; padding-bottom:4px; border-bottom:1px solid var(--line);
+                 display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  section > h2 a { font-weight:400; text-transform:none; letter-spacing:0; font-size:13px; color:var(--accent); text-decoration:none; }
+  section > h2 a:hover { text-decoration:underline; }
+  ul.plain { list-style:none; margin:0; padding:0; }
+  ul.plain li { padding:8px 0; border-bottom:1px solid var(--line); }
+  ul.plain li:last-child { border-bottom:0; }
+  .t { font-weight:600; text-decoration:none; }
+  .t:hover { color:var(--accent); text-decoration:underline; }
+  .meta { font-size:12.5px; color:var(--muted); margin-top:2px; }
+  .meta .tag { display:inline-block; border:1px solid var(--line); border-radius:4px; padding:0 5px; font-size:11px; margin-right:4px; vertical-align:1px; }
+  .sum { font-size:13.5px; color:var(--muted); margin-top:3px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .events li { display:grid; grid-template-columns:72px 1fr; gap:10px; }
+  .events .d { font-weight:600; font-size:14px; line-height:1.3; }
+  .events .d small { display:block; font-weight:400; color:var(--muted); font-size:12px; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:0 28px; }
+  @media (max-width:640px) { .cols { grid-template-columns:1fr; } }
+  .calls li { font-size:13.5px; padding:4px 0; }
+  .calls time { color:var(--faint); font-size:12px; margin-right:6px; white-space:nowrap; }
+  .calls .w { color:var(--muted); }
+  .calls .grp { font-weight:600; font-size:12px; color:var(--fg); margin-right:4px; }
+  .kinds { font-size:13px; color:var(--muted); margin:0 0 6px; }
+  .empty { color:var(--muted); font-size:14px; padding:8px 0; }
+  .home { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .home p { margin:0; font-size:14px; color:var(--muted); }
+  .home ul.plain li { padding:6px 0; font-size:14px; }
+  .home .dist { color:var(--faint); font-size:12px; margin-left:6px; }
+  .lag { font-size:12.5px; color:var(--faint); margin:10px 0 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <a class="brand" href="index.html">Leaside Tracker<small>Leaside, Bennington, Rosedale, Moore Park, Davisville, Lawrence Park</small></a>
+  <nav class="nav" aria-label="Pages">
+    <a href="index.html" aria-current="page">Today</a>
+    <a href="news.html" >News</a>
+    <a href="calls.html" >Police</a>
+    <a href="permits.html" >Permits</a>
+    <a href="variances.html" >Variances</a>
+    <a href="restaurants.html" >Restaurants</a>
+    <a href="map.html" >Map</a>
+    <a href="trends.html" >Trends</a>
+  </nav>
+</header>
+
+<h1>This week in the neighbourhood</h1>
+<p class="lead">Since 2026-11-21. Collected <time data-ts="2026-11-28T19:13:32+00:00">2026-11-28T19:13</time>.
+  Everything here comes from the public sources named at the bottom.</p>
+
+<div class="tiles">
+
+  
+  <a class="tile" href="calls.html">
+    <b>42</b>
+    <span class="lbl">Police calls</span>
+    <span class="note">attended in your areas</span>
+    <span class="delta down">
+      -21 vs last week (63)</span>
+  </a>
+
+  
+  <a class="tile" href="permits.html?since=30">
+    <b>42</b>
+    <span class="lbl">Building permits</span>
+    <span class="note">new to the tracker</span>
+    <span class="delta ">
+      +9 vs last week (33)</span>
+  </a>
+
+  
+  <a class="tile" href="restaurants.html?since=30">
+    <b>13</b>
+    <span class="lbl">Restaurant inspections</span>
+    <span class="note">with something found</span>
+    <span class="delta up">
+      +1 vs last week (12)</span>
+  </a>
+
+  
+  <a class="tile" href="news.html?cat=media&amp;since=7">
+    <b>1</b>
+    <span class="lbl">Stories</span>
+    <span class="note">from local and city press</span>
+    <span class="delta ">
+      -5 vs last week (6)</span>
+  </a>
+
+</div>
+
+<section id="home-block" hidden>
+  <h2>Near home <a href="map.html">change home on the map</a></h2>
+  <div class="home">
+    <p id="home-sub"></p>
+    <ul class="plain" id="home-list"></ul>
+  </div>
+</section>
+
+<section>
+  <h2>Coming up <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--faint)">next 60 days, read from recent items</span></h2>
+  
+  <p class="empty">Nothing dated in the next 60 days has been mentioned by a local source.</p>
+  
+</section>
+
+<section>
+  <h2>Stories <a href="news.html?cat=media&amp;since=30">all local news</a></h2>
+  
+  <ul class="plain">
+  
+    <li>
+      <a class="t" href="https://news.google.com/rss/articles/CBMipgFBVV95cUxNZU9UUW5wY1FoMVB6UGpNZFJnQVltXzZ3LS1wY3FRUEpYSUJGS1RvTlYtUUlJN0NDR3pLMFFoQ0VDbWRfUjF2alFxRV9SaUxYMXJCM0hMTDBZTlRkdDIwcHVCYWs3SmM5bWxVanhVQy1td3lkZExkbzhOTGxVRHZtX2VsTEhVR2w5amtpdTFDVEJ2SjVMWlVPWHNNT0NjVmwyRGk4UkpR?oc=5" target="_blank" rel="noopener">Cashing in on the AI data centre boom? Proposed Toronto site up for sale for $9.5M (torontotoday.ca)</a>
+      <div class="meta"><span class="tag">Leaside</span>Leaside in the news (Google News) &middot; <time data-ts="2026-11-27T21:59:13+00:00">2026-11-27</time></div>
+      
+    </li>
+  
+    <li>
+      <a class="t" href="https://leasidebusinesspark.com/bring-lbpa-traffic-alerts-to-your-website/" target="_blank" rel="noopener">Bring LBPA Traffic Alerts to Your Website</a>
+      <div class="meta"><span class="tag">Leaside</span>Leaside Business Park Association &middot; <time data-ts="2026-11-25T18:39:14+00:00">2026-11-25</time></div>
+      <div class="sum">A free new tool to help local businesses keep employees, customers and visitors informed about traffic and construction disruptions. The Leaside Business Park Association (LBPA) is making it easier for local businesses and community organizations to share traffic and transit updates directly on their own websites. As construction continues across Leaside and surrounding areas, access routes, traffic conditions and transit services can change. Having up-to-date information helps employees, customers, visitors and delivery drivers plan their journeys. Our new free Traffic Alerts Widget brings information from the LBPA Traffic Alerts platform directly to your website. How does it work? The widget is available in three display options to suit different website layouts. Simply request your free widget, receive installation instructions and add it to your website. By sharing traffic information through more local websites, we can help keep the Leaside business community informed, connected and accessible throughout construction. Ready to add Traffic Alerts to your website? Request your free LBPA Traffic Alerts Widget You can also explore the updated Traffic Alerts platform here . This initiative is supported by the City of Toronto through the Transit Construction Mitigation Fund. The post Bring LBPA Traffic Alerts to Your Website appeared first on Leaside Business Park .</div>
+    </li>
+  
+    <li>
+      <a class="t" href="https://leasidebusinesspark.com/ontario-line-test-pit-investigations-near-20-overlea-boulevard/" target="_blank" rel="noopener">Ontario Line: Test Pit Investigations Near 20 Overlea Boulevard</a>
+      <div class="meta"><span class="tag">Leaside</span>Leaside Business Park Association &middot; <time data-ts="2026-11-21T15:01:22+00:00">2026-11-21</time></div>
+      <div class="sum">Metrolinx has advised that its Ontario Line contractor will conduct test pit investigations near 20 Overlea Boulevard on Monday, November 23, 2026, between 9:00 a.m. and 12:00 p.m. The work involves shallow, targeted excavations to confirm the location of underground utility connections as part of preparations for the future Ontario Line subway. What to Expect Temporary lane closure: The westbound curb lane on Overlea Boulevard will be closed for approximately three hours. Traffic impacts: Two-way traffic will be maintained, although minor delays may occur near the work zone. Business access: All businesses in the area will remain open. Motorists should follow posted signage for access. Pedestrian access: Temporary pedestrian detours may be required, with directional signage provided. Construction activity: Trucks and equipment may generate some noise, vibration and dust. Transit: No impacts to transit services are anticipated. Businesses, employees and motorists travelling through the area are encouraged to exercise caution and allow additional travel time. Work may be delayed or rescheduled due to weather or unforeseen circumstances. Additional Information For complete details, please refer to the official Metrolinx construction notice (PDF) . For questions or concerns, contact the Ontario Line Community Engagement Team: Phone: 416-202-5100 (24 hours a day, 7 days a week) Email: OntarioLine@metrolinx.com Website: Metrolinx Ontario Line For additional local traffic information, visit the LBPA Traffic Alerts page . Source: Metrolinx Ontario Line Construction Notice, November 19, 2026. The post Ontario Line: Test Pit Investigations Near 20 Overlea Boulevard appeared first on Leaside Business Park .</div>
+    </li>
+  
+    <li>
+      <a class="t" href="https://news.google.com/rss/articles/CBMiowFBVV95cUxQb211UzRBaUUtUzlpb2J2ZjQ3RVZfdmN4MlhZb0RKNWpobE5WMklDNWJBQkRsT0RWY3Q3UGJDRktHUEthTlVHWnJUMGtjMkNLUzl1X21IU2RLSEZ2QWtmcGhCblNzb2Nlam5qWGpqVUJ6VjVSNm1kZ1BLSDRqVXpZelk3bVduTlRUM2tXV3Z0c2pCV2FuZXRJVG90MXRZM3hjSEgw?oc=5" target="_blank" rel="noopener">Home of the Week: Tranquil setting and nearby school sold couple on Leaside home (theglobeandmail.com)</a>
+      <div class="meta"><span class="tag">Leaside</span>Leaside in the news (Google News) &middot; <time data-ts="2026-11-20T13:00:00+00:00">2026-11-20</time></div>
+      
+    </li>
+  
+    <li>
+      <a class="t" href="https://news.google.com/rss/articles/CBMiYkFVX3lxTE0tbmpKOWxZWlRNT2FkZ0p1VmJvZnpYZnZqckdZY2VfaEtMREZnRHVlelNiakVaZnBna1pNWWpmbnRhaWl3YmR1T2x0dE9LNUZUeFEwdWhFV0pDUTFOcGhuYjlB?oc=5" target="_blank" rel="noopener">Missing Person, Bayview Avenue and Hillsdale Avenue East area (tps.ca)</a>
+      <div class="meta"><span class="tag">Leaside</span>Police news about your areas (press coverage via Google News) &middot; <time data-ts="2026-11-19T05:48:04+00:00">2026-11-19</time></div>
+      
+    </li>
+  
+    <li>
+      <a class="t" href="https://bayview-news.com/2026/11/rosedales-holly-berry-fair-returns-nov-21-22-2026.html/" target="_blank" rel="noopener">Rosedale’s Holly Berry Fair returns – Nov. 21 &amp; 22, 2026</a>
+      <div class="meta"><span class="tag">Leaside</span>The South Bayview Bulldog &middot; <time data-ts="2026-11-18T13:30:12+00:00">2026-11-18</time></div>
+      
+    </li>
+  
+    <li>
+      <a class="t" href="https://bayview-news.com/2026/11/flight-centre-crosstown-hosts-grand-opening-nov-19th.html/" target="_blank" rel="noopener">Flight Centre Crosstown hosts grand opening Nov. 19th</a>
+      <div class="meta"><span class="tag">Leaside</span>The South Bayview Bulldog &middot; <time data-ts="2026-11-17T14:05:34+00:00">2026-11-17</time></div>
+      
+    </li>
+  
+    <li>
+      <a class="t" href="https://bayview-news.com/2026/11/my-brother-david-podcast-has-officially-launched.html/" target="_blank" rel="noopener">‘My Brother David’ podcast has officially launched</a>
+      <div class="meta"><span class="tag">Leaside</span>The South Bayview Bulldog &middot; <time data-ts="2026-11-16T21:00:42+00:00">2026-11-16</time></div>
+      
+    </li>
+  
+    <li>
+      <a class="t" href="https://news.google.com/rss/articles/CBMi1AFBVV95cUxNVWpUYjBvTW4xbHQ5bERYa0JRVEZBNHZhRmliRDhlTlBydnB3dlhRcmtWdUpXTTkySEYzYm9WaU1Sa2M1MFVQa0ttZGtQbEdOQW1sT19MSmZPV3JWQklVeEZCM2ZXdmNoTWlmNGVJV1BRYXBCVGJWSFQxZUx1SzU4UnJWOW83cG5WNUo2QmZ1NG9Oc2xkTjRQMm95S21Ka1oxS2FHeGp0ZzM2MW5ybTdlaUpXR09lUENiTDVqcG5VUGVLUzV6b1VsOFRLaThPQmFIUUVlQQ?oc=5" target="_blank" rel="noopener">Toronto&#39;s Leaside Bridge still without safety barriers months after planned construction date (toronto.citynews.ca)</a>
+      <div class="meta"><span class="tag">Leaside</span>Leaside in the news (Google News) &middot; <time data-ts="2026-11-16T14:22:00+00:00">2026-11-16</time></div>
+      
+    </li>
+  
+    <li>
+      <a class="t" href="https://news.google.com/rss/articles/CBMilgFBVV95cUxPUk9GeHl2eTJfR09sajJLUTd0TldxaWQtUkN1eFF5bk5vSGZ5YmdMYzBvVWdnQ1M1VUN0NldERG5QbGg2eXpNcFhGVzYzQnI0dFFQaTJST0xDU2R6cHo2NC1YVlE0ZV9tbGFXVzdQTzl0cldKTnVVbnlTQnMtR0t0d0FfN3dNSV9aWTAwekc5V1lISTNBbHc?oc=5" target="_blank" rel="noopener">‘Ridiculous’: Toronto’s Leaside Bridge still without safety barriers months after construction was to begin (toronto.citynews.ca)</a>
+      <div class="meta"><span class="tag">Leaside</span>Leaside in the news (Google News) &middot; <time data-ts="2026-11-16T08:00:00+00:00">2026-11-16</time></div>
+      
+    </li>
+  
+  </ul>
+  
+</section>
+
+<div class="cols">
+<section>
+  <h2>Police calls <a href="calls.html">all calls</a> <a href="map.html?layers=calls&amp;since=7">on the map</a></h2>
+  
+  <p class="kinds">42 this week: Accidents 7, Disorder 16, Violent crime 8, Theft 3, Break-ins 6, Other 2.
+    20 ignored calls, such as ambulance assists and welfare checks, left out.</p>
+  <ul class="plain calls">
+  
+    
+    <li><time data-ts="2026-11-28T16:59:30+00:00">11-28T16:59</time><b class="grp">Disorder</b> Disorderlies <span class="w">near EGLINTON AVE W - ROEHAMPTON AVE</span></li>
+  
+    
+    <li><time data-ts="2026-11-28T14:07:14+00:00">11-28T14:07</time><b class="grp">Break and enter</b> Break &amp; Enter <span class="w">near YONGE ST - COWBELL LANE</span></li>
+  
+    
+    <li><time data-ts="2026-11-28T04:59:43+00:00">11-28T04:59</time><b class="grp">Break and enter</b> Break &amp; Enter In Progress <span class="w">near AL GREEN LANE - PAILTON CRES</span></li>
+  
+    
+    <li><time data-ts="2026-11-28T02:20:56+00:00">11-28T02:20</time><b class="grp">Collision</b> Personal Injury Collision</li>
+  
+    
+    <li><time data-ts="2026-11-27T23:10:00+00:00">11-27T23:10</time><b class="grp">Break and enter</b> Break &amp; Enter In Progress <span class="w">near REDPATH AVE - MOUNT PLEASANT RD</span></li>
+  
+    
+    <li><time data-ts="2026-11-27T21:22:30+00:00">11-27T21:22</time><b class="grp">Disorder</b> Disorderlies <span class="w">near YONGE ST - DAVISVILLE AVE</span></li>
+  
+    
+    <li><time data-ts="2026-11-27T20:51:36+00:00">11-27T20:51</time><b class="grp">Disorder</b> Disorderlies <span class="w">near BALLIOL ST - CHAPLIN CRES</span></li>
+  
+    
+    <li><time data-ts="2026-11-27T03:46:42+00:00">11-27T03:46</time><b class="grp">Assault</b> Assault Just Occurred <span class="w">near YONGE ST</span></li>
+  
+    
+    <li><time data-ts="2026-11-27T02:07:33+00:00">11-27T02:07</time><b class="grp">Theft/robbery</b> Theft <span class="w">near BROOKDALE AVE - GLENFOREST RD</span></li>
+  
+    
+    <li><time data-ts="2026-11-26T21:43:37+00:00">11-26T21:43</time><b class="grp">Collision</b> Personal Injury Collision <span class="w">near BRIAR HILL AVE - ALBERTUS AVE</span></li>
+  
+    
+    <li><time data-ts="2026-11-26T21:39:18+00:00">11-26T21:39</time><b class="grp">Weapon</b> Person With A Gun <span class="w">near YONGE ST - BRIAR HILL AVE</span></li>
+  
+    
+    <li><time data-ts="2026-11-26T20:01:31+00:00">11-26T20:01</time><b class="grp">Disorder</b> Dispute <span class="w">near PARK RD - PINE HILL RD</span></li>
+  
+  </ul>
+  <p class="meta"><a href="calls.html?since=7" style="color:var(--accent)">All 42 this week &rarr;</a></p>
+  
+</section>
+
+<section>
+  <h2>Being built <a href="permits.html">all permits</a></h2>
+  
+  <ul class="plain">
+  
+    <li><span class="t">New Building: 17 Cheltenham Ave</span><div class="sum">Proposal for a two storey single family dwelling, including an integral garage, front porch, finished basement and rear basement walkout · Estimated $1.5M · 1 new unit · SFD - Detached · New Houses · Status: Not Started · Applied 24 Nov 2026 · Permit 26 274300 BLD</div></li>
+  
+    <li><span class="t">Demolition: 10 Rykert Cres</span><div class="sum">DEMO - Proposal for new 2-storey detached house with covered porch in front yard, and basement walkout, swimming pool, and covered patio in rear yard. The existing 2-storey SFD will be demolished. · Estimated $1.3M · SFD - Detached · Demolition Folder (DM) · Status: Application On Hold · Applied 26 Nov 2026 · Permit 26 275692 DEM</div></li>
+  
+    <li><span class="t">New Building: 10 Rykert Cres</span><div class="sum">Proposal for new 2-storey detached house with covered porch in front yard, and basement walkout, swimming pool, and covered patio in rear yard. The existing 2-storey SFD will be demolished. · Estimated $1.3M · 1 new unit · SFD - Detached · New Houses · Status: Application On Hold · Applied 26 Nov 2026 · Permit 26 275494 BLD</div></li>
+  
+    <li><span class="t">Multiple Projects: 64 Parklea Dr</span><div class="sum">Proposed multiple projects including interior alterations on all floors, new front porch and new rear deck. · Estimated $500K · SFD - Detached · Small Residential Projects · Status: Not Started - Express · Applied 23 Nov 2026 · Permit 26 273593 BLD</div></li>
+  
+    <li><span class="t">Interior Alterations: 150 Kilgour Rd</span><div class="sum">Proposal for interior renovation of an existing Tim Hortons within Holland Bloorview Kids Rehabilitation Hospital. · Estimated $250K · Hospital · Building Additions/Alterations · Status: Application On Hold · Applied 25 Nov 2026 · Permit 26 275065 BLD</div></li>
+  
+    <li><span class="t">Deck: 195 Hudson Dr</span><div class="sum">Proposal to construct a rear deck along the northeast side of the existing dwelling · Estimated $200K · SFD - Detached · Small Residential Projects · Status: Application On Hold · Applied 26 Nov 2026 · Permit 26 275771 BLD</div></li>
+  
+    <li><span class="t">Accessory Building(s): 3 Scholfield Ave</span><div class="sum">Proposal to construct a cabana in the rear yard of existing single family dwelling. See also 26-211550 ZAP 00 ZR · Estimated $100K · SFD - Detached · Small Residential Projects · Status: Application On Hold · Applied 23 Nov 2026 · Permit 26 273488 BLD</div></li>
+  
+    <li><span class="t">Deck: 88 Binscarth Rd</span><div class="sum">Proposal to replace existing rear deck with a new deck. Seasonal sink to be included within the BBQ island cabinetry installed on the deck. · Estimated $80K · SFD - Detached · Small Residential Projects · Status: Not Started · Applied 24 Nov 2026 · Permit 26 274587 BLD</div></li>
+  
+  </ul>
+  <p class="meta">42 permits were new this week; these are the largest.</p>
+  
+
+  <h2 style="margin-top:22px">Eating out <a href="restaurants.html">all inspections</a></h2>
+  
+  <ul class="plain">
+  
+    <li><span class="t">Pass with 1 infraction: SOUVLAKI &amp; PANINI</span><div class="meta"><time data-ts="2026-11-27T00:00:00+00:00">2026-11-27</time></div><div class="sum">6 Fairlawn Ave M5M 1S7 · Infractions: 1 minor · FAIL TO ENSURE EQUIPMENT SURFACE SANITIZED AS NECESSARY - SEC. 22</div></li>
+  
+    <li><span class="t">Pass with 3 infractions: FRANK.</span><div class="meta"><time data-ts="2026-11-26T00:00:00+00:00">2026-11-26</time></div><div class="sum">396 Summerhill Ave M4W 2E4 · Infractions: 2 significant, 1 minor · SANITIZE UTENSILS USING AGENT NOT APPROVED FOR INTENDED PURPOSE - SEC. 19(E)(I); FAIL TO PROVIDE THERMOMETER IN REFRIGERATION EQUIPMENT - SEC. 30(B); Operate food premise - equipment not arranged to permit maintenance in sanitary condition - Sec. 9</div></li>
+  
+    <li><span class="t">Pass with 1 infraction: DOLCE MODA</span><div class="meta"><time data-ts="2026-11-26T00:00:00+00:00">2026-11-26</time></div><div class="sum">420 Summerhill Ave M4W 2E4 · Infractions: 1 minor · Food premise not maintained with walls in good repair in food-handling room - Sec. 7(1)(g)</div></li>
+  
+    <li><span class="t">Pass with 1 infraction: BOBBETTE &amp; BELLE</span><div class="meta"><time data-ts="2026-11-26T00:00:00+00:00">2026-11-26</time></div><div class="sum">3347 Yonge St M4N 2M6 · Infractions: 1 minor · FOOD PREMISE NOT MAINTAINED TO KEEP FOOD-HANDLING ROOM FREE FROM EQUIPMENT NOT REGULARLY USED - SEC. 7(1)(F)</div></li>
+  
+    <li><span class="t">Pass with 3 infractions: VOZARA FOOD FACTORY</span><div class="meta"><time data-ts="2026-11-25T00:00:00+00:00">2026-11-25</time></div><div class="sum">856 Eglinton Ave E M4G 2L1 · Infractions: 2 minor, 1 significant · OPERATE FOOD PREMISE - FAIL TO EQUIP SANITARY FACILITY WITH TOILET PAPER - SEC. 25(3)(B); FOOD PREMISE NOT MAINTAINED TO KEEP FOOD-HANDLING ROOM FREE FROM EQUIPMENT NOT REGULARLY USED - SEC. 7(1)(F); Fail to protect against entry of pests - Sec. 13(1)</div></li>
+  
+    <li><span class="t">Pass with 1 infraction: SOBEY&#39;S URBAN FRESH</span><div class="meta"><time data-ts="2026-11-25T00:00:00+00:00">2026-11-25</time></div><div class="sum">22 Balliol St M4S 1C1 · Infractions: 1 minor · FOOD PREMISE NOT MAINTAINED WITH FOOD HANDLING ROOM IN SANITARY CONDITION - SEC. 7(1)(E)</div></li>
+  
+    <li><span class="t">Pass with 1 infraction: LE THOBORS CAFE</span><div class="meta"><time data-ts="2026-11-25T00:00:00+00:00">2026-11-25</time></div><div class="sum">627 Mount Pleasant Rd M4S 2M9 · Infractions: 1 minor · FOOD PREMISE NOT MAINTAINED WITH FOOD HANDLING ROOM IN SANITARY CONDITION - SEC. 7(1)(E)</div></li>
+  
+    <li><span class="t">Pass with 1 infraction: JING CHINESE RESTAURANT</span><div class="meta"><time data-ts="2026-11-25T00:00:00+00:00">2026-11-25</time></div><div class="sum">1634 Bayview Ave M4G 3B7 · Infractions: 1 na · Fail to ensure completion of food handling training by food handler or supervisor - Sec. 32</div></li>
+  
+  </ul>
+  
+</section>
+</div>
+
+<p class="lag">Reported crime and collisions arrive months late: the newest crime record is from 2026-09-30
+  and the newest collision from 2026-10-22. They are on the <a href="map.html">map</a> and in the
+  <a href="trends.html">trends</a>, not here.</p>
+
+
+<section class="sources" id="sources" aria-labelledby="sources-h">
+  <h2 id="sources-h">Where this data comes from</h2>
+  
+  <table>
+    <tr><th>Source</th><th>Provides</th><th>Terms</th><th class="num">Records</th><th>Newest</th></tr>
+    
+    <tr>
+      <td><a href="https://open.toronto.ca/dataset/building-permits-active-permits/" target="_blank" rel="noopener">Building permits (active)</a>
+        <br><span class="pub">City of Toronto, Toronto Building</span></td>
+      <td>Building permits</td>
+      <td><a href="https://www.toronto.ca/city-government/data-research-maps/open-data/open-data-licence/" target="_blank" rel="noopener">Open Government Licence – Toronto</a></td>
+      <td class="num">7,803</td>
+      <td>2026-11-26</td>
+    </tr>
+    
+    <tr>
+      <td><a href="http://bayviewleasidebia.com/" target="_blank" rel="noopener">Bayview-Leaside Business Improvement Area</a>
+        </td>
+      <td>Business news</td>
+      <td>Copyright of each publisher</td>
+      <td class="num">10</td>
+      <td>2026-09-02</td>
+    </tr>
+    
+    <tr>
+      <td><a href="https://leasidebusinesspark.com/" target="_blank" rel="noopener">Leaside Business Park Association</a>
+        </td>
+      <td>Business news</td>
+      <td>Copyright of each publisher</td>
+      <td class="num">7</td>
+      <td>2026-11-25</td>
+    </tr>
+    
+    <tr>
+      <td><a href="https://secure.toronto.ca/nm/notices/current.do" target="_blank" rel="noopener">City of Toronto public notices (City Clerk)</a>
+        <br><span class="pub">City of Toronto, City Clerk&#39;s Office</span></td>
+      <td>City notices</td>
+      <td><a href="https://www.toronto.ca/city-government/data-research-maps/open-data/open-data-licence/" target="_blank" rel="noopener">Open Government Licence – Toronto</a></td>
+      <td class="num">164</td>
+      <td>2026-09-11</td>
+    </tr>
+    
+    <tr>
+      <td><a href="https://open.toronto.ca/dataset/motor-vehicle-collisions-involving-killed-or-seriously-injured-persons/" target="_blank" rel="noopener">Motor vehicle collisions involving killed or seriously injured persons (KSI)</a>
+        <br><span class="pub">Toronto Police Service, published on City of Toronto Open Data</span></td>
+      <td>Collisions</td>
+      <td><a href="https://www.toronto.ca/city-government/data-research-maps/open-data/open-data-licence/" target="_blank" rel="noopener">Open Government Licence – Toronto</a></td>
+      <td class="num">139</td>
+      <td>2026-10-22</td>
+    </tr>
+    
+    <tr>
+      <td><a href="https://data.tps.ca/" target="_blank" rel="noopener">TPS Traffic Collisions (ASR-T-TBL-001)</a>
+        <br><span class="pub">Toronto Police Service, Public Safety Data Portal</span></td>
+      <td>Collisions</td>
+      <td><a href="https://www.tps.ca/data-maps/resources/licence/" target="_blank" rel="noopener">Open Government Licence – Ontario</a></td>
+      <td class="num">2,204</td>
+      <td>2026-09-30</td>
+    </tr>
+    
+    <tr>
+      <td><a href="https://leasidegardens.com/" target="_blank" rel="noopener">Leaside Memorial Community Gardens</a>
+        </td>
+      <td>Community news</td>
+      <td>Copyright of each publisher</td>
+      <td class="num">11</td>
+      <td>2026-09-17</td>
+    </tr>
+    
+    <tr>
+      <td><a href="https://news.google.com/search?q=Leaside%20Toronto" target="_blank" rel="noopener">Leaside in the news (Google News)</a>
+        <br><span class="pub">Google News (stories from each outlet named)</span></td>
+      <td>Local news</td>
+      <td><a href="https://news.google.com/" target="_blank" rel="noopener">Found through Google News</a></td>
+      <td class="num">191</td>
+      <td>2026-11-27</td>
+    </tr>
+    
+    <tr>
+      <td><a href="https://bayview-news.com/" target="_blank" rel="noopener">The South Bayview Bulldog</a>
+        </td>
+      <td>Local news</td>
+      <td>Copyright of each publisher</td>
+      <td class="num">28</td>
+      <td>2026-11-18</td>
+    </tr>
+    
+    <tr>
+      <td><a href="https://fontra.com/" target="_blank" rel="noopener">Federation of North Toronto Residents&#39; Associations</a>
+        </td>
+      <td>Planning</td>
+      <td>Copyright of each publisher</td>
+      <td class="num">10</td>
+      <td>2026-09-26</td>
+    </tr>
+    
+    <tr>
+      <td><a href="https://c4s.torontopolice.on.ca/" target="_blank" rel="noopener">Toronto Police calls for service (live map)</a>
+        <br><span class="pub">Toronto Police Service, calls for service map</span></td>
+      <td>Police calls</td>
+      <td><a href="https://www.tps.ca/data-maps/resources/terms-use/" target="_blank" rel="noopener">Toronto Police Service terms of use</a></td>
+      <td class="num">502</td>
+      <td>2026-11-28</td>
+    </tr>
+    
+    <tr>
+      <td><a href="https://news.google.com/search?q=%22Toronto%20police%22%20Leaside" target="_blank" rel="noopener">Police news about your areas (press coverage via Google News)</a>
+        <br><span class="pub">Google News (stories from each outlet named)</span></td>
+      <td>Police news</td>
+      <td><a href="https://news.google.com/" target="_blank" rel="noopener">Found through Google News</a></td>
+      <td class="num">205</td>
+      <td>2026-11-19</td>
+    </tr>
+    
+    <tr>
+      <td><a href="https://data.tps.ca/" target="_blank" rel="noopener">Toronto Police reported crime</a>
+        <br><span class="pub">Toronto Police Service, Public Safety Data Portal</span></td>
+      <td>Reported crime</td>
+      <td><a href="https://www.tps.ca/data-maps/resources/licence/" target="_blank" rel="noopener">Open Government Licence – Ontario</a></td>
+      <td class="num">8,454</td>
+      <td>2026-09-30</td>
+    </tr>
+    
+    <tr>
+      <td><a href="https://leasideresidents.ca/" target="_blank" rel="noopener">Leaside Residents Association</a>
+        </td>
+      <td>Residents&#39; association news</td>
+      <td>Copyright of each publisher</td>
+      <td class="num">11</td>
+      <td>2026-10-07</td>
+    </tr>
+    
+    <tr>
+      <td><a href="https://moorepark.org/" target="_blank" rel="noopener">Moore Park Residents Association</a>
+        </td>
+      <td>Residents&#39; association news</td>
+      <td>Copyright of each publisher</td>
+      <td class="num">9</td>
+      <td>2026-09-28</td>
+    </tr>
+    
+    <tr>
+      <td><a href="https://sedratoronto.ca/" target="_blank" rel="noopener">South Eglinton Davisville Residents&#39; Association (SEDRA)</a>
+        </td>
+      <td>Residents&#39; association news</td>
+      <td>Copyright of each publisher</td>
+      <td class="num">10</td>
+      <td>2026-10-22</td>
+    </tr>
+    
+    <tr>
+      <td><a href="https://southrosedale.org/" target="_blank" rel="noopener">South Rosedale Residents&#39; Association</a>
+        </td>
+      <td>Residents&#39; association news</td>
+      <td>Copyright of each publisher</td>
+      <td class="num">10</td>
+      <td>2025-11-20</td>
+    </tr>
+    
+    <tr>
+      <td><a href="https://www.toronto.ca/dinesafe" target="_blank" rel="noopener">DineSafe restaurant inspections</a>
+        <br><span class="pub">City of Toronto, Toronto Public Health</span></td>
+      <td>Restaurant inspections</td>
+      <td><a href="https://www.toronto.ca/city-government/data-research-maps/open-data/open-data-licence/" target="_blank" rel="noopener">Open Government Licence – Toronto</a></td>
+      <td class="num">1,503</td>
+      <td>2026-11-27</td>
+    </tr>
+    
+  </table>
+  
+  <p class="lic">Headlines and short excerpts belong to their publishers. Each item links to the original.</p>
+  
+  <p class="lic">Contains information licensed under the Open Government Licence – Toronto. <a href="https://www.toronto.ca/city-government/data-research-maps/open-data/open-data-licence/" target="_blank" rel="noopener">The licence</a>.</p>
+  
+  <p class="lic">Headlines found through Google News belong to the outlet named in brackets after each one. <a href="https://news.google.com/" target="_blank" rel="noopener">The licence</a>.</p>
+  
+  <p class="lic">Police calls come from the Toronto Police Service&#39;s public map. The police describe this as preliminary information that may not have been verified, and call types may change after investigation. <a href="https://www.tps.ca/data-maps/resources/terms-use/" target="_blank" rel="noopener">The licence</a>.</p>
+  
+  <p class="lic">Contains information licensed under the Open Government Licence – Ontario. <a href="https://www.tps.ca/data-maps/resources/licence/" target="_blank" rel="noopener">The licence</a>.</p>
+  
+  <p class="lic">This site is independent. It is not affiliated with, or endorsed by, the City of Toronto, the Toronto Police Service or any other publisher listed here.</p>
+  
+</section>
+
+<p class="foot">Nothing collected is ever deleted. The complete log and its downloads are on the <a href="news.html#log">News page</a>.<br>
+Page generated 2026-11-28T19:13 UTC by code 724bfc4 · dated 2026-11-16 · 13 days old.</p>
+</div>
+
+<script id="near" type="application/json">[["b6d402a3a5c3234a597d4cbaf5c4c4dde231f7cd","police_call","Disorderlies near EGLINTON AVE W - ROEHAMPTON AVE","2026-11-28",43.70674,-79.39831,"Davisville",""],["c07afea48aec8251b9b6da540bef40fb8d345022","police_call","Break & Enter near YONGE ST - COWBELL LANE","2026-11-28",43.70416,-79.3978,"Davisville",""],["2125990378ff18c700e6cd7e22f990402fdf4c62","police_call","Break & Enter In Progress near AL GREEN LANE - PAILTON CRES","2026-11-28",43.69613,-79.39614,"Davisville",""],["f8572ad8351fcccd6e8ba11fea866171117d48c3","police_call","Personal Injury Collision","2026-11-28",43.71109,-79.37711,"Leaside",""],["cdce31c93c5fed69e38b95324614b990df2f5420","police_call","Break & Enter In Progress near REDPATH AVE - MOUNT PLEASANT RD","2026-11-27",43.70963,-79.39062,"Davisville",""],["eac38ec2321c9a3107de733f03a1450028987b69","police_call","Disorderlies near YONGE ST - DAVISVILLE AVE","2026-11-27",43.6983,-79.39661,"Davisville",""],["134ec917025279f26e139d92db12502930955cfc","police_call","Disorderlies near BALLIOL ST - CHAPLIN CRES","2026-11-27",43.6983,-79.39661,"Davisville",""],["f07d6195095e74a115c89245367af13bd5b165bb","police_call","Assault Just Occurred near YONGE ST","2026-11-27",43.7003,-79.39698,"Davisville",""],["778d1ab1bad20aa4b65063e7673e14398e860368","police_call","Theft near BROOKDALE AVE - GLENFOREST RD","2026-11-27",43.73029,-79.40356,"Lawrence Park",""],["0c5ee9a6634149d94477788abd42f6de793a5724","inspection","Pass with 1 infraction: SOUVLAKI & PANINI","2026-11-27",43.73094,-79.40415,"Lawrence Park",""],["8bd3a6bdc1278e86172cab42fd5b53b561c3ce8c","police_call","Personal Injury Collision near BRIAR HILL AVE - ALBERTUS AVE","2026-11-26",43.71367,-79.39982,"Davisville",""],["6693a92d7c448be1b8aba00f01244034be463348","police_call","Person With A Gun near YONGE ST - BRIAR HILL AVE","2026-11-26",43.71367,-79.39982,"Davisville",""],["664dba6d3660ad2f3a9ab0423063045cb5564174","police_call","Dispute near PARK RD - PINE HILL RD","2026-11-26",43.67478,-79.38413,"South Rosedale",""],["8f2c60209559a878ce12c1d6b2c979ca15cd1fe4","police_call","Fight near EGLINTON AVE E - MOUNT PLEASANT RD","2026-11-26",43.70842,-79.39016,"Davisville",""],["3eca410c2e90b83feb5407b322990cbcabd79d24","police_call","Fail To Remain Property Damage Collision near ST ANDREWS GDNS - ST ANDREWS GDNS","2026-11-26",43.68459,-79.37663,"North Rosedale",""],["b84d545de671745298c3781b81b892e702015f2f","police_call","Disorderlies near YONGE ST - DEER PARK CRES","2026-11-26",43.68913,-79.39453,"North Rosedale",""],["620ac141573240f1ce1a3b803f29fbefed89f4c8","inspection","Pass with 3 infractions: FRANK.","2026-11-26",43.68595,-79.37714,"North Rosedale",""],["980b044c27d372b71fd73a93461e11697c1ba549","inspection","Pass with 1 infraction: DOLCE MODA","2026-11-26",43.68618,-79.37617,"North Rosedale",""],["bd0a954d5ff7a36f12edad7ae50ebe2070fbf059","inspection","Pass with 1 infraction: BOBBETTE & BELLE","2026-11-26",43.73141,-79.40353,"Lawrence Park",""],["7ff8e36d5ab1362e04989f593bb159dc66ffdc5f","police_call","Personal Injury Collision near BRENTCLIFFE RD - EGLINTON AVE E","2026-11-25",43.71463,-79.3598,"Leaside",""],["a9279988993dfb023166a7c0ae9d08f34aa8d624","police_call","Fail To Remain Property Damage Collision near MACLENNAN TRL - JEAN ST","2026-11-25",43.68649,-79.37392,"North Rosedale",""],["9b33abea60dcc3f6db5ed2407c8c72173fdbec49","police_call","Fail To Remain Property Damage Collision near ST ANDREWS GDNS - ST ANDREWS GDNS","2026-11-25",43.68459,-79.37663,"North Rosedale",""],["edc71359decd60ff880cd52566208b8da225b733","police_call","Attempt Break & Enter near KINGSMERE RD - WELLAND AVE","2026-11-25",43.69423,-79.38144,"Moore Park",""],["ff88df224eb418d3a8e279fd6de4897b06550dcc","police_call","Disorderlies near TAMBLYN LANE - ALVIN AVE","2026-11-25",43.6884,-79.39264,"Moore Park",""],["a5651c5d9ba36ce8963fd5853561c9d188ff171f","police_call","Disorderlies near CHARLESWORTH LANE - SHAFTESBURY PL","2026-11-25",43.68228,-79.39012,"North Rosedale",""],["8cfdd989aaf261e33e3768b2dfcd01f198424467","police_call","Prowler On Location near YONGE ST - DAVID A BALFOUR PARK TRL","2026-11-25",43.68379,-79.3886,"North Rosedale",""],["0594b795a7d3332bf0a2b58150fe2136051ee6ef","police_call","Attempt Break & Enter near GLENROSE AVE - ST CLAIR AVE E","2026-11-25",43.69014,-79.38434,"North Rosedale",""],["0d2c36fa2515c0bf1d9fe9e694b81c480c553f2b","inspection","Pass with 3 infractions: VOZARA FOOD FACTORY","2026-11-25",43.71365,-79.36547,"Leaside",""],["4173098cfd320013e60ea0df4af46fb1890de1a3","inspection","Pass with 1 infraction: SOBEY'S URBAN FRESH","2026-11-25",43.69791,-79.39554,"Davisville",""],["8e744a2a6419c3724e11d97828bd83626680f800","inspection","Pass with 1 infraction: LE THOBORS CAFE","2026-11-25",43.70459,-79.3883,"Davisville",""],["755bc7abb17391f27d38dcefea62f71620da912c","inspection","Pass with 1 infraction: JING CHINESE RESTAURANT","2026-11-25",43.70669,-79.37581,"Davisville",""],["fcb299ba46ea3c3e6f7f89a22b6d44b68a4d0189","inspection","Pass with 1 infraction: ACAI BRAZIL","2026-11-25",43.70178,-79.39706,"Davisville",""],["8f62345f05568773dba0af6602fa58c0571d11d0","police_call","Assault Just Occurred near ASQUITH AVE - YORKVILLE AVE","2026-11-24",43.67193,-79.38746,"North Rosedale",""],["9d3236a0c2cf2aa6072ae9eba01c1bc6aee6d9f5","police_call","Dispute near YONGE ST - LAWRENCE AVE E","2026-11-24",43.72509,-79.4022,"Lawrence Park",""],["6c29389bd0469d5a58519b0c2700ffc0ca7650b6","police_call","Disorderlies near YONGE ST - ALVIN AVE","2026-11-24",43.6903,-79.39342,"Moore Park",""],["c34a8cdfc008cbfdf2f11a0f809b80134766d015","police_call","Disorderlies near YONGE ST - PARK RD","2026-11-24",43.67023,-79.38676,"North Rosedale",""],["fb4e5c96d10c89ea969dc57aa93ced57cb2f9130","inspection","Conditional Pass: THE LEASIDE PUB","2026-11-24",43.71053,-79.36387,"Leaside",""],["77cc21986ed6a43fced0ff7a5bc4a162549ea47a","inspection","Pass with 1 infraction: LOUIE'S CLASSICO PIZZERIA","2026-11-24",43.71326,-79.39946,"Davisville",""],["017b0439e7f1ef246c0229645094930f17b2b47a","inspection","Pass with 1 infraction: DUFF'S FAMOUS WINGS","2026-11-24",43.70608,-79.37562,"Davisville",""],["a1acaf86507b6bbcb412c522e3b18a489f301109","inspection","Pass with 1 infraction: CURIOUS CATERPILLARS","2026-11-24",43.70907,-79.38451,"Davisville",""],["cde2851ba8038b0ce8aecb8491a5dace08f840de","police_call","Fail To Remain Personal Injury Collision near DALE AVE - MC KENZIE AVE","2026-11-23",43.67444,-79.36857,"South Rosedale",""],["ad6a7f8ca99c09f2684a61713718d8dd34c52678","police_call","Disorderlies near YONGE ST - LN 1 E YONGE S PLEASANT","2026-11-23",43.68712,-79.39369,"Moore Park",""],["03ed30b0b6f33bb5b5126ff99aaec4a5131cd65d","police_call","Disorderlies near TAMBLYN LANE - ALVIN AVE","2026-11-23",43.6884,-79.39264,"Moore Park",""],["5a5b2968379c68bf31a9d6ab7dcbfc0880dfe850","police_call","Person With A Knife near CHURCH ST - FRICHOT AVE","2026-11-23",43.67488,-79.38867,"North Rosedale",""],["af354feabcd7e2665d904d647522c71297ff7cbd","police_call","Person With A Knife near CHURCH ST - FRICHOT AVE","2026-11-23",43.67488,-79.38867,"North Rosedale",""],["b9a917a2ca137c31bb1e71a68553f1158bc74fc3","police_call","Dispute near YONGE ST - PAILTON CRES","2026-11-23",43.69951,-79.39089,"Davisville",""],["64042d3e16c2e984fd97189e6b4dd62f49b429fe","police_call","Disorderlies near YONGE ST - LN W YONGE S YORKVILLE","2026-11-23",43.67216,-79.38755,"North Rosedale",""],["1b2540f7aa532383c9c13f505cfe20ecc7ae747b","police_call","Stabbing near LYMPSTONE AVE - LAWRENCE PARK RAVINE TRL","2026-11-23",43.72345,-79.40187,"Lawrence Park",""],["1c9fb7a9ede07f25673548100e00f324209df5e9","police_call","Assault Just Occurred near AL GREEN LANE - PAILTON CRES","2026-11-22",43.69613,-79.39614,"Davisville",""],["a8c4d51dbb1aed22d7ab6b77ece125cddb7ec340","police_call","Disorderlies near BLOOR ST E - YONGE ST","2026-11-22",43.67023,-79.38676,"North Rosedale",""],["bde67b507f35f6b26e074c464561f1c33b99da81","police_call","Theft near BROOKDALE AVE - GLENFOREST RD","2026-11-22",43.73029,-79.40356,"Lawrence Park",""],["39eec065dfaefb1a470d755c548fe3671039f250","police_call","Break & Enter near DUNDURN RD - ST LEONARD'S CRES","2026-11-22",43.72242,-79.39023,"Lawrence Park",""],["a55c76760947491cd112216327d4db5a06094ee9","police_call","Fight near YONGE ST - MERTON ST","2026-11-22",43.69613,-79.39614,"Davisville",""],["1a53920b6f2c467e6bd5b1bff59fd93cababe58a","police_call","Disorderlies near BRIAR HILL AVE - ALBERTUS AVE","2026-11-22",43.71367,-79.39982,"Davisville",""],["15de1da4d4793950532c967deb43f5dd9706afd0","police_call","Theft Just Occurred near ST CLEMENTS AVE - SHERWOOD AVE","2026-11-21",43.71353,-79.39979,"Davisville",""],["58d1bd24aea617d10158d495dc6cf9a8a47d4bfa","police_call","Robbery near WILKET CREEK TRL - WILKET CREEK TRL","2026-11-21",43.71874,-79.36557,"Leaside",""],["d8ac3981bb9adfa501705b8433f0af53782bce0a","police_call","Assault near YONGE ST - DAVID A BALFOUR PARK TRL","2026-11-21",43.68379,-79.3886,"North Rosedale",""],["656517907103d37bfe381b222e3070dd6eb4ccd3","police_call","Break & Enter near SHARRON DR - CROFTON RD","2026-11-21",43.70739,-79.36755,"Leaside",""],["4f260bf051911fb420be98c9f3018b9ec0e01019","police_call","Assault near YONGE ST - DAVID A BALFOUR PARK TRL","2026-11-21",43.68379,-79.3886,"North Rosedale",""],["005ad11ca74893ab8cf4e738eecfb3dc1789b918","police_call","Dispute near YONGE ST - PAILTON CRES","2026-11-21",43.69951,-79.39089,"Davisville",""],["e83e363e65c9d37a36d20e049a1c49d48b143465","police_call","Assault Just Occurred near AL GREEN LANE - PAILTON CRES","2026-11-21",43.69738,-79.39642,"Davisville",""],["5408b1a5f3028606b2ea039fcaded6f1020e9c87","police_call","Indecent Exposure Just Occurred near YONGE ST - EGLINTON AVE E","2026-11-21",43.70674,-79.39831,"Davisville",""],["90a27ae1be4d6f11d3e82acb43b55ec433845051","police_call","Noisy Party near YONGE ST - TULLIS DR","2026-11-21",43.70151,-79.39541,"Davisville",""],["c86b85887bed4ab98a92d4792eb1c0d17102c4e6","police_call","Break & Enter In Progress near YONGE ST - MOUNT PLEASANT RD","2026-11-21",43.72716,-79.39933,"Lawrence Park",""],["cb5d3134f59e21fbb9cb055870d2812947adbc41","police_call","Break & Enter Just Occurred near MILLWOOD RD - HEPC","2026-11-21",43.70008,-79.36269,"Leaside",""],["9cbb90f0c14291b289d98deebf867a31dc2e67ba","police_call","Break & Enter Just Occurred near MILLWOOD RD - HEPC","2026-11-21",43.70008,-79.36269,"Leaside",""],["811609333e1354429280867866e9e97075054a56","police_call","Break & Enter Just Occurred near YONGE ST - MERTON ST","2026-11-21",43.69613,-79.39614,"Davisville",""],["73c3ea33b704be57e8ba97d3a2e78ca2bcda22f9","police_call","Break & Enter Just Occurred near AL GREEN LANE - PAILTON CRES","2026-11-21",43.69613,-79.39614,"Davisville",""],["f3075a6db54ec16916306a6ea552d01c6d74cb19","police_call","Disorderlies near YONGE ST - LN W YONGE S YORKVILLE","2026-11-21",43.67216,-79.38755,"North Rosedale",""],["41c6beaf1489dae37b5d668da29abb3ff81d3cb4","police_call","Property Damage Collision near PARK RD - ROSEDALE VALLEY RD","2026-11-20",43.67351,-79.38402,"South Rosedale",""],["f737fa98e420876718ef43abd51b77b14b1a5f41","police_call","Trespass near LN E PARK RD N CHURCH - ROSEDALE RAVINE LANDS TRL","2026-11-20",43.67351,-79.38402,"South Rosedale",""],["c8a26d1ea68d79f0ae2da6165c0f3baa618056c9","police_call","Break & Enter near YONGE ST - LN W YONGE N FARNHAM","2026-11-20",43.68588,-79.39318,"North Rosedale",""],["8095295f96bb6ff3888c5739619c1ccec74c64f7","police_call","Theft near RONAN AVE - RIVERVIEW DR","2026-11-20",43.7339,-79.39456,"Lawrence Park",""],["737eaa3ba1c0d8711e0a253f18ab00761c90c4c2","police_call","Assault Just Occurred near YONGE ST - ST CLAIR AVE E","2026-11-20",43.68817,-79.39413,"North Rosedale",""],["9a77bd342d87fed06cc3dba52d316e87e1925c1e","police_call","Robbery near CHURCH ST - FRICHOT AVE","2026-11-20",43.67488,-79.38867,"North Rosedale",""],["23b506a08e1c22432d01dc7bc9e2de2ff9f34593","police_call","Person With A Knife near BELTLINE TRL - CRAIGLEIGH GARDENS TRL","2026-11-20",43.67762,-79.37514,"South Rosedale",""],["e9f7ada3346eeeddd07c8a3043501ed9c4fff7c3","inspection","Pass with 1 infraction: GABBY'S ROADHOUSE","2026-11-20",43.72929,-79.4029,"Lawrence Park",""],["23aedda8b98969056f0814120f95250ae6bbc9a1","police_call","Robbery near CHURCH ST - FRICHOT AVE","2026-11-19",43.67488,-79.38867,"North Rosedale",""],["02d467d4436ebf78a29243e4ed936ab7ce1bfa3d","police_call","Disorderlies near YONGE ST - PAILTON CRES","2026-11-19",43.6983,-79.39661,"Davisville",""],["474f225e22501525b2fe6301abab44cfe84896ac","police_call","Break & Enter near LYMPSTONE AVE - LAWRENCE AVE E","2026-11-19",43.72371,-79.40061,"Lawrence Park",""],["8ac1e877002a63255c7764d507b302f6a9adf5a9","police_call","Person With A Gun near BAYVIEW AVE - EGLINTON AVE E","2026-11-19",43.71109,-79.37711,"Leaside",""],["3596c19fb09444cd4181c71b53280a5f2327f03d","police_call","Disorderlies near LAWRENCE AVE E - YONGE ST","2026-11-19",43.72509,-79.4022,"Lawrence Park",""],["c925a621d3d12ff43f0f8fcacefdafda7fd6251c","police_call","Disorderlies near MERTON ST - BALLIOL ST","2026-11-19",43.69613,-79.39614,"Davisville",""],["f2b00619462d6c268ea481cac00881041ba75ce3","police_call","Impaired Driver near OVERLEA BLVD - MILLWOOD RD","2026-11-19",43.70187,-79.35277,"Leaside",""],["21c9f80c2275c2980d328cfb6cbbee78da937cd6","police_call","Missing Elderly near FORMAN AVE - CLEVELAND ST","2026-11-19",43.7071,-79.3795,"Davisville",""],["b4f176cf0dc1a7157d6984cf4cbb0587ad5665a8","police_call","Disorderlies near MERTON ST - BALLIOL ST","2026-11-19",43.69738,-79.39642,"Davisville",""],["dc03c1fcb0b0466181a805a9282e9fa140c1f07c","police_call","Assault near ERSKINE AVE - MOUNT PLEASANT RD","2026-11-19",43.71262,-79.39175,"Davisville",""],["ff52f7924f4f5e1294d9c26a4d1ee782e3c42a20","police_call","Fail To Remain Personal Injury Collision near GLENGROVE AVE E - ALEXANDER MUIR RD","2026-11-19",43.72098,-79.40139,"Lawrence Park",""],["33c678c643c42e15e899c3530a8793dd07bc666e","inspection","Pass with 2 infractions: TZATZIKI","2026-11-19",43.70734,-79.39026,"Davisville",""],["820c8b3efb8debf5abed716c335682c1d73e83f1","inspection","Pass with 2 infractions: SUSHI BY K","2026-11-19",43.71374,-79.36512,"Leaside",""],["70aed10c89214442c402de3a907a347d5ca42c8f","inspection","Pass with 1 infraction: RAMONA'S KITCHEN","2026-11-19",43.70617,-79.37561,"Davisville",""],["651786fb9228546b39371391636d3e7cb600b86c","inspection","Pass with 3 infractions: BANCAN KITCHEN","2026-11-19",43.71346,-79.36667,"Leaside",""],["9d4585dac8a8c38c4429191423bd07ec46f18865","police_call","Personal Injury Collision near MOUNT PLEASANT RD - RONAN AVE","2026-11-18",43.73128,-79.39869,"Lawrence Park",""],["8cb362eb9ace49c084217a19940d894278f88492","police_call","Industrial Accident near DRUMSNAB RD - BLOOR W BAYVIEW S RAMP","2026-11-18",43.67535,-79.3688,"South Rosedale",""],["50bb72989839bc44ad47a6e94e8dff7f3196b92c","police_call","Industrial Accident near DRUMSNAB RD - BLOOR W BAYVIEW S RAMP","2026-11-18",43.67535,-79.3688,"South Rosedale",""],["42493cd162c6d918086a2ead8837db4a4f899fdf","police_call","Break & Enter near BLYTHWOOD CRES - MOUNT PLEASANT RD","2026-11-18",43.71695,-79.39359,"Davisville",""],["061e645a8c89011a3a17872b96a4720a3346c5ce","inspection","Pass with 2 infractions: THE BAGEL HOUSE","2026-11-18",43.70415,-79.41195,"Lawrence Park",""],["2dc37a6a12ca2d7c5efd5bac6699e534f959c783","inspection","Pass with 1 infraction: Mythos Toronto","2026-11-18",43.71273,-79.39932,"Davisville",""],["3f985134bef3168cfc29a96d8af84a1695372549","inspection","Pass with 2 infractions: JACK ASTOR'S","2026-11-18",43.67073,-79.38555,"South Rosedale",""],["fbc7675924a653d7fdbe234cb95d26e291fcda67","police_call","Personal Injury Collision near BALLIOL ST - MOUNT PLEASANT RD","2026-11-17",43.6993,-79.38673,"Davisville",""],["bbf57533b57b3f04ef0d975baf5b02d36c4db7b8","police_call","Disorderlies near YONGE ST - BLOOR ST E","2026-11-17",43.67023,-79.38676,"North Rosedale",""],["19e062c9247043cd948676a25770395aac433034","police_call","Disorderlies near WALLY CROUTER WALKWAY - HEATH ST E","2026-11-17",43.68913,-79.39453,"North Rosedale",""],["bee4428ff84d247564a4f493f96737f20a5718e5","police_call","Theft near EGLINTON AVE E - ROEHAMPTON AVE","2026-11-17",43.70842,-79.39016,"Davisville",""],["78f775506acd61466163411a17509fd7a15ccfda","police_call","Theft near ASQUITH AVE - YORKVILLE AVE","2026-11-17",43.67193,-79.38746,"North Rosedale",""],["11c4e7d954f5f024f25f046532c0aaa6e464f011","police_call","Disorderlies near YONGE ST - ACACIA RD","2026-11-17",43.70091,-79.39396,"Davisville",""],["a6a2c04d5d4d50fbdc2b085998f90405bdfa0c2e","police_call","See Fire Dept near PARLIAMENT ST - BLOOR ST E","2026-11-17",43.67189,-79.37146,"South Rosedale",""],["c765a6de168e3bb2eb0aad6387236f586ea74dc6","inspection","Pass with 1 infraction: KINTAKO SUSHI JAPANESE RESTAURANT","2026-11-17",43.71149,-79.36415,"Leaside",""],["2a18d22ef67a67903167c594e623f4da2c00e9c4","inspection","Pass with 1 infraction: EGGSTATIC","2026-11-17",43.7055,-79.37539,"Davisville",""],["f380da52ae745ab243aa0507f8d543201d155aa8","police_call","Assault Just Occurred near LAWRENCE PARK RAVINE TRL - LAWRENCE AVE W","2026-11-16",43.72509,-79.4022,"Lawrence Park",""],["a367077c7a8410a3ef6a4fde1cc6e96802704a16","police_call","Personal Injury Collision near ST CLAIR AVE E - MOUNT PLEASANT RD","2026-11-16",43.69037,-79.38332,"North Rosedale",""],["6791c9bc57eb94b512bf2bbce133deed8f887017","police_call","Personal Injury Collision near ST CLAIR AVE E - MOUNT PLEASANT RD","2026-11-16",43.69037,-79.38332,"North Rosedale",""],["67a78467fa44011607918da4217b4aa4cad72c01","police_call","Indecent Exposure Just Occurred near CHORLEY PARK TRL - GLEN RD","2026-11-16",43.687,-79.37151,"North Rosedale",""],["d0bc8cea1979b1d3639731b07a322c3dfd6c2d59","police_call","Person With A Knife near DUPLEX PARKETTE TRL - DUPLEX AVE","2026-11-16",43.72298,-79.40315,"Lawrence Park",""],["3a07ee1cef2ecf5c8b4f525c28f724d935e1ad62","police_call","Disorderlies near LAWRENCE AVE W - DU MAURIER BLVD","2026-11-16",43.72509,-79.4022,"Lawrence Park",""],["70bc30ab04d706dc5595819a7119948ca415e2e5","police_call","Disorderlies near YONGE ST - PARK RD","2026-11-16",43.67023,-79.38676,"North Rosedale",""],["bd268d63d6c0b7524c87232d45d4f39cd87a8aec","police_call","Disorderlies near YONGE ST - RAMSDEN PARK RD","2026-11-16",43.67706,-79.38957,"North Rosedale",""],["3307f0869deeeb3dc35b395a3b43dab471a66d00","police_call","Damage Just Occurred near YONGE ST - PARK RD","2026-11-16",43.67023,-79.38676,"North Rosedale",""],["865559abefed8418c77f3c67f4e081cb18712a26","police_call","Personal Injury Collision near BLOOR RAMP - BAYVIEW AVE","2026-11-16",43.67701,-79.37097,"South Rosedale",""],["8df1ea60d37c5ab35db86dfb67ffa04b45c5d257","police_call","Personal Injury Collision near BLOOR RAMP - BAYVIEW AVE","2026-11-16",43.67701,-79.37097,"South Rosedale",""],["0f590a410df8d6845e008c618bc54cb9e86c2523","police_call","Assault Just Occurred near AL GREEN LANE - PAILTON CRES","2026-11-16",43.69738,-79.39642,"Davisville",""],["92d3e80e73acd5080aaae35e98ce3a3f9a19bbc5","inspection","Pass with 3 infractions: PICNIC CAFE& CATERING INC","2026-11-16",43.68379,-79.36563,"Leaside",""],["c6b9972c261977481d4696cdcac8b29b55184968","inspection","Pass with 2 infractions: COWBOY'S GRILL","2026-11-16",43.70059,-79.3968,"Davisville",""],["c044e5cee8a9d326c3d11ad649b69602b136fb3d","police_call","Disorderlies near RANLEIGH AVE - WOBURN AVE","2026-11-15",43.72834,-79.40305,"Lawrence Park",""],["686bb797385cb1fa6e099b3f21684e3ae7648e8f","police_call","Person With A Gun","2026-11-15",43.71109,-79.37711,"Leaside",""],["d5e6ef868bd06db639d202abc248da5e61daa90c","police_call","Damage In Progress near BALLIOL ST - CHAPLIN CRES","2026-11-15",43.6983,-79.39661,"Davisville",""],["e40dfb93677007600b57d03757de86797e336c2f","police_call","Disorderlies near DUNFIELD AVE - LILLIAN ST","2026-11-15",43.7076,-79.39413,"Davisville",""],["f2a9edf5496d311943418337798c12abd28931c3","police_call","Noisy Party near ROEHAMPTON AVE - BROADWAY AVE","2026-11-15",43.71113,-79.39119,"Davisville",""],["0b068a246d33e49f68ffd209192219fafb29ba2b","police_call","Break & Enter near BELSIZE DR - DE-SAVERY CRES","2026-11-14",43.70254,-79.38977,"Davisville",""],["859a9fc993fd9963f7c9e7aa01db127e00a0fad7","police_call","Fraud near LN W YONGE S WOODLAWN","2026-11-14",43.68393,-79.39238,"North Rosedale",""],["1f4277eb7773277038a28d9fb39f7aed259430ab","police_call","Dispute near EDGEWOOD CRES - DOUGLAS DR","2026-11-14",43.687,-79.37151,"North Rosedale",""],["87027d0d9817dd55ef48b6d970922b1939cfb8e9","police_call","Disorderlies near YONGE ST - BALLIOL ST","2026-11-14",43.69738,-79.39642,"Davisville",""],["99be726bfd869a45c476c360e094640627943b4c","police_call","Person With A Knife near BLOOR ST E - PARLIAMENT ST","2026-11-14",43.67189,-79.37146,"South Rosedale",""],["86db376f09f28787a4853a0daafa113e9ee58014","police_call","Disorderlies near TRACE MANES PARK TRL - HEATH RD","2026-11-14",43.70587,-79.36693,"Leaside",""],["8e60d360eb2ccf17adbe8ebf216fd9d6b31539b6","police_call","Property Damage Collision near YONGE ST - RANLEIGH AVE","2026-11-14",43.72785,-79.40292,"Lawrence Park",""],["fba7744795be96f7f4ae2cffd15d4037c4d39117","police_call","Property Damage Collision near YONGE ST - RANLEIGH AVE","2026-11-14",43.72785,-79.40292,"Lawrence Park",""],["4f0c2c36fb55e2d2095cf5119540875204593b3b","police_call","Break & Enter In Progress near HARPER AVE - INGLEWOOD DR","2026-11-13",43.69045,-79.37339,"North Rosedale",""],["87521793f7a59b3150939e0d45d5c2327b9db208","police_call","Assist Pc near ST CLAIR AVE E - MOUNT PLEASANT RD","2026-11-13",43.69037,-79.38332,"North Rosedale",""],["e68a3f97c4fe9f9f2c1b52efd733491b3340e4c6","police_call","Assault In Progress near ROSEDALE VALLEY RD - SHERBOURNE ST N","2026-11-13",43.67386,-79.37739,"South Rosedale",""],["9bbcc0178ba4efab0d3acbece7005b10d7eeaf79","police_call","Property Damage Collision near EGLINTON AVE E - RUMSEY RD","2026-11-13",43.71258,-79.36963,"Leaside",""],["fec4b47638d91f4267d88fa942f3f60bb4018b36","police_call","Disorderlies near RONAN AVE","2026-11-13",43.7302,-79.39396,"Lawrence Park",""],["641708e05ab153fe82caf81411cf43cc91a663e7","police_call","Disorderlies near OTTAWA ST - LN W SUMMERHILL AVE N SHAFTESB","2026-11-13",43.68356,-79.38613,"North Rosedale",""],["d2144c3562ec64f36bd15728493acc5db7951713","inspection","Pass with 2 infractions: TAMASHA","2026-11-13",43.69674,-79.39573,"Davisville",""],["494607d4f9e1b562847ad68010ab7dc05a9869b0","inspection","Pass with 1 infraction: JYUGOYA JAPANESE RESTAURANT","2026-11-13",43.70436,-79.37483,"Davisville",""],["894f22fac7f4aa9684b8732c5ce4e6c1a788f85a","police_call","Personal Injury Collision near BRENTCLIFFE RD - GLASSWORKS DR","2026-11-12",43.71463,-79.3598,"Leaside",""],["87fdf2a3f1454cadfd29b6c43bef3c051ef7de8b","police_call","Personal Injury Collision near EGLINTON AVE E - BRENTCLIFFE RD","2026-11-12",43.71463,-79.3598,"Leaside",""],["036afb74155535dcef03b125317090f30e87dc5f","police_call","Personal Injury Collision near BRENTCLIFFE RD - GLASSWORKS DR","2026-11-12",43.71463,-79.3598,"Leaside",""],["1864355184eb912f7499cc2ba485032972cc7aea","police_call","Assault near SHERLOCK HOLMES WALK - PARK RD","2026-11-12",43.67217,-79.38478,"South Rosedale",""],["3b9b6ef995b88cbb8a6b77cb0f405cc818777498","police_call","Break & Enter near WALLY CROUTER WALKWAY - HEATH ST E","2026-11-12",43.69,-79.39486,"North Rosedale",""],["4a273fed64b6bf1903466a209a5328df5be044f1","police_call","Disorderlies near CRAIG CRES - GLAZEBROOK AVE","2026-11-12",43.71243,-79.37734,"Leaside",""],["e51cdb76ed48efa9de0338a598fab654619f5d4c","police_call","Personal Injury Collision near ST PAUL'S SQ - TED ROGERS WAY","2026-11-12",43.67219,-79.38285,"South Rosedale",""],["0ecf27b225e664d4ade4560ded3e5f1e3fae0d52","police_call","Theft In Progress near GOLFDALE RD - MELROSE AVE","2026-11-12",43.732,-79.40401,"Lawrence Park",""],["222f531b48a0f2694822a188034410328945f997","police_call","Impaired Driver near BAYVIEW AVE - MILLWOOD RD","2026-11-12",43.70428,-79.3746,"Leaside",""],["4f729c5b86f050a6ff7580a768e36b800f6ac87c","inspection","Pass with 1 infraction: PIZZA HUT","2026-11-12",43.67192,-79.3852,"South Rosedale",""],["3373e8bf8ff32574e6241d8b7ae2fed7607f8a39","inspection","Pass with 3 infractions: MCDONALD'S","2026-11-12",43.73265,-79.4046,"Lawrence Park",""],["1c97f8def9b935ff6a950e95f6f48c6d80445345","inspection","Conditional Pass: BABA","2026-11-12",43.72842,-79.40327,"Lawrence Park",""],["db69bf70a408a809f24e7dbb3846b234f17eeba0","police_call","Property Damage Collision near SIGHTHILL AVE - MACLENNAN AVE","2026-11-11",43.68745,-79.37891,"North Rosedale",""],["c4d9f510f523ca4aa042703ea2ef7ba4ae570f15","police_call","Person With A Knife near ROWANWOOD AVE - MARLBOROUGH AVE","2026-11-11",43.67914,-79.39042,"North Rosedale",""],["9705e5ae10569dc86683544319518b9163445830","police_call","Break & Enter near LN W YONGE N RAMSDEN PARK - RAMSDEN PARK TRL","2026-11-11",43.67737,-79.3897,"North Rosedale",""],["ef4ca63729517e6c8eddc1ed6a2c8fe8f2cbdbfb","police_call","Disorderlies near CLIFTON RD - MOUNT PLEASANT RD","2026-11-11",43.69226,-79.38409,"Moore Park",""],["f1988adce9d871597460aa4ae1ebbf299ad7cac7","police_call","Assault near LN 1 E YONGE S PLEASANT - DAVID A BALFOUR PARK TRL","2026-11-11",43.68864,-79.39148,"Moore Park",""],["7ae47b7a6a3fa0eb1849805830392139b9459fda","police_call","Assault Just Occurred near CHURCH ST - FRICHOT AVE","2026-11-11",43.67488,-79.38867,"North Rosedale",""],["90316e0a502327a01ea6219e684580ced4cbe81d","police_call","Noisy Party near YONGE ST - PAILTON CRES","2026-11-11",43.69951,-79.39089,"Davisville",""],["47a04445bcca286bf22207358bf8c30baa541fc9","police_call","Trespass near AL GREEN LANE - PAILTON CRES","2026-11-11",43.69613,-79.39614,"Davisville",""],["039e96315175839af3f2b598248672d1aa3707c3","police_call","Disorderlies near BAYVIEW AVE - EGLINTON AVE E","2026-11-11",43.71109,-79.37711,"Leaside",""],["28523148086a4c7af695a5c6d9a9dd440de51fed","police_call","Person With A Knife near YONGE ST - GLEN ELM AVE","2026-11-11",43.69126,-79.39514,"North Rosedale",""],["fb008666d854d2e8edc503a9353ec0e942525ac3","police_call","Assault Just Occurred near SUTHERLAND DR - LAIRD DR","2026-11-11",43.7131,-79.36722,"Leaside",""],["a4607187118a7fff2a9b656245e9a80ef6124579","police_call","Robbery near ROWANWOOD AVE - MARLBOROUGH AVE","2026-11-11",43.67914,-79.39042,"North Rosedale",""],["5028dcd014a87405daa87dae79cee021f0b332a8","police_call","Personal Injury Collision near DUPLEX AVE - CHATSWORTH DR","2026-11-10",43.72196,-79.40464,"Lawrence Park",""],["a228a6731f52f22484eb6fbdf4bf250cf454f7a2","police_call","Property Damage Collision near YONGE ST - HILLSDALE AVE E","2026-11-10",43.70341,-79.39765,"Davisville",""],["df07d1471f356b53b0c77a42ecdcb8ccac55413b","police_call","Property Damage Collision near ASQUITH AVE - YORKVILLE AVE","2026-11-10",43.67193,-79.38746,"North Rosedale",""],["7e24a3bcf239f05edaede1d1427a0fa8ad8a21d0","police_call","Disorderlies near ASQUITH AVE - YORKVILLE AVE","2026-11-10",43.67193,-79.38746,"North Rosedale",""],["5b31d6fb0ee59af1c02aa49cb09e34011afe5e8a","police_call","Break & Enter","2026-11-10",43.68098,-79.37384,"North Rosedale",""],["4bb626e040cc8654bc26ae497dbf3ed869289e5b","police_call","See Fire Dept near BLOOR ST E - YONGE ST","2026-11-10",43.67023,-79.38676,"North Rosedale",""],["76f452e53ba4b25f49547a08a4c5cf8d8b377ff4","police_call","Disorderlies near YONGE ST - SHELDRAKE BLVD","2026-11-10",43.71496,-79.4001,"Davisville",""],["933ad7665fd2e9ef8d9fb352b403a373efc778b4","police_call","Break & Enter In Progress near SUMMERHILL AVE - DAVID A BALFOUR PARK TRL","2026-11-10",43.68379,-79.3886,"North Rosedale",""],["b62d57d2ba395b038f82af8ad30b7e5fcce956d4","police_call","Sound Of Gunshots near PAUL HAHN LANE - MOLSON ST","2026-11-10",43.67821,-79.39003,"North Rosedale",""],["4b49356d574d89fcb67c2f64ec409899b0aa8b6c","inspection","Pass with 1 infraction: JULES CAFE PATISSERIE","2026-11-10",43.70417,-79.38821,"Davisville",""],["94ac543bed12b15a70483e332fd4dc695ba5b4f9","police_call","Personal Injury Collision near YONGE ST - FARNHAM AVE","2026-11-09",43.68503,-79.39283,"North Rosedale",""],["763cfe111c40a90f361fb1a8bc8e06d6956bacb9","police_call","Personal Injury Collision near YONGE ST - FARNHAM AVE","2026-11-09",43.68503,-79.39283,"North Rosedale",""],["628f27a31b6d2a5ce6888cdd563179bca3ff13cf","police_call","Personal Injury Collision","2026-11-09",43.70896,-79.38753,"Davisville",""],["be92c02adf6bfa208422bfa5d791dcb17048a9b4","police_call","Personal Injury Collision","2026-11-09",43.70896,-79.38753,"Davisville",""],["7120c4c4d5e566b86160b76455dfe05267e53534","police_call","Disorderlies near SOUDAN AVE - LN S EGLINTON E HOLLY","2026-11-09",43.70474,-79.39594,"Davisville",""],["bd2e061a203f14f175cae206d44d9da53b12612c","police_call","Holdup Alarm near TAMBLYN LANE - ALVIN AVE","2026-11-09",43.6884,-79.39264,"Moore Park",""],["adc4402785ea31c63ea3e6aafb330cb5dc1e272a","police_call","Disorderlies near SOUDAN AVE - EGLINTON AVE W","2026-11-09",43.70435,-79.39784,"Davisville",""],["fed285837ae0fcf819970a94ed487594e6ecde07","police_call","Damage Just Occurred near YONGE ST - COWBELL LANE","2026-11-09",43.70674,-79.39831,"Davisville",""],["37331ec066b9c80b231f569d045c0b6bcf878f31","inspection","Pass with 1 infraction: PATISSERIE LA CIGOGNE","2026-11-09",43.70655,-79.37582,"Davisville",""],["7d7e17eb3a74aa88e54bc10d51ae5682edef449d","inspection","Pass with 1 infraction: LIT ESPRESSO BAR","2026-11-09",43.7045,-79.37441,"Leaside",""],["511e9c369f32fc79156b67d4c4d0ee1c886ee400","inspection","Pass with 1 infraction: LEMONGRASS","2026-11-09",43.7066,-79.37583,"Davisville",""],["4c1bd01bbd615005957a6a6017fdcb60d108812c","inspection","Pass with 1 infraction: DAVISVILLE JUNIOR PUBLIC SCHOOL - STUDENT NUTRITION PROGRAM","2026-11-09",43.69896,-79.39478,"Davisville",""],["5688b08c40445258c9d8a66b97cf14b74eff272d","inspection","Pass with 2 infractions: DANIELZ BREAD","2026-11-09",43.72849,-79.40341,"Lawrence Park",""],["472693286bea5b3767a9550340c23b4a2c81e57d","inspection","Pass with 1 infraction: CIRCLES & SQUARES BAKERY & CAFE","2026-11-09",43.69849,-79.39642,"Davisville",""],["a32cca4e39d0b91569892628f03eac10e8ea08a7","inspection","Pass with 3 infractions: Apex Shawarma","2026-11-09",43.70538,-79.37468,"Leaside",""],["46deec28c6c618496c1a5697a3a8b92b5ae509c1","inspection","Conditional Pass: TAMASHA","2026-11-09",43.69674,-79.39573,"Davisville",""],["5c309341dbcdf523c4017c6e3eb8705d1b16a1e9","police_call","Theft near GOLFDALE RD - MELROSE AVE","2026-11-08",43.732,-79.40401,"Lawrence Park",""],["6ceaf094a61a8c933bc7a5e35883a37deee6e8e7","police_call","Disorderlies near GLENGROVE AVE E - ALEXANDER MUIR RD","2026-11-08",43.71956,-79.40109,"Lawrence Park",""],["37fe33448d57b0fb95644b717c2c86df886a0cf6","police_call","Person With A Gun near EGLINTON AVE E - LAIRD DR","2026-11-07",43.71359,-79.36478,"Leaside",""],["9b8ca334092d04ab477286764bf07cf57a8101ee","police_call","Disorderlies near ASQUITH AVE - YORKVILLE AVE","2026-11-07",43.67193,-79.38746,"North Rosedale",""],["c64c692c3c6627e23fcd0ee3706e9d3334401b31","police_call","Impaired Driver near AL GREEN LANE - PAILTON CRES","2026-11-07",43.69738,-79.39642,"Davisville",""],["d29a5b4f8ba6aae94756ff4ee324a56b38bcb06f","police_call","Disorderlies near SHERLOCK HOLMES WALK - PARK RD","2026-11-07",43.67217,-79.38478,"South Rosedale",""],["2beea5429a09e083c1d0e1f520d014f85bb30b28","police_call","Disorderlies near ROXBOROUGH ST W - ROWANWOOD AVE","2026-11-07",43.67821,-79.39003,"North Rosedale",""],["f64ba9759222cc853dd6ee7273b0848c4488fac4","police_call","Break & Enter Just Occurred near AL GREEN LANE - PAILTON CRES","2026-11-07",43.69613,-79.39614,"Davisville",""],["c861ec5390af4e3c910f628350bae3a7dc55c857","police_call","Prowler On Location near CHORLEY PARK TRL - WHITNEY AVE","2026-11-07",43.68421,-79.36888,"North Rosedale",""],["30c31fbdc4ff4230be83b93cc8a40182824701ee","police_call","Indecent Exposure Just Occurred near LAIRD DR - DON AVON DR","2026-11-06",43.71359,-79.36478,"Leaside",""],["cd05bf206b496d66a830b5934b86bb7846b9e5ff","police_call","Break & Enter near YORKVILLE PARK DR - SEVERN ST","2026-11-06",43.67538,-79.38525,"South Rosedale",""],["b45f295152e941a80ae6818fbe6da566c18e9c54","police_call","Personal Injury Collision near YONGE ST - CHATSWORTH DR","2026-11-06",43.72198,-79.40157,"Lawrence Park",""],["c415271e82e89e707230ab09f7d54cd09da6e7a9","police_call","Personal Injury Collision near YONGE ST - CHATSWORTH DR","2026-11-06",43.72198,-79.40157,"Lawrence Park",""],["b1763ebdb6d8b7cd55d873fd2e980f8fbd84916e","police_call","Break & Enter near CAMERON CRES - FLEMING CRES","2026-11-06",43.70719,-79.3744,"Leaside",""],["5a8f69a6af5214b7ce68870d5c903ebe6add4834","police_call","Personal Injury Collision near ROXBOROUGH DR - MOUNT PLEASANT RD","2026-11-06",43.68075,-79.38234,"North Rosedale",""],["852bbe17d0b8efa1e858d0e46e2b5b7c4e168958","police_call","Trespass near ELM AVE - SOUTH DR","2026-11-06",43.67503,-79.37785,"South Rosedale",""],["dc4f0bc9a64b7249665015bbd29fb81d7732301f","police_call","Fight near HAWTHORN AVE - DRUMSNAB RD","2026-11-06",43.67675,-79.37083,"South Rosedale",""],["12e264a74949f0985a3a47b0a8e075aa54a04907","police_call","Disorderlies near MOUNT PLEASANT RD - SIGHTHILL AVE","2026-11-06",43.68803,-79.38371,"North Rosedale",""],["cab69b9b1f0946cd1d64d2a6bbb06d6b484f9326","police_call","Sound Of Gunshots near HIGHLAND CRES - GREGORY AVE","2026-11-06",43.68412,-79.38281,"North Rosedale",""],["69fe6209408942a620aa620a1166e5943df13ec8","police_call","Break & Enter In Progress near GLEN RD - ROXBOROUGH DR","2026-11-06",43.68434,-79.37258,"North Rosedale",""],["2f82de7c7d17df6791b5b172d9ca7ccac0f1a1a6","inspection","Pass with 1 infraction: MONKEY SUSHI","2026-11-06",43.70698,-79.39569,"Davisville",""],["500c5ec72596feff141bc4f35d50db82d609d5b1","inspection","Conditional Pass: ISABELLA'S MOCHI DONUT BOUTIQUE","2026-11-06",43.70744,-79.37556,"Leaside",""],["71c2cf2b5a7528e8e38cd58149d6df449b747f12","inspection","Pass with 3 infractions: INDIAN STREET FOOD CO","2026-11-06",43.70805,-79.3758,"Leaside",""],["62ec41c813b2f186ca66f7352ab5258bf51e29aa","inspection","Pass with 1 infraction: FRESH ON EGLINTON","2026-11-06",43.70724,-79.3947,"Davisville",""],["95b84de4b0ac9406428949fb77aeb9504c829da4","inspection","Pass with 2 infractions: DARNA","2026-11-06",43.70653,-79.37519,"Leaside",""],["a8bd43286f5490cdd73302fbd18bb13602fdbb7c","police_call","Assault Just Occurred near BLOOR ST E - YONGE ST","2026-11-05",43.67023,-79.38676,"North Rosedale",""],["835c751513f93d4e45a1b23ab36a3587317053f7","police_call","Theft Just Occurred near ROXBOROUGH ST W - ROWANWOOD AVE","2026-11-05",43.67821,-79.39003,"North Rosedale",""],["3043db3b513ad72098bf4bbbb27847893a097834","police_call","Dispute near LAWRENCE AVE E - WANLESS AVE","2026-11-05",43.72616,-79.39723,"Lawrence Park",""],["5b1ff66e830df7721d81bd65c013671224bc0316","police_call","Fail To Remain Property Damage Collision near BLOOR RAMP - BLOOR W BAYVIEW S RAMP","2026-11-05",43.67701,-79.37097,"South Rosedale",""],["993e528dbd03184def1cb01d6b4d96e43526e1a8","police_call","Wires Down near BLOOR RAMP - BLOOR W BAYVIEW S RAMP","2026-11-05",43.67701,-79.37097,"South Rosedale",""],["e0f647680ba1d7396a1cb216591b46d2bdea2ad5","police_call","Property Damage Collision near GLEBE RD E - LOLA RD","2026-11-05",43.70113,-79.39718,"Davisville",""],["2093719842785f946f2efe2e617452f96153157c","police_call","Holdup Alarm near FERNDALE AVE - DAVID A BALFOUR PARK TRL","2026-11-05",43.68864,-79.39148,"Moore Park",""],["b6685ab5bdc96a7b1cbad5e7134b6b06302f27b2","police_call","Dispute near ROWANWOOD AVE - MARLBOROUGH AVE","2026-11-05",43.67914,-79.39042,"North Rosedale",""],["333ef15387e2320808e0b7d40dc07be42b8c3f15","police_call","Impaired Driver near MILLWOOD RD - OVERLEA BLVD","2026-11-05",43.70187,-79.35277,"Leaside",""],["ee6f23c338be6fe4379c2a6178aaf32b943b2b8c","police_call","Disorderlies near BALLIOL ST - CHAPLIN CRES","2026-11-05",43.6983,-79.39661,"Davisville",""],["b2558ccf31bed6ff1fe221d8542deabbd9059110","police_call","Break & Enter Just Occurred near CLUNY DR - THORNWOOD RD","2026-11-05",43.67995,-79.38421,"North Rosedale",""],["645477eb74dfe4bd9e96502877639d7e64889514","police_call","Disorderlies near BOWOOD AVE - CRANBROOKE AVE","2026-11-05",43.72859,-79.40312,"Lawrence Park",""],["697c0b677ef1019e1d6370b7d0ba1a29f97caa14","police_call","Impaired Driver near MOUNT PLEASANT RD - EGLINTON AVE E","2026-11-05",43.70842,-79.39016,"Davisville",""],["507cdc90b702c44e1386c7df75a4f1f86df83971","inspection","Pass with 4 infractions: TAMADA","2026-11-05",43.73327,-79.40409,"Lawrence Park",""],["c5efc5b8a74366429509778a32573c69fce29582","inspection","Pass with 2 infractions: MUMBAIKAR INDIAN RESTAURANT","2026-11-05",43.73253,-79.4038,"Lawrence Park",""],["b4a17ce9af9bd6cdd96175b122b6999a701a7815","inspection","Pass with 1 infraction: SHUNOKO","2026-11-05",43.72878,-79.40346,"Lawrence Park",""],["e353d6faead458032519e281dee4bb00a54ec0fb","inspection","Pass with 1 infraction: SHOUSHIN","2026-11-05",43.73133,-79.40421,"Lawrence Park",""],["fbbd4ec164e03907c5637703bbdc1e8525082d14","inspection","Pass with 1 infraction: FOR THE WIN CAFE","2026-11-05",43.72867,-79.40346,"Lawrence Park",""],["755258989afb37e3b7a5ed21872035d02aa00f74","inspection","Conditional Pass: CHINA FOOD","2026-11-05",43.70462,-79.3664,"Leaside",""],["39f3f5d06dac45687cc2b4d25e79d90b68ab6720","police_call","Disorderlies near TAMBLYN LANE - ALVIN AVE","2026-11-04",43.6884,-79.39264,"Moore Park",""],["774d0ed151752becaa2ed59b275ff4f3d2a5678e","police_call","Impaired Driver near BAYVIEW AVE - POTTERY RD","2026-11-04",43.68791,-79.36357,"Leaside",""],["797f51c4cf521cd4a1bca1a071a2eea414311949","police_call","Property Damage Collision near YONGE ST - LAWRENCE AVE E","2026-11-04",43.72509,-79.4022,"Lawrence Park",""],["876bb564096ed80a004e29b5ab5fd64586d5b9d3","police_call","Property Damage Collision near MOUNT PLEASANT RD - SHERBOURNE ST N","2026-11-04",43.67237,-79.37954,"South Rosedale",""],["797bc03333f5a9f395974f66e702edbcc02ba2eb","police_call","Break & Enter near MARMOT ST - BANFF RD","2026-11-04",43.70743,-79.38268,"Davisville",""],["f505abf2f0254dec7885fc7a6599d6510cf79817","police_call","Disorderlies","2026-11-04",43.67217,-79.38478,"South Rosedale",""],["72630f9c70c5218516ccb89d9706c97bdede94dc","police_call","Indecent Exposure Just Occurred near BENNINGTON HEIGHTS DR - BAYVIEW HEIGHTS DR","2026-11-04",43.69355,-79.37053,"Bennington Heights",""],["6370576d8d3d8f1858e5638d571546210bbe6085","police_call","Personal Injury Collision","2026-11-04",43.68832,-79.38357,"North Rosedale",""],["285f732540e494a2657a1cd01fcd2e5991b61e8e","police_call","Property Damage Collision near YONGE ST - EGLINTON AVE E","2026-11-04",43.70674,-79.39831,"Davisville",""],["d20caebf6299b66132ed577e64c16dccddc53305","police_call","Disorderlies near GIBSON AVE - ROXBOROUGH ST E","2026-11-04",43.67737,-79.3897,"North Rosedale",""],["17f24d11ad42c290473c5d2a44ecef6f4298e6e4","police_call","Assault Just Occurred near SHERWOOD LANE - MOUNT PLEASANT RD","2026-11-04",43.71353,-79.39979,"Davisville",""],["fd0204e4955832f8baa44534672ea4323da33674","police_call","Dispute near IMPERIAL ST - YONGE ST","2026-11-03",43.69979,-79.3969,"Davisville",""],["71fc3fe37f863356000f1035430d9c5ecc8e77f9","police_call","Impaired Driver near ROXBOROUGH ST E - WRENTHAM PL","2026-11-03",43.67945,-79.38231,"North Rosedale",""],["837ba2437e86e94308473f0f0b3b5e4b3f291ef4","police_call","Fraud near CHURCH ST - FRICHOT AVE","2026-11-03",43.67488,-79.38867,"North Rosedale",""],["1f9fdc2e34829c5b6c8e90e03ab8cd4ee39939ab","police_call","Disorderlies near MILLWOOD RD - IMPERIAL ST","2026-11-03",43.69979,-79.3969,"Davisville",""],["0d163c22be6a4c0e5b82d97ed518de47254f775c","police_call","Theft Just Occurred near LN 1 E YONGE S PLEASANT - LN 2 E YONGE S PLEASANT","2026-11-03",43.68712,-79.39369,"Moore Park",""],["6a19e43575c5255e9ae65525b24793766acabc69","inspection","Pass with 3 infractions: THE HOMEWAY","2026-11-03",43.71256,-79.39147,"Davisville",""],["c896b38a731e64e739af8f1882dc6894c022cafe","inspection","Pass with 4 infractions: BROWNES BISTRO","2026-11-03",43.68417,-79.39212,"North Rosedale",""],["774d7e4e69ac0ea92fbb344bb1ef89295626e17e","police_call","Disorderlies near AL GREEN LANE - PAILTON CRES","2026-11-02",43.69738,-79.39642,"Davisville",""],["cb97ab0e24005763da688da4eb61ba5ac3133c09","police_call","Theft Just Occurred near YONGE ST - BLOOR ST E","2026-11-02",43.67023,-79.38676,"North Rosedale",""],["031fb9660a7a67c79e49fc372965d4ec49f484d6","police_call","Break & Enter In Progress near REDPATH AVE - MOUNT PLEASANT RD","2026-11-02",43.70963,-79.39062,"Davisville",""],["185b53d8afa117402002d18eb3bec125a968583c","police_call","Property Damage Collision near HANNA RD - MILLWOOD RD","2026-11-02",43.70358,-79.36437,"Leaside",""],["d4788ddf6f04b42c7fca5dc205fe8ffe4b0c1041","police_call","Trespass near YONGE ST - PARK RD","2026-11-02",43.67023,-79.38676,"North Rosedale",""],["21c3fcbc3bef27ba4dd094f951006e2c1c132763","police_call","Theft Of Vehicle near HANNA RD - MILLWOOD RD","2026-11-02",43.70358,-79.36437,"Leaside",""],["d7c07b224ac1be30257eec7728c3a199e6dd1348","police_call","Property Damage Collision near MOUNT PLEASANT RD - BROADWAY AVE","2026-11-02",43.71113,-79.39119,"Davisville",""],["9ad2b9b4b6474356a30a63af7d31ef46a1bcd3f7","police_call","Property Damage Collision near MOUNT PLEASANT RD - BROADWAY AVE","2026-11-02",43.71113,-79.39119,"Davisville",""],["d7b428d275aa2ac8481540113f1cd1aae564b991","police_call","Dispute near YONGE ST - COWBELL LANE","2026-11-02",43.70674,-79.39831,"Davisville",""],["e21fd8b2104546fe36f6e7b8635ad2f170e5604e","inspection","Pass with 1 infraction: SWEET CULTURA","2026-11-02",43.70826,-79.38955,"Davisville",""],["fe2fa87c7fad1458522c7248a4413299f087f072","inspection","Pass with 2 infractions: SANSOTEI RAMEN EGLINTON","2026-11-02",43.70384,-79.39723,"Davisville",""],["84b5ef8c311e0a0f7f9e6bd6f11035406a7993f5","police_call","Property Damage Collision near YONGE ST - ROXBOROUGH ST E","2026-11-01",43.67784,-79.38989,"North Rosedale",""],["2c05a24ca9917700f8f8b73cbf93ce7720522d65","police_call","Assault Just Occurred near YONGE ST - PAILTON CRES","2026-11-01",43.69951,-79.39089,"Davisville",""],["59b5964c58d23243cb64e99b61a02e730f077db1","police_call","Dispute near LAIRD DR - EGLINTON AVE E","2026-11-01",43.71359,-79.36478,"Leaside",""],["4286af4de616002d9c03abb2eda49226fbdf6b11","police_call","Property Damage Collision near YONGE ST - BRIAR HILL AVE","2026-11-01",43.71367,-79.39982,"Davisville",""],["334e12743e4eef8d1eda119abe9ddddf3f08943c","police_call","Noisy Party near GLEBE RD E - LOLA RD","2026-11-01",43.70113,-79.39718,"Davisville",""],["ec20f5ffede72491ca20d1274bea78917c352fcb","police_call","Impaired Driver near ELM AVE - MOUNT PLEASANT RD","2026-11-01",43.67456,-79.38017,"South Rosedale",""],["bae4817b45ce4ccd5b61d541052c6fec3152c04a","police_call","Noisy Party near YONGE ST - SOUDAN AVE","2026-11-01",43.70435,-79.39784,"Davisville",""],["6658a96878bfed5de6fe4b9d7a0960bbd81264ba","police_call","Sound Of Gunshots near LAWRENCE AVE E - WANLESS AVE","2026-11-01",43.72634,-79.39639,"Lawrence Park",""],["d2bb75c3a1e94b4d97ce06b6c5a5b23fd64a57f1","police_call","Personal Injury Collision near LAWRENCE AVE E - YONGE ST","2026-11-01",43.72509,-79.4022,"Lawrence Park",""],["1afb93e9783bcb48df2147b69d5e5070b690c6a4","police_call","Sound Of Gunshots near YONGE ST - LAWRENCE AVE E","2026-10-31",43.72509,-79.4022,"Lawrence Park",""],["fd968006e60c3adb8f418c40c55e2bee4b436a75","police_call","Break & Enter In Progress near YONGE ST - MOUNT PLEASANT RD","2026-10-31",43.72716,-79.39933,"Lawrence Park",""],["f5568f2e33d78dce4598e1f22c0ebd0225ccbaba","police_call","Disorderlies near CHURCH ST - FRICHOT AVE","2026-10-31",43.67287,-79.38784,"North Rosedale",""],["992a725b6d6ac32d1d587473cacdfc0ac5e9d1a0","police_call","Fail To Remain Property Damage Collision near HANNA RD - MILLWOOD RD","2026-10-31",43.70358,-79.36437,"Leaside",""],["3f326298abe2e513d68bf8d46232d6d5d9552f78","police_call","Property Damage Collision near EGLINTON AVE E - BAYVIEW AVE","2026-10-31",43.71109,-79.37711,"Leaside",""],["8f75bed2943171983d9dae89da19720c61d11400","police_call","Personal Injury Collision near KILLDEER CRES","2026-10-31",43.71874,-79.36557,"Leaside",""],["fc000dcc0277f07af66f929b3c6255af2f0e211e","police_call","Personal Injury Collision near KILLDEER CRES","2026-10-31",43.71874,-79.36557,"Leaside",""],["41069001a3eb8cf8ac601fcf3ea98c4910ee307c","police_call","Fight near YONGE ST - BLOOR ST E","2026-10-31",43.67023,-79.38676,"North Rosedale",""],["e5f3dd1b5af3136adb590cff72c0c794535f2fdd","police_call","Indecent Exposure Just Occurred near BALLIOL ST - CHAPLIN CRES","2026-10-30",43.6983,-79.39661,"Davisville",""],["9000a78683a3576dbfeba6d8bc12e7c4a46bf1f0","police_call","Personal Injury Collision near ST CLAIR AVE E - HEATH ST E","2026-10-30",43.6884,-79.39264,"Moore Park",""],["402744ba687cb029a9b4d9a47f4f55824a1b6d0d","police_call","Robbery near YONGE ST - TAMBLYN LANE","2026-10-30",43.6884,-79.39264,"Moore Park",""],["d1cb0d7f7331bd9a84eba8f473d6c120f129a299","police_call","Personal Injury Collision near YONGE ST - BELMONT ST","2026-10-30",43.67559,-79.38896,"North Rosedale",""],["690e5b79c3dbd55e4ca26ef1a6dcd7a3bd636630","police_call","Personal Injury Collision near YONGE ST - BELMONT ST","2026-10-30",43.67559,-79.38896,"North Rosedale",""],["3902ae4bfb1a851f9ef0839acda58c12bd6e8764","police_call","Disorderlies near TAMBLYN LANE - ALVIN AVE","2026-10-30",43.6884,-79.39264,"Moore Park",""],["b0ba75d90f67b28b74bb62f61dbc6b4c05cd0a6f","police_call","Theft Just Occurred near GOLFDALE RD - MELROSE AVE","2026-10-30",43.732,-79.40401,"Lawrence Park",""],["28bbe8f812c58c25370823f45886c27f571b7200","inspection","Pass with 2 infractions: THE BULL: A FIRKIN PUB","2026-10-30",43.69674,-79.39573,"Davisville",""],["af80b10b8190c25b6a50a385044cf30e9883cf8c","inspection","Pass with 1 infraction: DAPHNE'S ANTIOCH","2026-10-30",43.70406,-79.38876,"Davisville",""],["16e442b2fbe784147dcfe2ca4d783f8bc432dd89","inspection","Pass with 1 infraction: BURRITO BOYZ","2026-10-30",43.69853,-79.39629,"Davisville",""]]</script>
+<script>
+(function () {
+  'use strict';
+  var fmtDay = new Intl.DateTimeFormat('en-CA', { weekday: 'short', day: 'numeric', month: 'short' });
+  var fmtTime = new Intl.DateTimeFormat('en-CA', { hour: 'numeric', minute: '2-digit' });
+  function relative(d) {
+    var s = (Date.now() - d.getTime()) / 1000;
+    if (s < 3600) return Math.max(1, Math.round(s / 60)) + ' min ago';
+    if (s < 86400) return Math.round(s / 3600) + ' h ago';
+    if (s < 86400 * 7) return Math.round(s / 86400) + ' d ago';
+    return fmtDay.format(d);
+  }
+  document.querySelectorAll('time[data-ts]').forEach(function (t) {
+    var d = new Date(t.dataset.ts);
+    if (isNaN(d)) return;
+    t.textContent = relative(d);
+    t.title = fmtDay.format(d) + ', ' + fmtTime.format(d);
+  });
+  document.querySelectorAll('.events .d[data-date]').forEach(function (el) {
+    var d = new Date(el.dataset.date + 'T12:00:00');
+    var small = el.querySelector('small');
+    el.textContent = fmtDay.format(d);
+    if (small) el.appendChild(small);
+  });
+
+  // Near home. The pin is set on the map page and lives only in this browser.
+  var home = null;
+  try { home = JSON.parse(localStorage.getItem('leaside.home.v1') || 'null'); } catch (e) {}
+  if (!home || typeof home.lat !== 'number') return;
+  var rows = JSON.parse(document.getElementById('near').textContent);
+  var R = home.radius || 500;
+  function metres(lat, lon) {
+    var dy = (lat - home.lat) * 111320, dx = (lon - home.lon) * 111320 * Math.cos(home.lat * Math.PI / 180);
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  var NAMES = { police_call: 'Police call', crime: 'Reported crime', collision: 'Collision', inspection: 'Inspection', city_notice: 'City notice' };
+  var near = rows.map(function (r) { return { r: r, m: metres(r[4], r[5]) }; })
+    .filter(function (x) { return x.m <= R; })
+    .sort(function (a, b) { return a.r[3] < b.r[3] ? 1 : -1; });
+  var block = document.getElementById('home-block'), list = document.getElementById('home-list');
+  block.hidden = false;
+  document.getElementById('home-sub').textContent = near.length
+    ? near.length + ' located record' + (near.length === 1 ? '' : 's') + ' within ' + R + ' m of your pin in the last 30 days. Police records sit at the nearest intersection, so "near" is approximate.'
+    : 'Nothing located within ' + R + ' m of your pin in the last 30 days.';
+  near.slice(0, 15).forEach(function (x) {
+    var r = x.r, li = document.createElement('li');
+    var kind = document.createElement('span'); kind.className = 'tag'; kind.textContent = NAMES[r[1]] || r[1];
+    li.appendChild(kind);
+    if (r[7]) { var a = document.createElement('a'); a.href = r[7]; a.target = '_blank'; a.rel = 'noopener'; a.textContent = r[2]; li.appendChild(a); }
+    else { li.appendChild(document.createTextNode(r[2])); }
+    var d = document.createElement('span'); d.className = 'dist'; d.textContent = Math.round(x.m) + ' m · ' + r[3]; li.appendChild(d);
+    list.appendChild(li);
+  });
+})();
+</script>
+</body>
+</html>
